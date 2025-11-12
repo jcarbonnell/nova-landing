@@ -2,11 +2,13 @@
 import { getServerSession } from '@/lib/auth0';  // New async wrapper
 import HomeClient from './HomeClient';
 
-export const runtime = 'nodejs';  // Ensure Node.js (cookies available)
+export const dynamic = 'force-dynamic';
+
+export const runtime = 'nodejs';
 
 export default async function Home() {
   try {
-    const session = await getServerSession();  // Awaits cookies Promise
+    const session = await getServerSession();
     const serverUser = session?.user;
     return <HomeClient serverUser={serverUser} />;
   } catch (error) {

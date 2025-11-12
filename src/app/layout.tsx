@@ -8,7 +8,10 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'NOVA - Your data. Your vault. Your rules.',
-  description: 'Secure file sharing on NEAR with privacy-first AI tools.',
+  description: 'Secure filesharing on NEAR with privacy-first AI tools.',
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
@@ -19,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <Providers>  {/* Wrap here: Server renders placeholder, client hydrates */}
+        <Providers>
           {children}
         </Providers>
       </body>
