@@ -8,6 +8,7 @@ import { MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 import { useWalletState, useWalletSelectorModal } from '@/providers/WalletProvider';
 import type { User } from '@/lib/auth0';
+import Image from 'next/image';
 
 interface HomeClientProps {
   serverUser?: User | null;  // Explicit User type (or null for unauth)
@@ -60,21 +61,23 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         <div className="page-container w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-center"> {/* Added w-full/max-w for bounds */}
           {/* Hero Section */}
           <section className="hero-section flex-1 text-center lg:text-left mb-8 lg:mb-0 lg:pr-8 max-w-md lg:max-w-lg">
-            <h2 className="text-4xl md:text-3xl lg:text-5xl font-bold text-white mb-4">
-              Secure File Sharing for User-Owned AI
-            </h2>
-            <p className="text-xl md:text-lg lg:text-xl text-purple-200 mb-6">
-              NOVA is a privacy-first, decentralized file-sharing primitive, enabling encrypted data persistence for TEEs, Intents, and Shade Agents.
-            </p>
-            <Button
-              onClick={handleConnect}
-              disabled={loading}
-              className="w-full lg:w-auto px-6 py-3 text-lg bg-purple-600 hover:bg-purple-700 text-white"
-            >
-              {loading ? 'Loading...' : !user ? 'Sign Up with Email/Social' : !isSignedIn ? 'Connect Wallet' : 'Connected & Ready'}
-            </Button>
+            <div className="flex justify-center lg:justify-start mb-6 lg:mb-8">
+            <Image
+              src="/nova-logo.png"
+              alt="NOVA - Secure File Sharing"
+              width={192}  // Base width for optimization; classes override for responsive
+              height={192}
+              className="w-40 h-40 lg:w-48 lg:h-48 object-contain drop-shadow-md hover:drop-shadow-xl transition-all duration-300 hover:scale-105"  // Bigger base, extra hover scale for pop
+              priority
+            />
+          </div>  
+          <h2 className="text-4xl md:text-3xl lg:text-5xl font-bold text-white mb-4">
+            Secure File Sharing for User-Owned AI
+          </h2>
+          <p className="text-xl md:text-lg lg:text-xl text-purple-200 mb-6">
+            NOVA is a privacy-first, decentralized file-sharing primitive, enabling encrypted data persistence for the latest AI technologies (TEEs, Intents, Shade Agents...).
+          </p>
           </section>
-
           {/* Gated Chat Window */}
           <section className="chat-container flex-1 relative max-w-2xl h-64 md:h-80 lg:h-full lg:max-w-4xl rounded-lg overflow-hidden shadow-lg">
             {isConnected ? (

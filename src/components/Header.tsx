@@ -4,7 +4,6 @@ import { useUser } from '@auth0/nextjs-auth0/client';
 import { useWalletState, useWalletSelectorModal } from '@/providers/WalletProvider';
 import { Button } from './ui/button';
 import { LogIn, User, Wallet } from 'lucide-react';
-import Image from 'next/image'; // Added for optimized logo
 import { useRouter } from 'next/navigation';
 
 export default function Header() {
@@ -30,18 +29,6 @@ export default function Header() {
 
   return (
     <header className="bg-[#280449]/90 shadow-sm border-b border-purple-900/50 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm"> {/* Dark bg + blur */}
-      <div className="flex-1" /> {/* Empty left spacer for centering */}
-      <div className="flex flex-col items-center space-y-1 flex-1 max-w-xs"> {/* Centered logo + baseline */}
-        <Image
-          src="/nova-logo.png"
-          alt="NOVA"
-          width={120}
-          height={32}
-          className="h-8 w-auto object-contain"
-          priority
-        />
-        <p className="text-xs md:text-sm text-purple-200 text-center">Your data. Your vault. Your rules.</p> {/* Light purple text */}
-      </div>
       <div className="flex items-center space-x-4 flex-1 justify-end"> {/* Right-aligned buttons */}
         {loading ? (
           <div className="flex items-center space-x-2">
