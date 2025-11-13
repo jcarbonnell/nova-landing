@@ -7,6 +7,7 @@ export function middleware(request: NextRequest) {
   const isPublicPath = publicPaths.some(path => request.nextUrl.pathname.startsWith(path));
 
   // Define minimal CSP (adjust domains as needed; e.g., add your Auth0 domain to connect-src)
+  // Note: frame-src includes walletselector.com for modal iframes
   const csp = `
     default-src 'self';
     script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.auth0.com https://auth0.com;
@@ -16,18 +17,12 @@ export function middleware(request: NextRequest) {
     font-src 'self' https:;
     frame-src 'self' https://*.auth0.com https://walletselector.com;
     worker-src 'self' blob:;
-  `.replace(/\s{2,}/g, ' ').trim();
+  `.replace(/\s{2,}/g, ' ').trim();  // Clean up whitespace
 
+  // Always start with next() for clean response cloning
   let response = NextResponse.next();
 
-  if (isPublicPath) {
-    // Clone for public paths to attach CSP
-    response = NextResponse.next({
-      request: {
-        headers: request.headers,
-      },
-    });
-  } else {
+  if (!isPublicPath) {
     // Basic cookie check (edge-safe; no getSession import)
     const sessionCookie = request.cookies.get('auth0.session');  // Auth0 sets this on login
     if (!sessionCookie?.value) {
@@ -38,7 +33,7 @@ export function middleware(request: NextRequest) {
     // Forward if cookie exists (full verify in page)
   }
 
-  // Attach CSP to all responses
+  // Attach CSP to all non-redirect responses (applies to public + protected-with-cookie)
   response.headers.set('Content-Security-Policy', csp);
   response.headers.set('X-Content-Type-Options', 'nosniff');  // Bonus: Extra security header
   response.headers.set('X-Frame-Options', 'DENY');  // Prevent clickjacking
