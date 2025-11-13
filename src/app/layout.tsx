@@ -20,21 +20,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   // Same CSP string as middleware (duplicate for fallback)
-  const csp = `
-    default-src 'self';
-    script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.auth0.com https://auth0.com;
-    style-src 'self' 'unsafe-inline';
-    connect-src 'self' https://*.auth0.com https://auth0.com https://*.near.org https://rpc.testnet.near.org https://*.nearblocks.io;
-    img-src 'self' data: https: blob:;
-    font-src 'self' https:;
-    frame-src 'self' https://*.auth0.com https://walletselector.com;
-    worker-src 'self' blob:;
-  `.replace(/\s{2,}/g, ' ').trim();
+  //const csp = `
+  //  default-src 'self';
+  //  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.auth0.com https://auth0.com;
+  //  style-src 'self' 'unsafe-inline';
+  //  connect-src 'self' https://*.auth0.com https://auth0.com https://*.near.org https://rpc.testnet.near.org https://*.nearblocks.io;
+  //  img-src 'self' data: https: blob:;
+  //  font-src 'self' https:;
+  //  frame-src 'self' https://*.auth0.com https://walletselector.com;
+  //  worker-src 'self' blob:;
+  //`.replace(/\s{2,}/g, ' ').trim();
 
   return (
     <html lang="en">
       <head>
-        <meta http-equiv="Content-Security-Policy" content={csp} />
+        {/* <meta http-equiv="Content-Security-Policy" content={csp} /> */}
       </head>
       <body className={inter.className}>
         <Providers>  {/* Wrap here: Server renders placeholder, client hydrates */}
