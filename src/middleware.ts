@@ -14,9 +14,9 @@ export function middleware(request: NextRequest) {
     connect-src 'self' https://*.auth0.com https://auth0.com https://*.near.org https://rpc.testnet.near.org https://*.nearblocks.io;
     img-src 'self' data: https: blob:;
     font-src 'self' https:;
-    frame-src 'self' https://*.auth0.com https://walletselector.com;  // For wallet modal iframes
+    frame-src 'self' https://*.auth0.com https://walletselector.com;
     worker-src 'self' blob:;
-  `.replace(/\s{2,}/g, ' ').trim();  // Clean up whitespace
+  `.replace(/\s{2,}/g, ' ').trim();
 
   let response = NextResponse.next();
 
