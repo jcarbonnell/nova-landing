@@ -8,16 +8,16 @@ export function middleware(request: NextRequest) {
 
   // Define minimal CSP (adjust domains as needed; e.g., add your Auth0 domain to connect-src)
   // Note: frame-src includes walletselector.com for modal iframes
-  //const csp = `
-  //  default-src 'self';
-  //  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.auth0.com https://auth0.com;
-  //  style-src 'self' 'unsafe-inline';
-  //  connect-src 'self' https://*.auth0.com https://auth0.com https://*.near.org https://rpc.testnet.near.org https://*.nearblocks.io;
-  //  img-src 'self' data: https: blob:;
-  //  font-src 'self' https:;
-  //  frame-src 'self' https://*.auth0.com https://walletselector.com;
-  //  worker-src 'self' blob:;
-  //`.replace(/\s{2,}/g, ' ').trim();  // Clean up whitespace
+  const csp = `
+    default-src 'self';
+    script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.auth0.com https://auth0.com;
+    style-src 'self' 'unsafe-inline';
+    connect-src 'self' https://*.auth0.com https://auth0.com https://*.near.org https://rpc.testnet.near.org https://*.nearblocks.io;
+    img-src 'self' data: https: blob:;
+    font-src 'self' https:;
+    frame-src 'self' https://*.auth0.com https://walletselector.com;
+    worker-src 'self' blob:;
+  `.replace(/\s{2,}/g, ' ').trim();
 
   // Always start with next() for clean response cloning
   let response = NextResponse.next();

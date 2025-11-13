@@ -64,7 +64,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               Secure File Sharing for User-Owned AI
             </h2>
             <p className="text-xl md:text-lg lg:text-xl text-purple-200 mb-6">
-              NOVA is a privacy-first, decentralized file-sharing primitive, enabling encrypted data persistence for TEEs, Intents, or Shade Agents.
+              NOVA is a privacy-first, decentralized file-sharing primitive, enabling encrypted data persistence for TEEs, Intents, and Shade Agents.
             </p>
             <Button
               onClick={handleConnect}
@@ -79,11 +79,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           <section className="chat-container flex-1 relative max-w-2xl h-64 md:h-80 lg:h-full lg:max-w-4xl rounded-lg overflow-hidden shadow-lg">
             {isConnected ? (
               <iframe
-                src={`/api/mcp-proxy?token=${encodeURIComponent((clientUser?.accessToken as string) || '')}&near=${encodeURIComponent(accountId || '')}`}  // Proxied src (forward to MCP root, no /)
+                key="mcp-frame"  // Add key: Forces remount on connect
+                src={`/api/mcp-proxy?token=${encodeURIComponent((clientUser?.accessToken as string) || '')}&near=${encodeURIComponent(accountId || '')}`}
                 className="w-full h-full border border-purple-600/50 bg-[#280449]/50 transition-all duration-300 p-4 connected"
                 title="NOVA Chat - Secure File Sharing Tools"
-                sandbox="allow-scripts allow-popups allow-forms"  // Dropped same-origin (security note fix); enough for MCP
+                sandbox="allow-scripts allow-popups allow-forms"
                 referrerPolicy="origin-when-cross-origin"
+                style={{ display: 'block' }}  // Explicit: No null origin
               />
             ) : null}  {/* Conditional mount: No iframe if !connected—no load/405/X-Frame */}
             
@@ -127,14 +129,14 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       {/* Footer */}
       <footer className="footer w-full bg-[#280449]/90 border-t border-purple-900/50 p-4 text-center text-sm">
         <div className="flex justify-center space-x-6">
-          <a href="https://x.com/nova_sdk" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
-            X
+          <a href="https://nova-25.gitbook.io/nova-docs/" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
+            Documentation
           </a>
           <a href="https://github.com/jcarbonnell/nova" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
             GitHub
           </a>
-          <a href="https://nova-25.gitbook.io/nova-docs/" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
-            Documentation
+          <a href="https://x.com/nova_sdk" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
+            X
           </a>
         </div>
         <p className="mt-2 text-purple-300">&copy; 2025 CivicTech OÜ. All rights reserved.</p>
