@@ -75,7 +75,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             Secure File Sharing for User-Owned AI
           </h2>
           <p className="text-xl md:text-lg lg:text-xl text-purple-200 mb-6">
-            NOVA is a privacy-first, decentralized file-sharing primitive, enabling encrypted data persistence for the latest AI technologies (TEEs, Intents, Shade Agents...).
+            NOVA is a privacy-first, decentralized file-sharing primitive, enabling encrypted data persistence for user-owned AI at scale.
           </p>
           </section>
           {/* Gated Chat Window */}
