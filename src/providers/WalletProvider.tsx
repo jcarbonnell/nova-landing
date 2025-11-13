@@ -42,9 +42,9 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
 
         const modal = setupModal(selector, {});
 
-        // Initial accounts fetch (async, no direct state access)
-        const walletInstance = await selector.wallet();
-        const accounts: Account[] = await walletInstance?.getAccounts() || [];
+        // Initial accounts from store state
+        const state = selector.store.getState();
+        const accounts: Account[] = state.accounts;
         const isSignedIn = accounts.length > 0;
         const accountId = accounts[0]?.accountId;
 

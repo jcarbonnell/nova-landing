@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 import { MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 import { useWalletState, useWalletSelectorModal } from '@/providers/WalletProvider';
+import type { User } from '@/lib/auth0';
 
 interface HomeClientProps {
-  serverUser?: any;  // From server (Auth0 user)
+  serverUser?: User | null;  // Explicit User type (or null for unauth)
 }
 
 export default function HomeClient({ serverUser }: HomeClientProps) {

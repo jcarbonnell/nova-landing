@@ -3,6 +3,7 @@ import { handleAuth, handleLogin, handleLogout, handleCallback } from '@/lib/aut
 import { getServerSession } from '@/lib/auth0';  // Use server-safe async
 import { NextRequest, NextResponse } from 'next/server';
 import type { NextApiRequest, NextApiResponse } from 'next';
+import type { IncomingHttpHeaders } from 'http';
 import type { Session } from '@auth0/nextjs-auth0';
 
 export async function GET(
@@ -23,8 +24,14 @@ export async function GET(
     }
   }
 
-  // App Router: Mock Pages req/res for Auth0 compat (minimal wrapper)
-  const mockReq: NextApiRequest = { ...request } as any;
+  // FIXED: Manual mockReq (no spread)—build with Auth0 needs (url, headers as IncomingHttpHeaders, method)
+  const headersObj: IncomingHttpHeaders = Object.fromEntries(request.headers.entries());  // Convert Headers → plain object
+  const mockReq: Partial<NextApiRequest> = {
+    url: request.url,
+    method: request.method,
+    headers: headersObj,
+    // Add if needed: body: await request.text(), query: Object.fromEntries(request.nextUrl.searchParams.entries())
+  };
   const mockRes = { redirect: (url: string) => ({ url }) } as unknown as NextApiResponse;
 
   // Invoke with resolved params
@@ -36,7 +43,8 @@ export async function GET(
       returnTo: '/',
     }),
     callback: handleCallback({
-      afterCallback: async (req: NextApiRequest, res: NextApiResponse): Promise<Session | undefined> => {
+      // FIXED: Remove unused 'res' param (now just req)
+      afterCallback: async (req: NextApiRequest): Promise<Session | undefined> => {
         try {
           console.log('Callback starting...', req.url);
           console.log('Callback success – tokens exchanged');
@@ -49,7 +57,8 @@ export async function GET(
           const { email } = session.user;
           const idToken = session.id_token || '';  // Handle undefined
 
-          let nearAccountId = (session.user as any).near_account_id;
+          // FIXED: No 'as any'—use optional chaining (User interface has near_account_id?: string)
+          let nearAccountId = session.user.near_account_id;
           if (!nearAccountId) {
             const relayerResponse = await fetch(`${process.env.NEXT_PUBLIC_RELAYER_URL}/v1/account/create`, {
               method: 'POST',
