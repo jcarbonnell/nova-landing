@@ -1,5 +1,4 @@
-/* src/styles/modal.module.css - Adapted for NOVA Purple Theme */
-/* NOVA Vars (HSL from globals.css) */
+/* src/styles/modal.module.css */
 :root {
   --nova-bg: hsl(280, 0%, 27%); /* #280449 */
   --nova-fg: hsl(210, 40%, 98%);

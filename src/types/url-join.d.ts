@@ -1,3 +1,4 @@
+// src/types/url-join.d.ts
 declare module 'url-join' {
   /**
    * Joins URL segments, normalizing paths and handling double slashes.

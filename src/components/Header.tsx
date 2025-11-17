@@ -6,7 +6,11 @@ import { Button } from './ui/button';
 import { LogIn, User, Wallet } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-export default function Header() {
+interface HeaderProps {
+  onOpenLogin?: () => void;
+}
+
+export default function Header({ onOpenLogin }: HeaderProps) {  
   const { user, isLoading: authLoading } = useUser();
   const { isSignedIn, accountId, loading: walletLoading } = useWalletState();
   const { modal } = useWalletSelectorModal();
@@ -17,11 +21,15 @@ export default function Header() {
 
   const handleConnect = () => {
     if (!user) {
-      // Trigger Auth0 login (redirects to modal flow via HomeClient state)
-      router.push('/api/auth/login');
+      if (onOpenLogin) {
+        onOpenLogin();  // New: Open modal if prop available (preferred flow)
+      } else {
+        // Fallback: Direct Auth0 redirect (for non-modal contexts)
+        router.push('/api/auth/login');
+      }
     } else if (!isSignedIn) {
       if (modal) {
-        modal.show();  // Wallet connect if already auth'd
+        modal.show();
       } else {
         console.warn('Wallet modal not ready');
       }
