@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'NOVA - Your data. Your vault. Your rules.',
-  description: 'Secure file sharing on NEAR with privacy-first AI tools.',
+  description: 'NOVA is a privacy-first, decentralized file-sharing primitive, empowering user-owned AI with encrypted data persistence.',
   icons: {
     icon: '/favicon.ico',
   },
@@ -19,7 +19,6 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Same CSP string as middleware (duplicate for fallback)
   const csp = `
     default-src 'self';
     script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.auth0.com https://auth0.com;
@@ -37,9 +36,7 @@ export default function RootLayout({
         <meta httpEquiv="Content-Security-Policy" content={csp} />
       </head>
       <body className={inter.className}>
-        <Providers>  {/* Wrap here: Server renders placeholder, client hydrates */}
-          {children}
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

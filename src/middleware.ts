@@ -1,9 +1,13 @@
 // src/middleware.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { auth0 } from '@/lib/auth0';  // Adjust path if needed (e.g., '../lib/auth0')
 
-export function middleware(request: NextRequest) {
-  // Public paths (expanded for auth flows)
-  const publicPaths = ['/api/auth', '/api/auth/*', '/_next/static', '/_next/image', '/favicon.ico', '/'];
+export async function middleware(request: NextRequest) {
+  // Delegate to Auth0 middleware first (handles /auth/* routes)
+  const response = await auth0.middleware(request);
+
+  // Public paths (expanded for auth flows; post-Auth0 check)
+  const publicPaths = ['/_next/static', '/_next/image', '/favicon.ico', '/'];
   const isPublicPath = publicPaths.some(path => request.nextUrl.pathname.startsWith(path));
 
   // Define minimal CSP (adjust domains as needed; e.g., add your Auth0 domain to connect-src)
@@ -19,31 +23,31 @@ export function middleware(request: NextRequest) {
     worker-src 'self' blob:;
   `.replace(/\s{2,}/g, ' ').trim();
 
-  // Always start with next() for clean response cloning
-  let response = NextResponse.next();
+  // Always start with response for clean cloning
+  let finalResponse = response || NextResponse.next();
 
   if (!isPublicPath) {
-    // Basic cookie check (edge-safe; no getSession import)
-    const sessionCookie = request.cookies.get('auth0.session');  // Auth0 sets this on login
+    // Basic cookie check (edge-safe; no getSession import—Auth0 middleware already verified)
+    const sessionCookie = request.cookies.get('auth0.session');
     if (!sessionCookie?.value) {
-      const loginUrl = new URL('/api/auth/login', request.url);
+      const loginUrl = new URL('/auth/login', request.url);  // v4 path: /auth/login
       loginUrl.searchParams.set('returnTo', encodeURI(request.nextUrl.pathname));
       return NextResponse.redirect(loginUrl);
     }
-    // Forward if cookie exists (full verify in page)
+    // Forward if cookie exists (full verify via useUser in pages)
   }
 
   // Attach CSP to all non-redirect responses (applies to public + protected-with-cookie)
-  //response.headers.set('Content-Security-Policy', csp);
-  response.headers.set('X-Content-Type-Options', 'nosniff');  // Bonus: Extra security header
-  response.headers.set('X-Frame-Options', 'SAMEORIGIN');  // Prevent clickjacking
+  // finalResponse.headers.set('Content-Security-Policy', csp);  // Uncomment if needed
+  finalResponse.headers.set('X-Content-Type-Options', 'nosniff');  // Bonus: Extra security header
+  finalResponse.headers.set('X-Frame-Options', 'SAMEORIGIN');  // Prevent clickjacking
 
-  return response;
+  return finalResponse;
 }
 
 export const config = {
   matcher: [
     // Skip auth pages/static/assets (CSP still applies where cloned)
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

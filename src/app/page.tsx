@@ -1,5 +1,5 @@
 // src/app/page.tsx
-import { getServerSession, User } from '@/lib/auth0';
+import { getServerSession, type User } from '@/lib/auth0';
 import HomeClient from './HomeClient';
 import Link from 'next/link';
 

@@ -1,11 +1,10 @@
 // src/components/Providers.tsx
 'use client';
-import { UserProvider } from '@auth0/nextjs-auth0/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NearWalletProvider } from '@/providers/WalletProvider';
 import type { ReactNode } from 'react';
 
-const queryClient = new QueryClient();  // Instantiate here (client-only)
+const queryClient = new QueryClient();
 
 interface ProvidersProps {
   children: ReactNode;
@@ -13,12 +12,10 @@ interface ProvidersProps {
 
 export default function Providers({ children }: ProvidersProps) {
   return (
-    <UserProvider>
+    <QueryClientProvider client={queryClient}>
       <NearWalletProvider>
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
+        {children}
       </NearWalletProvider>
-    </UserProvider>
+    </QueryClientProvider>
   );
 }
