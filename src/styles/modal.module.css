@@ -1,0 +1,304 @@
+/* src/styles/modal.module.css - Adapted for NOVA Purple Theme */
+/* NOVA Vars (HSL from globals.css) */
+:root {
+  --nova-bg: hsl(280, 0%, 27%); /* #280449 */
+  --nova-fg: hsl(210, 40%, 98%);
+  --nova-accent: hsl(280, 100%, 70%); /* #A855F7 */
+  --nova-accent-dark: hsl(280, 100%, 50%); /* #9333EA hover */
+  --nova-muted: hsl(280, 0%, 40%);
+  --nova-border: hsl(280, 0%, 50%);
+  --nova-error: #EF4444;
+  --nova-error-bg: hsla(0, 84%, 60%, 0.1);
+}
+
+/* Base Modal Overlay */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(40, 4, 73, 0.5); /* NOVA bg alpha */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.modalDialog {
+  max-width: 600px;
+  width: 100%;
+  margin: 1rem;
+  font-family: var(--font-secondary, sans-serif);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modalContent {
+  position: relative;
+  background-color: var(--nova-bg);
+  color: var(--nova-fg);
+  border: 1px solid var(--nova-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 0 15px hsla(280, 100%, 70%, 0.2); /* Purple glow */
+  backdrop-filter: blur(10px);
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.paymentModal {
+  min-height: 720px;
+}
+
+.accountModal {
+  min-height: 400px;
+}
+
+/* Light Theme Overrides (if enabled) */
+[data-theme="light"] .modalContent {
+  background-color: hsl(0, 0%, 95%); /* Off-white for contrast */
+  border-color: hsl(280, 0%, 70%);
+  color: hsl(280, 0%, 20%);
+}
+
+[data-theme="light"] .modalOverlay {
+  background-color: rgba(168, 85, 247, 0.3); /* Light purple alpha */
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid var(--nova-border);
+  background-color: transparent;
+}
+
+[data-theme="light"] .modalHeader {
+  border-color: hsl(280, 0%, 70%);
+}
+
+.modalTitle {
+  margin: 0;
+  font-family: var(--font-primary, sans-serif);
+  font-weight: 600;
+  color: var(--nova-fg);
+}
+
+.closeButton {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--nova-fg);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.closeButton:hover {
+  color: var(--nova-accent);
+}
+
+.modalBody {
+  padding: 1.5rem;
+  position: relative;
+  padding-bottom: 60px;
+}
+
+.modalFooter {
+  padding: 1rem;
+  border-top: 1px solid var(--nova-border);
+  background-color: transparent;
+  display: flex;
+  justify-content: flex-end;
+}
+
+[data-theme="light"] .modalFooter {
+  border-color: hsl(280, 0%, 70%);
+}
+
+.formGroup {
+  margin-bottom: 1rem;
+}
+
+.centeredFormGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.fullWidthForm {
+  width: 100%;
+}
+
+.formLabel {
+  font-family: var(--font-primary, sans-serif);
+  color: var(--nova-fg);
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.formControl {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--nova-border);
+  border-radius: 0.5rem;
+  background-color: transparent;
+  color: var(--nova-fg);
+  font-family: var(--font-secondary, sans-serif);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+[data-theme="light"] .formControl {
+  border-color: hsl(280, 0%, 70%);
+  background-color: hsl(0, 0%, 98%);
+}
+
+.formControl::placeholder {
+  color: hsla(210, 40%, 98%, 0.6);
+}
+
+.formControl:focus {
+  outline: none;
+  border-color: var(--nova-accent);
+  box-shadow: 0 0 5px hsla(280, 100%, 70%, 0.5); /* Purple ring */
+}
+
+.formText {
+  font-size: 0.85rem;
+  color: hsla(210, 40%, 98%, 0.8);
+  margin-top: 0.25rem;
+}
+
+.alertDanger {
+  background-color: var(--nova-error-bg);
+  color: var(--nova-error);
+  border: 1px solid hsla(0, 84%, 60%, 0.3);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.buttonPrimary {
+  background-color: var(--nova-accent);
+  border: none;
+  color: var(--nova-bg); /* Dark text on accent */
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-family: var(--font-primary, sans-serif);
+  cursor: pointer;
+  width: 100%;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.buttonPrimary:hover:not(:disabled) {
+  background-color: var(--nova-accent-dark);
+  transform: translateY(-1px);
+}
+
+.buttonPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--nova-muted);
+}
+
+.buttonSecondary {
+  background-color: var(--nova-muted);
+  border: none;
+  color: var(--nova-fg);
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-family: var(--font-primary, sans-serif);
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  z-index: 1000;
+}
+
+.buttonSecondary:hover:not(:disabled) {
+  background-color: hsl(280, 0%, 50%);
+  transform: translateY(-1px);
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+  margin-top: 1rem;
+  width: 100%;
+}
+
+.socialButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: var(--nova-accent);
+  border: none;
+  color: var(--nova-bg);
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-family: var(--font-primary, sans-serif);
+  cursor: pointer;
+  width: 100%;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.socialButton:hover:not(:disabled) {
+  background-color: var(--nova-accent-dark);
+  transform: translateY(-1px);
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  margin: 1.5rem 0;
+  width: 100%;
+}
+
+.dividerLine {
+  flex-grow: 1;
+  border-top: 1px solid var(--nova-border);
+}
+
+[data-theme="light"] .dividerLine {
+  border-top-color: hsl(280, 0%, 70%);
+}
+
+.dividerText {
+  margin: 0 1rem;
+  color: hsla(210, 40%, 98%, 0.6);
+  font-size: 0.9rem;
+}
+
+/* Mobile Adjustments (from NOVA globals.css) */
+@media (max-width: 767px) {
+  .modalDialog {
+    width: 95%;
+    margin: 0.5rem;
+  }
+
+  .modalBody {
+    padding: 1rem;
+    padding-bottom: 80px;
+  }
+
+  .modalHeader,
+  .modalFooter {
+    padding: 0.75rem;
+  }
+
+  .buttonPrimary,
+  .buttonSecondary,
+  .socialButton {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+}

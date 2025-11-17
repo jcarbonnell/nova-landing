@@ -7,33 +7,34 @@ import { LogIn, User, Wallet } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function Header() {
-  const { user, isLoading: authLoading } = useUser(); // Removed loginWithRedirect
+  const { user, isLoading: authLoading } = useUser();
   const { isSignedIn, accountId, loading: walletLoading } = useWalletState();
-  const { modal } = useWalletSelectorModal();  // Top-level hook call
+  const { modal } = useWalletSelectorModal();
   const router = useRouter();
 
-  const isConnected = user && isSignedIn;
+  const isConnected = !!user && isSignedIn;
   const loading = authLoading || walletLoading;
 
   const handleConnect = () => {
     if (!user) {
-      router.push('/api/auth/login');  // Server-side redirect (original flow; wallet created in callback)
+      // Trigger Auth0 login (redirects to modal flow via HomeClient state)
+      router.push('/api/auth/login');
     } else if (!isSignedIn) {
       if (modal) {
-        modal.show();
+        modal.show();  // Wallet connect if already auth'd
       } else {
-        console.warn('Wallet modal not ready—retrying init');  // Fallback log; provider should handle
+        console.warn('Wallet modal not ready');
       }
     }
   };
 
   return (
-    <header className="bg-[#280449]/90 shadow-sm border-b border-purple-900/50 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm"> {/* Dark bg + blur */}
-      <div className="flex items-center space-x-4 flex-1 justify-end"> {/* Right-aligned buttons */}
+    <header className="bg-[#280449]/90 shadow-sm border-b border-purple-900/50 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm">
+      <div className="flex items-center space-x-4 flex-1 justify-end">
         {loading ? (
           <div className="flex items-center space-x-2">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-300" /> {/* Lighter purple spinner */}
-            <span className="text-sm text-purple-200">Loading...</span> {/* Light text */}
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-300" />
+            <span className="text-sm text-purple-200">Loading...</span>
           </div>
         ) : isConnected ? (
           <div className="flex items-center space-x-2">
@@ -44,7 +45,7 @@ export default function Header() {
             </button>
           </div>
         ) : (
-          <Button onClick={handleConnect} variant="default" size="default" className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white"> {/* Purple button */}
+          <Button onClick={handleConnect} variant="default" size="default" className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white">
             {isSignedIn ? <LogIn size={18} /> : <Wallet size={18} />}
             <span>{!user ? 'Sign Up' : 'Connect Wallet'}</span>
           </Button>

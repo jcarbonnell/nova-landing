@@ -1,7 +1,8 @@
-// src/app/HomeClient.tsx
+// src/app/homeclient.tsx
 'use client';
 import { useUser } from '@auth0/nextjs-auth0/client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';  // Add useQueryClient
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { MessageSquare } from 'lucide-react';
@@ -9,9 +10,12 @@ import clsx from 'clsx';
 import { useWalletState, useWalletSelectorModal } from '@/providers/WalletProvider';
 import type { User } from '@/lib/auth0';
 import Image from 'next/image';
+import LoginModal from '../components/LoginModal';
+import CreateAccountModal from '../components/CreateAccountModal';
+import PaymentModal from '../components/PaymentModal';
 
 interface HomeClientProps {
-  serverUser?: User | null;  // Explicit User type (or null for unauth)
+  serverUser?: User | null;
 }
 
 export default function HomeClient({ serverUser }: HomeClientProps) {
@@ -19,83 +23,182 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const user = serverUser || clientUser;
   const { isSignedIn, accountId, loading: walletLoading } = useWalletState();
   const { modal } = useWalletSelectorModal();
-  const queryClient = useQueryClient();  // Add: For retry
+  const queryClient = useQueryClient();
 
   const isConnected = !!user && isSignedIn;
   const loading = authLoading || walletLoading;
 
-  // MCP health query (via proxy to avoid CORS)
+  // 1000fans-inspired states for modal flow
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [pendingId, setPendingId] = useState('');
+  const [userData, setUserData] = useState<{ email: string; publicKey?: string } | null>(null);
+  const [welcomeMessage, setWelcomeMessage] = useState('');
+  const [error, setError] = useState('');
+
+  // MCP health query (unchanged)
   const { data: mcpStatus, error: mcpError } = useQuery({
     queryKey: ['mcp-status'],
     queryFn: async () => {
-      const res = await fetch('/api/mcp-proxy');  // Proxied GET to MCP root (no trailing /)
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`MCP error: ${res.status} - ${errorText.slice(0, 100)}`);  // Truncate for UI
-      }
-      return res.json();  // { status: 'ready' } from health endpoint
+      const res = await fetch('/api/mcp-proxy');
+      if (!res.ok) throw new Error(`MCP error: ${res.status}`);
+      return res.json();
     },
     enabled: isConnected,
     retry: 1,
     refetchInterval: 30000,
   });
 
+  // New: Check for existing account on auth change (1000fans useEffect)
+  useEffect(() => {
+    if (user && !loading && isSignedIn && !accountId) {  // New auth'd user, no wallet yet
+      checkExistingAccount();
+    }
+  }, [user, loading, isSignedIn, accountId]);
+
+  const checkExistingAccount = async () => {
+    if (!user?.email) return;
+    setError('');
+
+    try {
+      const res = await fetch('/api/auth/check-for-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email }),
+      });
+      if (!res.ok) throw new Error('Check failed');
+
+      const { exists, accountId: existingId } = await res.json();
+      if (exists) {
+        setWelcomeMessage(`Welcome back! Account ${existingId} ready.`);
+        // Update session/wallet state if needed (e.g., selector signIn(existingId))
+      } else {
+        setUserData({ email: user.email });
+        setIsCreateOpen(true);  // Open create modal for new user
+      }
+    } catch (err) {
+      setError(`Account check failed: ${(err as Error).message}`);
+    }
+  };
+
+  // New: handleLoginSuccess (from modal callback)
+  const handleLoginSuccess = () => {
+    setIsLoginOpen(false);
+    // Triggers useEffect check
+  };
+
+  // New: handleAccountCreated (from create modal)
+  const handleAccountCreated = (newAccountId: string) => {
+    setIsCreateOpen(false);
+    setWelcomeMessage(`Account ${newAccountId} created! You can now use NOVA.`);
+    // Refetch wallet state or selector.signIn(newAccountId)
+  };
+
+  // New: handlePayment (from payment modal)
+  const handlePayment = async (sessionId: string, amount: string) => {
+    try {
+      const res = await fetch('/api/auth/fund-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, amount, accountId: pendingId }),
+      });
+      if (!res.ok) throw new Error('Funding failed');
+
+      const { fundedAmountNear, txHash } = await res.json();
+      setWelcomeMessage(`Funded ${fundedAmountNear} NEAR (tx: ${txHash})!`);
+      setIsPaymentOpen(false);
+      // Proceed to create
+      await createAccount(pendingId);
+    } catch (err) {
+      setError(`Funding error: ${(err as Error).message}`);
+    }
+  };
+
+  // New: handleSkipPayment
+  const handleSkipPayment = () => {
+    setIsPaymentOpen(false);
+    createAccount(pendingId);
+  };
+
+  // New: createAccount (calls API)
+  const createAccount = async (fullId: string) => {
+    try {
+      const res = await fetch('/api/auth/create-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          username: fullId.split('.')[0], 
+          email: userData?.email 
+        }),
+      });
+      if (!res.ok) throw new Error('Creation failed');
+
+      const { accountId } = await res.json();
+      handleAccountCreated(accountId);
+    } catch (err) {
+      setError(`Creation error: ${(err as Error).message}`);
+    }
+  };
+
   const handleConnect = () => {
     if (!user) {
-      window.location.href = '/api/auth/login?returnTo=/';
-      return;
+      setIsLoginOpen(true);  // Open modal instead of direct redirect
     } else if (!isSignedIn) {
-      if (modal) {
-        modal.show();
-      } else {
-        console.error('Modal unavailable—reloading provider');
-        window.location.reload();
-      }
+      if (modal) modal.show();
     }
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#280449]"> {/* Wrapper for flex-col + footer sticky */}
+    <div className="flex flex-col min-h-screen bg-[#280449]">
       <Header />
-      <main className="flex-1 flex items-center justify-center p-4 lg:p-8"> {/* flex-1 for content push */}
-        <div className="page-container w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-center"> {/* Added w-full/max-w for bounds */}
-          {/* Hero Section */}
+      {welcomeMessage && (
+        <div className="p-4 text-center text-green-400 bg-green-500/20 border-b border-green-400/30">
+          {welcomeMessage}
+        </div>
+      )}
+      {error && (
+        <div className="p-4 text-center text-red-400 bg-red-500/20 border-b border-red-400/30">
+          {error} <Button variant="ghost" size="sm" onClick={() => setError('')}>Dismiss</Button>
+        </div>
+      )}
+      <main className="flex-1 flex items-center justify-center p-4 lg:p-8">
+        <div className="page-container w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-center">
+          {/* Hero unchanged */}
           <section className="hero-section flex-1 text-center lg:text-left mb-8 lg:mb-0 lg:pr-8 max-w-md lg:max-w-lg">
             <div className="flex justify-center lg:justify-start mb-6 lg:mb-8">
-            <Image
-              src="/nova-logo.png"
-              alt="NOVA - Secure File Sharing"
-              width={192}  // Base width for optimization; classes override for responsive
-              height={192}
-              className="w-40 h-40 lg:w-48 lg:h-48 object-contain drop-shadow-md hover:drop-shadow-xl transition-all duration-300 hover:scale-105"  // Bigger base, extra hover scale for pop
-              priority
-            />
-          </div>  
-          <h2 className="text-4xl md:text-3xl lg:text-5xl font-bold text-white mb-4">
-            Secure File Sharing for User-Owned AI
-          </h2>
-          <p className="text-xl md:text-lg lg:text-xl text-purple-200 mb-6">
-            NOVA is a privacy-first, decentralized file-sharing primitive, empowering user-owned AI at scale with encrypted data persistence.
-          </p>
+              <Image
+                src="/nova-logo.png"
+                alt="NOVA - Secure File Sharing"
+                width={192}
+                height={192}
+                className="w-40 h-40 lg:w-48 lg:h-48 object-contain drop-shadow-md hover:drop-shadow-xl transition-all duration-300 hover:scale-105"
+                priority
+              />
+            </div>
+            <h2 className="text-4xl md:text-3xl lg:text-5xl font-bold text-white mb-4">
+              Secure File Sharing for User-Owned AI
+            </h2>
+            <p className="text-xl md:text-lg lg:text-xl text-purple-200 mb-6">
+              NOVA is a privacy-first, decentralized file-sharing primitive, empowering user-owned AI at scale with encrypted data persistence.
+            </p>
           </section>
-          {/* Gated Chat Window */}
+          {/* Gated Chat unchanged */}
           <section className="chat-container flex-1 relative max-w-2xl h-64 md:h-80 lg:h-full lg:max-w-4xl rounded-lg overflow-hidden shadow-lg">
             {isConnected ? (
               <iframe
-                key="mcp-frame"  // Add key: Forces remount on connect
+                key="mcp-frame"
                 src={`/api/mcp-proxy?token=${encodeURIComponent((clientUser?.accessToken as string) || '')}&near=${encodeURIComponent(accountId || '')}`}
                 className="w-full h-full border border-purple-600/50 bg-[#280449]/50 transition-all duration-300 p-4 connected"
                 title="NOVA Chat - Secure File Sharing Tools"
                 sandbox="allow-scripts allow-popups allow-forms"
                 referrerPolicy="origin-when-cross-origin"
-                style={{ display: 'block' }}  // Explicit: No null origin
+                style={{ display: 'block' }}
               />
-            ) : null}  {/* Conditional mount: No iframe if !connected—no load/405/X-Frame */}
-            
-            {/* Overlay (fades out on connect) */}
+            ) : null}
             <div className={clsx(
               "absolute inset-0 flex flex-col items-center justify-center bg-[#280449]/80 backdrop-blur-sm rounded-lg transition-opacity duration-300",
-              isConnected ? "opacity-0 pointer-events-none" : "opacity-100"  // Fade/hide on connect
+              isConnected ? "opacity-0 pointer-events-none" : "opacity-100"
             )}>
               <MessageSquare size={64} className="text-gray-400 mb-4 animate-pulse" />
               <p className="text-purple-200 mb-4 text-center px-4">Connect to unlock NOVA for confidential file-sharing</p>
@@ -103,8 +206,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                 Get Started
               </Button>
             </div>
-            
-            {/* Status Badge (only if connected) */}
             {isConnected && mcpStatus && (
               <p className={clsx(
                 'absolute bottom-2 right-2 text-xs px-2 py-1 rounded bg-white/50',
@@ -113,8 +214,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                 MCP: {mcpStatus.status || 'error'}
               </p>
             )}
-            
-            {/* Error Overlay (shows on mcpError, over iframe if connected) */}
             {mcpError && (
               <div className="absolute inset-0 flex items-center justify-center bg-red-500/20 text-red-400 text-sm p-4 rounded z-10">
                 {mcpError.message} -{' '}
@@ -129,7 +228,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           </section>
         </div>
       </main>
-      {/* Footer */}
+      {/* Footer unchanged */}
       <footer className="footer w-full bg-[#280449]/90 border-t border-purple-900/50 p-4 text-center text-sm">
         <div className="flex justify-center space-x-6">
           <a href="https://nova-25.gitbook.io/nova-docs/" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
@@ -144,6 +243,28 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         </div>
         <p className="mt-2 text-purple-300">&copy; 2025 CivicTech OÜ. All rights reserved.</p>
       </footer>
+
+      {/* New: Render Modals */}
+      <LoginModal
+        isOpen={isLoginOpen}
+        onClose={() => setIsLoginOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
+      />
+      <CreateAccountModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        onAccountCreated={handleAccountCreated}
+        userData={userData}
+        onPaymentOpen={(id: string) => { setPendingId(id); setIsPaymentOpen(true); }}
+      />
+      <PaymentModal
+        isOpen={isPaymentOpen}
+        onClose={() => setIsPaymentOpen(false)}
+        onSubmit={handlePayment}
+        onSkip={handleSkipPayment}
+        accountId={pendingId}
+        email={userData?.email || ''}
+      />
     </div>
   );
 }
