@@ -161,7 +161,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       )}
       <main className="flex-1 flex items-center justify-center p-4 lg:p-8">
         <div className="page-container w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-center">
-          {/* Hero unchanged */}
+          {/* Hero */}
           <section className="hero-section flex-1 text-center lg:text-left mb-8 lg:mb-0 lg:pr-8 max-w-md lg:max-w-lg">
             <div className="flex justify-center lg:justify-start mb-6 lg:mb-8">
               <Image
@@ -180,7 +180,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               NOVA is a privacy-first, decentralized file-sharing primitive, empowering user-owned AI at scale with encrypted data persistence.
             </p>
           </section>
-          {/* Gated Chat unchanged */}
+          {/* Gated Chat */}
           <section className="chat-container flex-1 relative max-w-2xl h-64 md:h-80 lg:h-full lg:max-w-4xl rounded-lg overflow-hidden shadow-lg">
             {isConnected ? (
               <iframe
@@ -225,7 +225,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           </section>
         </div>
       </main>
-      {/* Footer unchanged */}
+      {/* Footer */}
       <footer className="footer w-full bg-[#280449]/90 border-t border-purple-900/50 p-4 text-center text-sm">
         <div className="flex justify-center space-x-6">
           <a href="https://nova-25.gitbook.io/nova-docs/" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
@@ -241,11 +241,12 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         <p className="mt-2 text-purple-300">&copy; 2025 CivicTech OÜ. All rights reserved.</p>
       </footer>
 
-      {/* New: Render Modals */}
+      {/* Render Modals */}
       <LoginModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
         onLoginSuccess={handleLoginSuccess}
+        onOpenWallet={modal ? () => modal.show() : undefined}
       />
       <CreateAccountModal
         isOpen={isCreateOpen}

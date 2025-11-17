@@ -10,15 +10,15 @@ import styles from '@/styles/modal.module.css';
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess?: () => void;  // optional prop
+  onLoginSuccess?: () => void;
+  onOpenWallet?: () => void;
 }
 
-export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps) {
+export default function LoginModal({ isOpen, onClose, onLoginSuccess, onOpenWallet }: LoginModalProps) {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { user: _, isLoading: __ } = useUser();  // Separate aliases (_ and __) to avoid redeclaration
+  const { user: _, isLoading: __ } = useUser();
 
   if (!isOpen) return null;
 
@@ -28,7 +28,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     setIsLoading(true);
     try {
       router.push(`/api/auth/login?connection=email-passwordless&login_hint=${encodeURIComponent(email)}`);
-      onLoginSuccess?.();  // Fix: Optional call (TS-safe)
+      onLoginSuccess?.();
     } catch (error) {
       console.error('Email login failed:', error);
     } finally {
@@ -38,7 +38,18 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
 
   const handleSocialLogin = (connection: string) => {
     router.push(`/api/auth/login?connection=${connection}`);
-    onLoginSuccess?.();  // Optional call
+    onLoginSuccess?.();
+  };
+
+  // Handle wallet connect
+  const handleWalletConnect = () => {
+    if (onOpenWallet) {
+      onOpenWallet();  // Open NEAR selector modal
+      onClose();  // Close login modal after
+    } else {
+      console.warn('Wallet modal not ready—falling back to Auth0');
+      router.push('/api/auth/login');
+    }
   };
 
   return (
@@ -47,12 +58,16 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         <div className={styles.modalContent}>
           <div className={styles.modalHeader}>
             <h5 className={styles.modalTitle}>Log in to NOVA</h5>
-            <button type="button" className={styles.closeButton} onClick={onClose}>x</button>
+            <button type="button" className={styles.closeButton} onClick={onClose}>×</button>
           </div>
           <div className={styles.modalBody}>
             <div className={`${styles.formGroup} ${styles.centeredFormGroup}`}>
-              <Button onClick={() => router.push('/api/auth/login')} disabled={isLoading} className={styles.buttonSecondary}>
-                <Wallet size={18} /> Connect Wallet
+              <Button 
+                onClick={handleWalletConnect}  // Updated: Use new handler
+                disabled={isLoading} 
+                className={styles.buttonSecondary}
+              >
+                <Wallet size={18} /> Connect NEAR Wallet  {/* Relabel for clarity */}
               </Button>
               <div className={styles.divider}>
                 <div className={styles.dividerLine}></div>
@@ -73,8 +88,12 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
                 </Button>
               </form>
               <div className={styles.buttonGroup}>
-                <Button onClick={() => handleSocialLogin('google-oauth2')} className={styles.socialButton}>Google</Button>
-                <Button onClick={() => handleSocialLogin('github')} className={styles.socialButton}>GitHub</Button>
+                <Button onClick={() => handleSocialLogin('google-oauth2')} className={styles.socialButton}>
+                  <img src="/google-icon.svg" alt="Google" className="w-4 h-4 mr-2" /> Google
+                </Button>  {/* Added icon for polish */}
+                <Button onClick={() => handleSocialLogin('github')} className={styles.socialButton}>
+                  <img src="/github-icon.svg" alt="GitHub" className="w-4 h-4 mr-2" /> GitHub
+                </Button>
               </div>
             </div>
           </div>
