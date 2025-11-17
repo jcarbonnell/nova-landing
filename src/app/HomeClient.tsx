@@ -1,8 +1,8 @@
 // src/app/homeclient.tsx
 'use client';
 import { useUser } from '@auth0/nextjs-auth0/client';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState, useCallback } from 'react';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { MessageSquare } from 'lucide-react';
@@ -28,7 +28,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const isConnected = !!user && isSignedIn;
   const loading = authLoading || walletLoading;
 
-  // 1000fans-inspired states for modal flow
+  // States for modal flow
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -37,7 +37,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [error, setError] = useState('');
 
-  // MCP health query (unchanged)
+  // MCP health query
   const { data: mcpStatus, error: mcpError } = useQuery({
     queryKey: ['mcp-status'],
     queryFn: async () => {
@@ -50,17 +50,9 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     refetchInterval: 30000,
   });
 
-  // New: Check for existing account on auth change (1000fans useEffect)
-  useEffect(() => {
-    if (user && !loading && isSignedIn && !accountId) {  // New auth'd user, no wallet yet
-      checkExistingAccount();
-    }
-  }, [user, loading, isSignedIn, accountId]);
-
-  const checkExistingAccount = async () => {
+  const checkExistingAccount = useCallback(async () => {
     if (!user?.email) return;
     setError('');
-
     try {
       const res = await fetch('/api/auth/check-for-account', {
         method: 'POST',
@@ -68,19 +60,24 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         body: JSON.stringify({ email: user.email }),
       });
       if (!res.ok) throw new Error('Check failed');
-
       const { exists, accountId: existingId } = await res.json();
       if (exists) {
         setWelcomeMessage(`Welcome back! Account ${existingId} ready.`);
-        // Update session/wallet state if needed (e.g., selector signIn(existingId))
       } else {
         setUserData({ email: user.email });
-        setIsCreateOpen(true);  // Open create modal for new user
+        setIsCreateOpen(true);
       }
     } catch (err) {
       setError(`Account check failed: ${(err as Error).message}`);
     }
-  };
+  }, [user?.email]);
+
+  // Check for existing account on auth change
+  useEffect(() => {
+    if (user && !loading && isSignedIn && !accountId) {
+      checkExistingAccount();
+    }
+  }, [user, loading, isSignedIn, accountId, checkExistingAccount]);  // Added checkExistingAccount
 
   // New: handleLoginSuccess (from modal callback)
   const handleLoginSuccess = () => {

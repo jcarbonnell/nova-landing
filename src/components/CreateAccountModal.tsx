@@ -1,6 +1,6 @@
 // src/components/CreateAccountModal.tsx
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from './ui/button';
 import { AlertCircle } from 'lucide-react';
@@ -27,23 +27,10 @@ export default function CreateAccountModal({
   const [error, setError] = useState('');
   const [isAccountCreated, setIsAccountCreated] = useState(false);
   const [existingAccount, setExistingAccount] = useState<string | null>(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [pendingAccountId, setPendingAccountId] = useState('');
   const router = useRouter();
 
-  useEffect(() => {
-    if (isOpen && userData) {
-      setIsAccountCreated(false);
-      setError('');
-      setUsername('');
-      setShowPaymentModal(false);
-      setPendingAccountId('');
-      setExistingAccount(null);
-      checkExistingAccount();
-    }
-  }, [isOpen, userData]);
-
-  const checkExistingAccount = async () => {
+  // Wrap checkExistingAccount in useCallback to stabilize deps
+  const checkExistingAccount = useCallback(async () => {
     if (!userData?.email) {
       setError('Cannot check account: Missing user data.');
       return;
@@ -69,13 +56,24 @@ export default function CreateAccountModal({
         setIsAccountCreated(true);
         onAccountCreated(accountId);  // Update parent
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error checking existing account:', err);
-      setError(`Failed to check account: ${err.message}`);
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to check account: ${errMsg}`);
     } finally {
       setCheckLoading(false);
     }
-  };
+  }, [userData?.email, onAccountCreated]);  // Deps: email stable, callback prop
+
+  useEffect(() => {
+    if (isOpen && userData) {
+      setIsAccountCreated(false);
+      setError('');
+      setUsername('');
+      setExistingAccount(null);
+      checkExistingAccount();
+    }
+  }, [isOpen, userData, checkExistingAccount]);  // Now includes stable callback
 
   const handleClose = () => {
     if (!isAccountCreated && !username) {
@@ -117,51 +115,11 @@ export default function CreateAccountModal({
       }
 
       // Proceed to payment (optional)
-      setPendingAccountId(accountId);
       onPaymentOpen(accountId);  // Parent opens payment modal
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error checking account:', err);
-      setError(`Failed to check: ${err.message}`);
-      setIsLoading(false);
-    }
-  };
-
-  const handleSkipPayment = async () => {
-    if (!pendingAccountId || !userData?.email) {
-      setError('Missing data for creation.');
-      return;
-    }
-
-    try {
-      await createAccount(pendingAccountId);
-    } catch (err: any) {
-      setError(`Skip payment failed: ${err.message}`);
-    }
-  };
-
-  const createAccount = async (accountId: string) => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/auth/create-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          username: accountId.split('.')[0], 
-          email: userData?.email
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Creation failed');
-      }
-
-      const { accountId: createdAccountId } = await response.json();
-      setIsAccountCreated(true);
-      onAccountCreated(createdAccountId);
-    } catch (err: any) {
-      throw err;  // Re-throw for modal error
-    } finally {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to check: ${errMsg}`);
       setIsLoading(false);
     }
   };
@@ -185,7 +143,7 @@ export default function CreateAccountModal({
               ) : existingAccount ? (
                 <div className="text-center py-4">
                   <p>Account <strong>{existingAccount}</strong> already exists!</p>
-                  <p>You're ready to use NOVA.</p>
+                  <p>You&apos;re ready to use NOVA.</p>
                 </div>
               ) : !isAccountCreated ? (
                 <form onSubmit={handleSubmit} className={styles.fullWidthForm}>
@@ -202,7 +160,7 @@ export default function CreateAccountModal({
                       maxLength={64}
                     />
                     <div className={styles.formText}>
-                      Full account: <strong>{username ? `${username}.nova-sdk.near` : '<username>.nova-sdk.near'}</strong>
+                      Full account: <strong>{username ? `${username}.nova-sdk.near` : '&lt;username&gt;.nova-sdk.near'}</strong>
                     </div>
                   </div>
                   {error && (
@@ -218,7 +176,7 @@ export default function CreateAccountModal({
               ) : (
                 <div className="text-center py-4">
                   <p>Account created successfully!</p>
-                  <p>Start file-sharing securely with NOVA.</p>
+                  <p>Share your data securely with NOVA.</p>
                 </div>
               )}
             </div>

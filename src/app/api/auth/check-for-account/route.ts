@@ -7,6 +7,16 @@ if (!process.env.NEXT_PUBLIC_RPC_URL) {
   throw new Error('NEXT_PUBLIC_RPC_URL env var missing—add to .env.local (e.g., https://rpc.testnet.near.org)');
 }
 
+// Full response shape from near-api-js (for view_account)
+interface ViewAccountResponse {
+  kind: 'ViewAccount';
+  result: {
+    code_hash: string | null;
+    storage_paid: { total: string; owned: number; storage_byte_cost: string; } | null;  // Full shape; simplify if needed
+    // Add others like amount if used
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { username, email } = await req.json();
@@ -29,11 +39,15 @@ export async function POST(req: NextRequest) {
     const provider = new JsonRpcProvider({ url: rpcUrl }); // Object for ConnectionInfo
 
     // Query account existence (balance >0 or status)
-    const accountView = await provider.query({
+    const rawResponse = await provider.query({
       request_type: 'view_account',
       finality: 'final',
       account_id: fullId,
-    }) as any; // near-api-js types are loose; cast for simplicity
+    });
+
+    // Bridge union: Cast to unknown first, then assert shape (TS safe for known request_type)
+    const response = rawResponse as unknown as ViewAccountResponse;
+    const accountView = response.result;  // Now typed access
 
     // Exists if not empty/error (basic check; enhance with contract view if needed)
     const exists = accountView.code_hash !== null && accountView.storage_paid !== null; // Non-empty account

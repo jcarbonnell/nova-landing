@@ -4,20 +4,21 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@auth0/nextjs-auth0/client';
 import { Button } from './ui/button';
-import { Wallet } from 'lucide-react';  // Fix: Import Wallet icon
+import { Wallet } from 'lucide-react';
 import styles from '@/styles/modal.module.css';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: () => void;
+  onLoginSuccess?: () => void;  // optional prop
 }
 
 export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps) {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { user, isLoading: authLoading } = useUser();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { user: _, isLoading: __ } = useUser();  // Separate aliases (_ and __) to avoid redeclaration
 
   if (!isOpen) return null;
 
@@ -27,6 +28,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     setIsLoading(true);
     try {
       router.push(`/api/auth/login?connection=email-passwordless&login_hint=${encodeURIComponent(email)}`);
+      onLoginSuccess?.();  // Fix: Optional call (TS-safe)
     } catch (error) {
       console.error('Email login failed:', error);
     } finally {
@@ -36,6 +38,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
 
   const handleSocialLogin = (connection: string) => {
     router.push(`/api/auth/login?connection=${connection}`);
+    onLoginSuccess?.();  // Optional call
   };
 
   return (
@@ -49,7 +52,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
           <div className={styles.modalBody}>
             <div className={`${styles.formGroup} ${styles.centeredFormGroup}`}>
               <Button onClick={() => router.push('/api/auth/login')} disabled={isLoading} className={styles.buttonSecondary}>
-                <Wallet size={18} /> Connect Wallet  {/* Fix: Now imported */}
+                <Wallet size={18} /> Connect Wallet
               </Button>
               <div className={styles.divider}>
                 <div className={styles.dividerLine}></div>

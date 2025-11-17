@@ -32,8 +32,7 @@ export async function POST(req: NextRequest) {
       customer_email: email,  // KYC
     };
 
-    // Fix: @ts-ignore for crypto (types lag; runtime works)
-    // @ts-ignore
+    // @ts-expect-error - Stripe types lag for 2025 Onramp; runtime works
     const sessionData = await stripe.crypto.onrampSessions.create(onrampParams);
 
     if (!sessionData.client_secret) {
@@ -46,10 +45,11 @@ export async function POST(req: NextRequest) {
       clientSecret: sessionData.client_secret,
       sessionId: sessionData.id,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Onramp session creation error:', error);
+    const errMsg = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message || 'Server error creating Onramp session' },
+      { error: errMsg || 'Server error creating Onramp session' },
       { status: 500 }
     );
   }

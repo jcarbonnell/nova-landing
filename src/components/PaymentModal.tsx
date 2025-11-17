@@ -1,12 +1,8 @@
 // src/components/PaymentModal.tsx
 'use client';
-import { useState, useEffect, useRef } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
-import type { Stripe } from '@stripe/stripe-js';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from './ui/button';
 import styles from '@/styles/modal.module.css';
-
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -15,6 +11,31 @@ interface PaymentModalProps {
   onSkip: () => void;
   accountId: string;
   email: string;
+}
+
+interface OnrampSessionPayload {
+  session: {
+    status: string;
+    [key: string]: unknown;
+  };
+}
+
+interface OnrampSessionEvent {
+  payload: OnrampSessionPayload;
+}
+
+interface OnrampSession {
+  mount: (el: HTMLElement) => void;
+  addEventListener: (event: 'onramp_session_updated', cb: (e: OnrampSessionEvent) => void) => void;
+  setAppearance: (opts: { theme: 'dark' | 'light' }) => void;  // Align with stripe.d.ts union
+  unmount: () => void;
+}
+
+interface OnrampSessionRef {
+  session?: OnrampSession;
+  mounted?: boolean;
+  sessionId?: string;
+  amount?: number;
 }
 
 export default function PaymentModal({
@@ -29,8 +50,28 @@ export default function PaymentModal({
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
   const onrampRef = useRef<HTMLDivElement>(null);
-  const sessionRef = useRef<any>(null);
+  const sessionRef = useRef<OnrampSessionRef>(null);
+
+  // Load script dynamically (once)
+  useEffect(() => {
+    if (scriptLoaded || !isOpen) return;
+
+    const script = document.createElement('script');
+    script.src = 'https://js.stripe.com/v3/crypto/embedded.js';
+    script.async = true;
+    script.onload = () => {
+      setScriptLoaded(true);
+      console.log('StripeCrypto script loaded');
+    };
+    script.onerror = () => setError('Failed to load payment script');
+    document.head.appendChild(script);
+
+    return () => {
+      if (script.parentNode) script.parentNode.removeChild(script);
+    };
+  }, [scriptLoaded, isOpen]);
 
   useEffect(() => {
     if (isOpen && amount) {
@@ -52,8 +93,9 @@ export default function PaymentModal({
           const data = await response.json();
           setClientSecret(data.clientSecret);
           sessionRef.current = { sessionId: data.sessionId, amount: parseFloat(amount) };
-        } catch (err: any) {
-          setError(`Failed to initialize: ${err.message}`);
+        } catch (err: unknown) {
+          const errMsg = err instanceof Error ? err.message : 'Unknown error';
+          setError(`Failed to initialize: ${errMsg}`);
         } finally {
           setIsLoading(false);
         }
@@ -62,26 +104,29 @@ export default function PaymentModal({
     }
   }, [isOpen, amount, accountId, email]);
 
+  const handleSessionUpdate = useCallback((e: OnrampSessionEvent) => {
+    console.log('Onramp updated:', e.payload.session.status);
+    if (e.payload.session.status === 'fulfillment_complete') {
+      onSubmit(sessionRef.current!.sessionId!, sessionRef.current!.amount!.toString());
+      onClose();
+    }
+  }, [onSubmit, onClose]);
+
   useEffect(() => {
-    if (clientSecret && onrampRef.current && !sessionRef.current?.mounted) {
-      stripePromise.then((stripe: Stripe | null) => {
-        if (!stripe || !onrampRef.current) return;
-        try {
-          const session: any = (stripe as any).createOnrampSession({ clientSecret });
-          session.mount(onrampRef.current);  // 2025 mount (NEAR via backend dest)
-          sessionRef.current = { ...sessionRef.current, session, mounted: true };
-          session.addEventListener('onramp_session_updated', ({ payload }: { payload: any }) => {
-            console.log('Onramp updated:', payload.session.status);
-            if (payload.session.status === 'fulfillment_complete') {
-              onSubmit(sessionRef.current!.sessionId, sessionRef.current!.amount.toString());
-              onClose();
-            }
-          });
-          session.setAppearance({ theme: 'dark' });
-        } catch (err: any) {
-          setError(`Mount failed: ${err.message}`);
+    if (clientSecret && onrampRef.current && scriptLoaded && !sessionRef.current?.mounted && window.StripeCrypto) {
+      try {
+        const session: OnrampSession = window.StripeCrypto.createOnrampSession({ clientSecret });
+        sessionRef.current!.session = session;
+        session.mount(onrampRef.current);
+        sessionRef.current = { ...sessionRef.current, session, mounted: true };
+        if (sessionRef.current!.session) {
+          sessionRef.current!.session.addEventListener('onramp_session_updated', handleSessionUpdate);
+          sessionRef.current!.session.setAppearance({ theme: 'dark' });
         }
-      });
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : 'Unknown error';
+        setError(`Mount failed: ${errMsg}`);
+      }
     }
 
     return () => {
@@ -89,7 +134,7 @@ export default function PaymentModal({
         sessionRef.current.session.unmount();
       }
     };
-  }, [clientSecret]);
+  }, [clientSecret, scriptLoaded, handleSessionUpdate]);
 
   if (!isOpen) return null;
 
@@ -121,7 +166,7 @@ export default function PaymentModal({
             ) : clientSecret ? (
               <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <div
-                  ref={onrampRef}  // Mount point
+                  ref={onrampRef}
                   style={{ maxWidth: '540px', height: '500px' }}
                 />
                 <Button
