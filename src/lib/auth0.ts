@@ -18,7 +18,9 @@ export interface User {
 }
 
 // v4: Instantiate client (reads env auto—no config obj needed)
-export const auth0 = new Auth0Client();
+export const auth0 = new Auth0Client({
+  appBaseUrl: process.env.AUTH0_BASE_URL!,
+});
 
 // Named export: Wrapper for getSession (v4 method, no mocks/req/res)
 export async function getServerSession() {
