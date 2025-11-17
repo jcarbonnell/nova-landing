@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '@auth0/nextjs-auth0/client';
 import { Button } from './ui/button';
 import { Wallet } from 'lucide-react';
+import Image from 'next/image';
 import styles from '@/styles/modal.module.css';
 
 interface LoginModalProps {
@@ -18,7 +19,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, onOpenWall
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { user: _, isLoading: __ } = useUser();
+  useUser();
 
   if (!isOpen) return null;
 
@@ -89,10 +90,14 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, onOpenWall
               </form>
               <div className={styles.buttonGroup}>
                 <Button onClick={() => handleSocialLogin('google-oauth2')} className={styles.socialButton}>
-                  <img src="/google-icon.svg" alt="Google" className="w-4 h-4 mr-2" /> Google
-                </Button>  {/* Added icon for polish */}
+                  {/* Fix: Swap <img> to <Image> for optimization */}
+                  <Image src="/google-icon.svg" alt="Google" width={20} height={20} className="mr-2" />
+                  Google
+                </Button>
                 <Button onClick={() => handleSocialLogin('github')} className={styles.socialButton}>
-                  <img src="/github-icon.svg" alt="GitHub" className="w-4 h-4 mr-2" /> GitHub
+                  {/* Fix: Swap <img> to <Image> */}
+                  <Image src="/github-icon.svg" alt="GitHub" width={20} height={20} className="mr-2" />
+                  GitHub
                 </Button>
               </div>
             </div>
