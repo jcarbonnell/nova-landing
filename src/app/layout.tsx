@@ -37,12 +37,12 @@ export default function RootLayout({
         <meta httpEquiv="Content-Security-Policy" content={csp} />
       </head>
       <body className={inter.className}>
-        <Auth0Provider>                                          {/* ← ADD THIS */}
+        <Auth0Provider>
           <Providers>
             {children}
             <div id="wallet-selector-root" className="fixed inset-0 pointer-events-none z-[1300]" />
           </Providers>
-        </Auth0Provider>                                         {/* ← CLOSE IT */}
+        </Auth0Provider>
       </body>
     </html>
   );

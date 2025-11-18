@@ -2,6 +2,7 @@
 'use client';
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import type { WalletSelector } from '@near-wallet-selector/core';
+import "@near-wallet-selector/modal-ui/styles.css";
 
 interface ModalApi {
   show: () => void;
@@ -35,13 +36,18 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         // Add more wallets if you want: setupHereWallet(), setupMeteorWallet(), etc.
 
         const selector = await setupWalletSelector({
-          network: process.env.NODE_ENV === 'production' ? 'mainnet' : 'testnet',
+          network: {
+            networkId: process.env.NEXT_PUBLIC_NEAR_NETWORK || "testnet",
+            nodeUrl: process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.testnet.near.org",
+            helperUrl: "https://helper.testnet.near.org",
+            explorerUrl: "https://explorer.testnet.near.org",
+            indexerUrl: "https://api.testnet.nearblocks.io/v1",
+          },
           modules: [setupMyNearWallet()],
         });
 
-        // This is the correct v10+ way – no container option needed
         const modal = setupModal(selector, {
-          // No container, no theme – just let it mount to body
+          contractId: process.env.NEXT_PUBLIC_CONTRACT_ID || "nova-sdk-5.testnet",
         });
 
         const state = selector.store.getState();
