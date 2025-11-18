@@ -69,9 +69,10 @@ export default function Header({ onOpenLogin }: HeaderProps) {
                </span>
             </div>
             <Button 
-              variant="ghost" 
+              variant="default"
               size="sm"
               onClick={handleLogout}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
             >
               Logout
             </Button>
@@ -79,7 +80,7 @@ export default function Header({ onOpenLogin }: HeaderProps) {
         ) : (
           <Button onClick={handleConnect} variant="default" size="default" className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white transition-all hover:scale-105">
             {isSignedIn ? <LogIn size={18} /> : <Wallet size={18} />}
-            <span>{!user ? 'Sign Up' : 'Login'}</span>
+            <span>Login</span>
           </Button>
         )}
       </div>
