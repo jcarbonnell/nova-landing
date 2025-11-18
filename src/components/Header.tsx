@@ -55,12 +55,12 @@ export default function Header({ onOpenLogin }: HeaderProps) {
             <span className="text-sm max-w-32 truncate text-purple-200">
               {user?.email || accountId}
             </span>
-            <a 
-              href="/api/auth/logout"
+            <button 
+              onClick={() => router.push('/auth/logout')}  // Keep onClick for SPA feel, but use /auth/
               className="text-purple-300 hover:text-white text-sm underline-offset-2"
             >
               Logout
-            </a>
+            </button>
           </div>
         ) : (
           <Button onClick={handleConnect} variant="default" size="default" className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white">
