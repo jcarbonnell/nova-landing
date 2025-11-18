@@ -63,18 +63,24 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, onOpenWall
           </div>
           <div className={styles.modalBody}>
             <div className={`${styles.formGroup} ${styles.centeredFormGroup}`}>
+              
+              {/* Connect wallet */}
               <Button 
-                onClick={handleWalletConnect}  // Updated: Use new handler
+                onClick={handleWalletConnect}
                 disabled={isLoading} 
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 rounded-lg transition-all hover:scale-105 flex items-center justify-center gap-3"
+                className={styles.buttonSecondary}
               >
-                <Wallet size={18} /> Connect NEAR Wallet  {/* Relabel for clarity */}
+                <Wallet size={18} /> 
+                Connect NEAR Wallet
               </Button>
+
               <div className={styles.divider}>
                 <div className={styles.dividerLine}></div>
                 <div className={styles.dividerText}>or</div>
                 <div className={styles.dividerLine}></div>
               </div>
+
+              {/* Email login */}
               <form onSubmit={handleEmailLogin}>
                 <input
                   type="email"
@@ -84,19 +90,43 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, onOpenWall
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
-                <Button type="submit" disabled={isLoading} className={styles.buttonPrimary}>
+                <Button 
+                  type="submit" 
+                  disabled={isLoading} 
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 rounded-lg transition-all hover:scale-105 mt-4"
+                >
                   {isLoading ? 'Sending...' : 'Login with Email'}
                 </Button>
               </form>
+
+              {/* Social login */}
               <div className={styles.buttonGroup}>
-                <Button onClick={() => handleSocialLogin('google-oauth2')} className={styles.socialButton}>
-                  {/* Fix: Swap <img> to <Image> for optimization */}
-                  <Image src="/google-icon.svg" alt="Google" width={20} height={20} className="mr-2" />
+                <Button 
+                  onClick={() => handleSocialLogin('google-oauth2')} 
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 rounded-lg transition-all hover:scale-105 flex items-center justify-center gap-2"
+                >
+                  <Image src="/google-icon.svg" alt="Google" width={20} height={20} />
                   Google
                 </Button>
-                <Button onClick={() => handleSocialLogin('github')} className={styles.socialButton}>
-                  {/* Fix: Swap <img> to <Image> */}
-                  <Image src="/github-icon.svg" alt="GitHub" width={20} height={20} className="mr-2" />
+                <Button 
+                  onClick={() => handleSocialLogin('apple-auth0')} 
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 rounded-lg transition-all hover:scale-105 flex items-center justify-center gap-2"
+                >
+                  <Image src="/apple-icon.svg" alt="Apple" width={20} height={20} />
+                  Apple
+                </Button>
+                <Button 
+                  onClick={() => handleSocialLogin('twitter')} 
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 rounded-lg transition-all hover:scale-105 flex items-center justify-center gap-2"
+                >
+                  <Image src="/x-icon.svg" alt="X (Twitter)" width={20} height={20} />
+                  X (Twitter)
+                </Button>
+                <Button 
+                  onClick={() => handleSocialLogin('github')} 
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 rounded-lg transition-all hover:scale-105 flex items-center justify-center gap-2"
+                >
+                  <Image src="/github-icon.svg" alt="GitHub" width={20} height={20} />
                   GitHub
                 </Button>
               </div>
