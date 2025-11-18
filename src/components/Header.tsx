@@ -44,7 +44,7 @@ export default function Header({ onOpenLogin }: HeaderProps) {
       
       // Navigate to logout endpoint which will clear server session
       // Using window.location to force full page reload
-      window.location.href = '/api/auth/logout';
+      window.location.href = '/auth/logout';
     } catch (error) {
       console.error('Logout error:', error);
       // Fallback: force reload anyway
