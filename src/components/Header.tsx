@@ -16,7 +16,7 @@ export default function Header({ onOpenLogin }: HeaderProps) {
   const { modal } = useWalletSelectorModal();
   const router = useRouter();
 
-  const isConnected = !!user && isSignedIn;
+  const isConnected = isSignedIn && !!accountId;
   const loading = authLoading || walletLoading;
 
   const handleConnect = () => {

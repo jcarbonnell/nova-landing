@@ -25,7 +25,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const { modal } = useWalletSelectorModal();
   const queryClient = useQueryClient();
 
-  const isConnected = !!user && isSignedIn;
+  const isConnected = isSignedIn && !!accountId;
   const loading = authLoading || walletLoading;
 
   // States for modal flow
@@ -194,7 +194,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             {isConnected && (
               <iframe
                 key="mcp-frame"
-                src="/api/mcp-proxy"
+                src={`/api/mcp-proxy?near=${encodeURIComponent(accountId || '')}`}
                 className="w-full h-full border border-purple-600/50 bg-[#280449]/50 transition-all duration-300 p-4 connected"
                 title="NOVA - Secure File Sharing"
                 sandbox="allow-scripts allow-popups allow-forms allow-same-origin"
