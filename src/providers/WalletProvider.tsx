@@ -37,7 +37,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
 
         const selector = await setupWalletSelector({
           network: {
-            networkId: process.env.NEXT_PUBLIC_NEAR_NETWORK || "testnet",
+            networkId: 'testnet',
             nodeUrl: process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.testnet.near.org",
             helperUrl: "https://helper.testnet.near.org",
             explorerUrl: "https://explorer.testnet.near.org",

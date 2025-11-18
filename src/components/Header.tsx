@@ -56,7 +56,7 @@ export default function Header({ onOpenLogin }: HeaderProps) {
               {user?.email || accountId}
             </span>
             <button 
-              onClick={() => router.push('/auth/logout')}  // Keep onClick for SPA feel, but use /auth/
+              onClick={() => router.push('/auth/logout?returnTo=%2F')}
               className="text-purple-300 hover:text-white text-sm underline-offset-2"
             >
               Logout
