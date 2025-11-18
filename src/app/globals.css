@@ -92,10 +92,10 @@
     @apply flex-col min-h-screen p-2;
   }
   .hero-section {
-    @apply order-2 text-center;
+    @apply order-1 text-center;
   }
   .chat-container {
-    @apply order-1 w-full h-64 mb-4;
+    @apply order-2 w-full h-64 mb-4;
   }
   .footer {
     @apply mt-8;

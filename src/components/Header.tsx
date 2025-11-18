@@ -3,7 +3,6 @@
 import { useUser } from '@auth0/nextjs-auth0/client';
 import { useWalletState, useWalletSelectorModal } from '@/providers/WalletProvider';
 import { Button } from './ui/button';
-import Link from 'next/link';
 import { LogIn, User, Wallet } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
