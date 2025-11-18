@@ -19,16 +19,20 @@ export interface User {
 
 // v4: Instantiate client (reads env auto—no config obj needed)
 export const auth0 = new Auth0Client({
-  appBaseUrl: process.env.AUTH0_BASE_URL!,
+  authorizationParameters: {
+    // Add these to ensure you get the right tokens/info
+    scope: 'openid profile email offline_access',
+    audience: process.env.AUTH0_AUDIENCE, 
+  },
 });
 
 // Named export: Wrapper for getSession (v4 method, no mocks/req/res)
 export async function getServerSession() {
   try {
-    return await auth0.getSession();  // Instance method (env/cookies auto-handled)
+    return await auth0.getSession();
   } catch (error: unknown) {
     console.error('getServerSession error:', error);
     const errMsg = error instanceof Error ? error.message : 'Unknown error';
-    throw new Error(`Session fetch failed: ${errMsg}`);
+    return null;
   }
 }

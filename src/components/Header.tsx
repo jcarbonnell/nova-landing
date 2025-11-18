@@ -22,10 +22,9 @@ export default function Header({ onOpenLogin }: HeaderProps) {
   const handleConnect = () => {
     if (!user) {
       if (onOpenLogin) {
-        onOpenLogin();  // New: Open modal if prop available (preferred flow)
+        onOpenLogin();
       } else {
-        // Fallback: Direct Auth0 redirect (for non-modal contexts)
-        router.push('/auth/login');
+        window.location.assign('/auth/login');
       }
     } else if (!isSignedIn) {
       if (modal) {
@@ -46,19 +45,23 @@ export default function Header({ onOpenLogin }: HeaderProps) {
           </div>
         ) : isConnected ? (
           <div className="flex items-center space-x-2">
-            <User size={18} className="text-purple-300" />
-            <span className="text-sm max-w-32 truncate text-purple-200">
-              {user?.email || accountId}
-            </span>
-            <a 
-              href="/auth/logout"
-              className="text-purple-300 hover:text-white text-sm underline-offset-2 cursor-pointer"
+            <div className="flex items-center space-x-2 px-3 py-2 rounded-md bg-purple-900/50 border border-purple-500/30">
+               <User size={16} className="text-purple-300" />
+               <span className="text-sm max-w-32 truncate text-purple-100" title={user?.email || accountId || ''}>
+                 {user?.email || accountId}
+               </span>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-purple-300 hover:text-white hover:bg-purple-800/50"
+              asChild 
             >
-              Logout
-            </a>
+              <a href="/auth/logout">Logout</a>
+            </Button>
           </div>
         ) : (
-          <Button onClick={handleConnect} variant="default" size="default" className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white">
+          <Button onClick={handleConnect} variant="default" size="default" className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white transition-all hover:scale-105">
             {isSignedIn ? <LogIn size={18} /> : <Wallet size={18} />}
             <span>{!user ? 'Sign Up' : 'Login'}</span>
           </Button>
