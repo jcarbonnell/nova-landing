@@ -36,11 +36,6 @@ export default function Header({ onOpenLogin }: HeaderProps) {
     }
   };
 
-  const handleLogout = () => {
-    const returnTo = encodeURIComponent(window.location.origin);
-    window.location.href = `/api/auth/logout?returnTo=${returnTo}`;
-  };
-
   return (
     <header className="bg-[#280449]/90 shadow-sm border-b border-purple-900/50 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm">
       <div className="flex items-center space-x-4 flex-1 justify-end">
@@ -55,12 +50,12 @@ export default function Header({ onOpenLogin }: HeaderProps) {
             <span className="text-sm max-w-32 truncate text-purple-200">
               {user?.email || accountId}
             </span>
-            <button 
-              onClick={() => router.push('/auth/logout?returnTo=%2F')}
-              className="text-purple-300 hover:text-white text-sm underline-offset-2"
+            <a 
+              href="/auth/logout"
+              className="text-purple-300 hover:text-white text-sm underline-offset-2 cursor-pointer"
             >
               Logout
-            </button>
+            </a>
           </div>
         ) : (
           <Button onClick={handleConnect} variant="default" size="default" className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white">
