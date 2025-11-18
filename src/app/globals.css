@@ -15,7 +15,7 @@
     --secondary: 280 0% 35%;
     --secondary-foreground: 210 40% 98%;
     --muted: 280 0% 40%;
-    --muted-foreground: 215.4 16.3% 56.9%; /* Lighter gray */
+    --muted-foreground: 215.4 16.3% 56.9%;
     --accent: 280 0% 40%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 84.2% 60.2%;
@@ -27,7 +27,7 @@
   }
 
   .dark {
-    --background: 280 0% 20%; /* Darker purple variant */
+    --background: 280 0% 20%;
     --foreground: 210 40% 98%;
     --card: 280 0% 20%;
     --card-foreground: 210 40% 98%;
@@ -51,21 +51,21 @@
 
 @layer components {
   .btn-primary {
-    background-color: rgb(37 99 235);  /* bg-blue-600 */
-    color: rgb(255 255 255);           /* text-white */
+    background-color: rgb(37 99 235);
+    color: rgb(255 255 255);
   }
   .btn-primary:hover {
-    background-color: rgb(29 78 216);  /* hover:bg-blue-700 */
+    background-color: rgb(29 78 216);
   }
 }
 
-/* Hide Next.js dev overlay/menu (bottom-left in dev mode) */
+/* Hide Next.js dev overlay */
 #__next_dev_overlay,
 #__next_dev_overlay * {
   display: none !important;
 }
 
-/* Ensure wallet modal is always on top of everything */
+/* Wallet selector modal always on top */
 #near-wallet-selector-modal-root {
   position: fixed !important;
   top: 0;
@@ -73,69 +73,62 @@
   width: 100vw;
   height: 100vh;
   pointer-events: none;
-  z-index: 2147483647 !important; /* max safe z-index */
+  z-index: 2147483647 !important;
 }
 
 #near-wallet-selector-modal-root > * {
   pointer-events: auto;
 }
 
-/* Optional: dark mode override if needed */
-.wallet-selector-modal .dark-theme {
-  background: #280449 !important;
-  color: white !important;
-}
+/* Responsive layout – compact, no-scroll design */
+@layer utilities {
+  /* Mobile: vertical stack, chat BELOW hero */
+  @media (max-width: 640px) {
+    main {
+      @apply flex flex-col min-h-screen p-3 justify-between;
+    }
+    .hero-section {
+      @apply order-1 text-center mb-4;
+    }
+    .chat-container {
+      @apply order-2 w-full h-80 mb-6;
+    }
+    .footer {
+      @apply order-3 mt-auto;
+    }
+  }
 
-/* Responsive overrides */
-@media (max-width: 640px) { /* Mobile: full vertical */
-  main {
-    @apply flex-col min-h-screen p-2;
+  /* Tablet: slightly larger but vertical & compact */
+  @media (min-width: 641px) and (max-width: 880px) {
+    .page-container {
+      @apply flex-col items-center p-6 gap-8;
+    }
+    .hero-section {
+      @apply w-full text-center max-w-lg;
+    }
+    .chat-container {
+      @apply w-full max-w-2xl h-96;
+    }
   }
-  .hero-section {
-    @apply order-1 text-center;
-  }
-  .chat-container {
-    @apply order-2 w-full h-64 mb-4;
-  }
-  .footer {
-    @apply mt-8;
-  }
-}
 
-@media (min-width: 641px) and (max-width: 1024px) { /* Tablet: vertical stack */
-  .page-container {
-    @apply flex-col items-center p-4;
-  }
-  .hero-section {
-    @apply w-full text-center mb-8;
-  }
-  .chat-container {
-    @apply w-full max-w-md h-80;
-  }
-  .footer {
-    @apply mt-8;
-  }
-}
-
-@media (min-width: 1025px) { /* Laptop: 16:9 horizontal */
-  .page-container {
-    @apply aspect-[16/9] flex-row items-center justify-center p-8 max-w-7xl mx-auto;
-  }
-  .hero-section {
-    @apply flex-1 pr-8 max-w-md;
-  }
-  .chat-container {
-    @apply flex-1 max-w-2xl h-full;
-  }
-  main {
-    @apply flex-col h-[calc(100vh-80px)]; /* Adjust for header/footer */
-  }
-  .footer {
-    @apply mt-auto;
+  /* Desktop: 16:9 side-by-side, perfect fit */
+  @media (min-width: 881px) {
+    .page-container {
+      @apply aspect-[16/9] flex-row items-center justify-center gap-12 p-8 max-w-7xl mx-auto;
+    }
+    .hero-section {
+      @apply flex-1 max-w-md;
+    }
+    .chat-container {
+      @apply flex-1 max-w-3xl h-full;
+    }
+    main {
+      @apply h-[calc(100vh-80px)] overflow-hidden;
+    }
   }
 }
 
-/* Blur animation */
+/* Blur effect for unauthenticated chat */
 .chat-blur {
   transition: filter 0.3s ease-in-out;
 }
