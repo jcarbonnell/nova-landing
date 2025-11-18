@@ -19,8 +19,8 @@ export interface User {
 
 // v4: Instantiate client (reads env auto—no config obj needed)
 export const auth0 = new Auth0Client({
+  appBaseUrl: process.env.APP_BASE_URL,
   authorizationParameters: {
-    // Add these to ensure you get the right tokens/info
     scope: 'openid profile email offline_access',
     audience: process.env.AUTH0_AUDIENCE, 
   },
