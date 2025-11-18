@@ -3,7 +3,6 @@
 import { useUser } from '@auth0/nextjs-auth0/client';
 import { useWalletState, useWalletSelectorModal } from '@/providers/WalletProvider';
 import { Button } from './ui/button';
-import Link from 'next/link';
 import { LogIn, User, Wallet } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -52,13 +51,11 @@ export default function Header({ onOpenLogin }: HeaderProps) {
                  {user?.email || accountId}
                </span>
             </div>
-            <Link href="/auth/logout" passHref legacyBehavior>
-              <Button asChild variant="ghost" size="sm">
-                <a>
-                  Logout
-                </a>
+            <a href="/auth/logout">
+              <Button variant="ghost">
+                Logout
               </Button>
-            </Link>
+            </a>
           </div>
         ) : (
           <Button onClick={handleConnect} variant="default" size="default" className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white transition-all hover:scale-105">
