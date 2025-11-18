@@ -1,9 +1,7 @@
 // src/app/layout.tsx
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
 import Providers from '@/components/Providers';
-import { Auth0Provider } from '@auth0/nextjs-auth0/client';
 
 export const metadata: Metadata = {
   title: 'NOVA - Your data. Your vault. Your rules.',
@@ -35,12 +33,10 @@ export default function RootLayout({
         <meta httpEquiv="Content-Security-Policy" content={csp} />
       </head>
       <body>
-        <Auth0Provider>
           <Providers>
             {children}
             <div id="wallet-selector-root" className="fixed inset-0 pointer-events-none z-[1300]" />
           </Providers>
-        </Auth0Provider>
       </body>
     </html>
   );
