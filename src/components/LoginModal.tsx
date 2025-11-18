@@ -28,7 +28,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, onOpenWall
     if (!email) return;
     setIsLoading(true);
     try {
-      router.push(`/auth/login?connection=email-passwordless&login_hint=${encodeURIComponent(email)}`);
+      router.push(`/auth/login?connection=email&login_hint=${encodeURIComponent(email)}`);
       onLoginSuccess?.();
     } catch (error) {
       console.error('Email login failed:', error);
@@ -120,7 +120,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, onOpenWall
                   className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 rounded-lg transition-all hover:scale-105 flex items-center justify-center gap-2"
                 >
                   <Image src="/x-icon.svg" alt="X (Twitter)" width={20} height={20} />
-                  X (Twitter)
+                  X
                 </Button>
                 <Button 
                   onClick={() => handleSocialLogin('github')} 
