@@ -189,7 +189,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             </p>
           </section>
 
-          {/* Gated Chat - MCP iframe - only render when connected */}
+          {/* Gated Chat - only render when connected */}
           <section className="chat-container flex-1 relative max-w-2xl h-64 md:h-80 lg:h-full sm:h-96 mobile:h-[500px] lg:max-w-4xl rounded-lg overflow-hidden shadow-lg">
             {isConnected && (
               <iframe

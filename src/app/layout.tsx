@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import Providers from '@/components/Providers';
+import { Auth0Provider } from '@auth0/nextjs-auth0/client';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -36,7 +37,12 @@ export default function RootLayout({
         <meta httpEquiv="Content-Security-Policy" content={csp} />
       </head>
       <body className={inter.className}>
-        <Providers>{children}</Providers>
+        <Auth0Provider>                                          {/* ← ADD THIS */}
+          <Providers>
+            {children}
+            <div id="wallet-selector-root" className="fixed inset-0 pointer-events-none z-[1300]" />
+          </Providers>
+        </Auth0Provider>                                         {/* ← CLOSE IT */}
       </body>
     </html>
   );

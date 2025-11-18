@@ -1,13 +1,11 @@
 // nova-landing/src/providers/WalletProvider.tsx
 'use client';
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import type { WalletSelector, Account } from '@near-wallet-selector/core';
+import type { WalletSelector } from '@near-wallet-selector/core';
 
-// Minimal type for modal-ui return (methods only; per docs)
 interface ModalApi {
   show: () => void;
   hide: () => void;
-  // Add more if needed (e.g., isVisible: boolean)
 }
 
 interface WalletContextType {
@@ -30,21 +28,24 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     async function init() {
       try {
         setWallet(prev => ({ ...prev, loading: true, error: undefined }));
-        
+
         const { setupWalletSelector } = await import('@near-wallet-selector/core');
         const { setupModal } = await import('@near-wallet-selector/modal-ui');
         const { setupMyNearWallet } = await import('@near-wallet-selector/my-near-wallet');
+        // Add more wallets if you want: setupHereWallet(), setupMeteorWallet(), etc.
 
         const selector = await setupWalletSelector({
-          network: 'testnet',  // Swap to 'mainnet' via env in prod
+          network: process.env.NODE_ENV === 'production' ? 'mainnet' : 'testnet',
           modules: [setupMyNearWallet()],
-        }) as WalletSelector;  // Typed cast
+        });
 
-        const modal = setupModal(selector, {});
+        // This is the correct v10+ way – no container option needed
+        const modal = setupModal(selector, {
+          // No container, no theme – just let it mount to body
+        });
 
-        // Initial accounts from store state
         const state = selector.store.getState();
-        const accounts: Account[] = state.accounts;
+        const accounts = state.accounts || [];
         const isSignedIn = accounts.length > 0;
         const accountId = accounts[0]?.accountId;
 
@@ -56,26 +57,22 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
             accountId,
             loading: false,
           });
-
-          // Subscribe to account changes (void return; no explicit unsubscribe per docs)
-          // Cleanup handled by effect unmount; re-init on remount if needed
-          selector.subscribeOnAccountChange(async (accountId: string | null) => { // Typed Account | null
-            if (mounted) {
-              const newIsSignedIn = !!accountId;
-              const newAccountId = accountId || undefined;
-              setWallet(prev => ({
-                ...prev,
-                isSignedIn: newIsSignedIn,
-                accountId: newAccountId,
-                error: newIsSignedIn ? undefined : prev.error,
-              }));
-            }
-          });
         }
-      } catch (error) {
-        console.error('Wallet init error:', error);
+
+        // Subscribe to account changes
+        selector.subscribeOnAccountChange((newAccountId) => {
+          if (mounted) {
+            setWallet(prev => ({
+              ...prev,
+              isSignedIn: !!newAccountId,
+              accountId: newAccountId || undefined,
+            }));
+          }
+        });
+      } catch (err) {
+        console.error('Wallet selector init failed:', err);
         if (mounted) {
-          setWallet(prev => ({ ...prev, loading: false, error: 'Wallet setup failed' }));
+          setWallet(prev => ({ ...prev, loading: false, error: 'Wallet init failed' }));
         }
       }
     }
@@ -84,15 +81,10 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
-      // No explicit unsubscribe; selector subscriptions are lightweight and GC'd on unmount
     };
   }, []);
 
-  return (
-    <WalletContext.Provider value={wallet}>
-      {children}
-    </WalletContext.Provider>
-  );
+  return <WalletContext.Provider value={wallet}>{children}</WalletContext.Provider>;
 }
 
 export function useWalletSelector() {

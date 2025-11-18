@@ -65,6 +65,27 @@
   display: none !important;
 }
 
+/* Ensure wallet modal is always on top of everything */
+#near-wallet-selector-modal-root {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 2147483647 !important; /* max safe z-index */
+}
+
+#near-wallet-selector-modal-root > * {
+  pointer-events: auto;
+}
+
+/* Optional: dark mode override if needed */
+.wallet-selector-modal .dark-theme {
+  background: #280449 !important;
+  color: white !important;
+}
+
 /* Responsive overrides */
 @media (max-width: 640px) { /* Mobile: full vertical */
   main {
