@@ -36,6 +36,22 @@ export default function Header({ onOpenLogin }: HeaderProps) {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      // Clear any client-side state first
+      sessionStorage.clear();
+      localStorage.clear();
+      
+      // Navigate to logout endpoint which will clear server session
+      // Using window.location to force full page reload
+      window.location.href = '/api/auth/logout';
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Fallback: force reload anyway
+      window.location.href = '/';
+    }
+  };
+
   return (
     <header className="bg-[#280449]/90 shadow-sm border-b border-purple-900/50 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm">
       <div className="flex items-center space-x-4 flex-1 justify-end">
