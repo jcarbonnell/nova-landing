@@ -36,6 +36,11 @@ export default function Header({ onOpenLogin }: HeaderProps) {
     }
   };
 
+  const handleLogout = () => {
+    const returnTo = encodeURIComponent(`${window.location.origin}?loggedOut=1`);
+    window.location.href = `/api/auth/logout?returnTo=${returnTo}`;
+  };
+
   return (
     <header className="bg-[#280449]/90 shadow-sm border-b border-purple-900/50 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm">
       <div className="flex items-center space-x-4 flex-1 justify-end">
@@ -48,14 +53,17 @@ export default function Header({ onOpenLogin }: HeaderProps) {
           <div className="flex items-center space-x-2">
             <User size={18} className="text-purple-300" />
             <span className="text-sm max-w-32 truncate text-purple-200">{user?.email || accountId}</span>
-            <button onClick={() => router.push('/api/auth/logout')} className="text-purple-300 hover:text-white text-sm underline-offset-2">
+            <button 
+              onClick={handleLogout}
+              className="text-purple-300 hover:text-white text-sm underline-offset-2 cursor-pointer"
+            >
               Logout
             </button>
           </div>
         ) : (
           <Button onClick={handleConnect} variant="default" size="default" className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white">
             {isSignedIn ? <LogIn size={18} /> : <Wallet size={18} />}
-            <span>{!user ? 'Sign Up' : 'Connect Wallet'}</span>
+            <span>{!user ? 'Sign Up' : 'Login'}</span>
           </Button>
         )}
       </div>

@@ -79,6 +79,15 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     }
   }, [user, loading, isSignedIn, accountId, checkExistingAccount]);  // Added checkExistingAccount
 
+  // logout message
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('loggedOut') === '1') {
+      setWelcomeMessage('Successfully logged out 👋');
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   // handleLoginSuccess (from modal callback)
   const handleLoginSuccess = () => {
     setIsLoginOpen(false);
