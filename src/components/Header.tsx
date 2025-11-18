@@ -51,14 +51,11 @@ export default function Header({ onOpenLogin }: HeaderProps) {
                  {user?.email || accountId}
                </span>
             </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="text-purple-300 hover:text-white hover:bg-purple-800/50"
-              asChild 
-            >
-              <a href="/auth/logout">Logout</a>
-            </Button>
+            <a href="/auth/logout">
+              <Button variant="ghost" size="sm">
+                Logout
+              </Button>
+            </a>
           </div>
         ) : (
           <Button onClick={handleConnect} variant="default" size="default" className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white transition-all hover:scale-105">
