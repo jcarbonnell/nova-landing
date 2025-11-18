@@ -37,7 +37,7 @@ export default function Header({ onOpenLogin }: HeaderProps) {
   };
 
   const handleLogout = () => {
-    const returnTo = encodeURIComponent(`${window.location.origin}?loggedOut=1`);
+    const returnTo = encodeURIComponent(window.location.origin);
     window.location.href = `/api/auth/logout?returnTo=${returnTo}`;
   };
 
