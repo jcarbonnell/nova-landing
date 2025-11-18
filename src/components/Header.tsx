@@ -52,13 +52,15 @@ export default function Header({ onOpenLogin }: HeaderProps) {
         ) : isConnected ? (
           <div className="flex items-center space-x-2">
             <User size={18} className="text-purple-300" />
-            <span className="text-sm max-w-32 truncate text-purple-200">{user?.email || accountId}</span>
-            <button 
-              onClick={handleLogout}
-              className="text-purple-300 hover:text-white text-sm underline-offset-2 cursor-pointer"
+            <span className="text-sm max-w-32 truncate text-purple-200">
+              {user?.email || accountId}
+            </span>
+            <a 
+              href="/api/auth/logout"
+              className="text-purple-300 hover:text-white text-sm underline-offset-2"
             >
               Logout
-            </button>
+            </a>
           </div>
         ) : (
           <Button onClick={handleConnect} variant="default" size="default" className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white">
