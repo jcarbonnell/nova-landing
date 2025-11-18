@@ -1,6 +1,6 @@
 // src/app/api/auth/create-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from '@/lib/auth0';
+import { auth0 } from '@/lib/auth0';
 
 if (!process.env.NEXT_PUBLIC_RELAYER_URL) {
   throw new Error('NEXT_PUBLIC_RELAYER_URL is required');
@@ -12,7 +12,8 @@ if (!process.env.NEXT_PUBLIC_PARENT_DOMAIN) {
 export async function POST(req: NextRequest) {
   try {
     const { username, email } = await req.json();
-    const session = await getServerSession();
+    const session = await auth0.getSession();
+    
     if (!session?.user?.email || session.user.email !== email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

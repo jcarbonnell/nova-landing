@@ -1,6 +1,6 @@
 // src/app/api/auth/check-for-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from '@/lib/auth0';
+import { auth0 } from '@/lib/auth0';
 
 // Validate env vars
 if (!process.env.NEXT_PUBLIC_RPC_URL) {
@@ -23,7 +23,9 @@ interface ViewAccountResponse {
 export async function POST(req: NextRequest) {
   try {
     const { username, email } = await req.json();
-    const session = await getServerSession();
+
+    const session = await auth0.getSession();
+
     if (!session?.user?.email || session.user.email !== email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

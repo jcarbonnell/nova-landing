@@ -28,7 +28,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, onOpenWall
     if (!email) return;
     setIsLoading(true);
     try {
-      router.push(`/api/auth/login?connection=email-passwordless&login_hint=${encodeURIComponent(email)}`);
+      router.push(`/auth/login?connection=email-passwordless&login_hint=${encodeURIComponent(email)}`);
       onLoginSuccess?.();
     } catch (error) {
       console.error('Email login failed:', error);
@@ -38,7 +38,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, onOpenWall
   };
 
   const handleSocialLogin = (connection: string) => {
-    router.push(`/api/auth/login?connection=${connection}`);
+    router.push(`/auth/login?connection=${connection}`);
     onLoginSuccess?.();
   };
 
@@ -49,7 +49,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, onOpenWall
       onClose();  // Close login modal after
     } else {
       console.warn('Wallet modal not ready—falling back to Auth0');
-      router.push('/api/auth/login');
+      router.push('/auth/login');
     }
   };
 

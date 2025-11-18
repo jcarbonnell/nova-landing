@@ -25,7 +25,7 @@ export default function Header({ onOpenLogin }: HeaderProps) {
         onOpenLogin();  // New: Open modal if prop available (preferred flow)
       } else {
         // Fallback: Direct Auth0 redirect (for non-modal contexts)
-        router.push('/api/auth/login');
+        router.push('/auth/login');
       }
     } else if (!isSignedIn) {
       if (modal) {

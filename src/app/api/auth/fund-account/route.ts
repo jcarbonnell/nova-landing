@@ -1,11 +1,12 @@
 // src/app/api/auth/fund-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from '@/lib/auth0';
+import { auth0 } from '@/lib/auth0';
 
 export async function POST(req: NextRequest) {
   try {
     const { sessionId, amount, accountId } = await req.json();
-    const session = await getServerSession();
+    const session = await auth0.getSession();
+    
     if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
