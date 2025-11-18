@@ -5,8 +5,6 @@ import './globals.css';
 import Providers from '@/components/Providers';
 import { Auth0Provider } from '@auth0/nextjs-auth0/client';
 
-const inter = Inter({ subsets: ['latin'] });
-
 export const metadata: Metadata = {
   title: 'NOVA - Your data. Your vault. Your rules.',
   description: 'NOVA is a privacy-first, decentralized file-sharing primitive, empowering user-owned AI with encrypted data persistence.',
@@ -36,7 +34,7 @@ export default function RootLayout({
       <head>
         <meta httpEquiv="Content-Security-Policy" content={csp} />
       </head>
-      <body className={inter.className}>
+      <body>
         <Auth0Provider>
           <Providers>
             {children}
