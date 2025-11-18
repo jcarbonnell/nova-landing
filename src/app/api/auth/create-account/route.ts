@@ -2,6 +2,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from '@/lib/auth0';
 
+if (!process.env.NEXT_PUBLIC_RELAYER_URL) {
+  throw new Error('NEXT_PUBLIC_RELAYER_URL is required');
+}
+if (!process.env.NEXT_PUBLIC_PARENT_DOMAIN) {
+  throw new Error('NEXT_PUBLIC_PARENT_DOMAIN is required');
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { username, email } = await req.json();
@@ -10,21 +17,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const fullId = username.includes('.') ? username : `${username}.nova-sdk.near`;
-    if (!/^[a-z0-9_-]{2,64}\.(nova-sdk\.near|testnet|mainnet)$/.test(fullId)) {
-      return NextResponse.json({ error: 'Invalid account ID format (e.g., user.nova-sdk.near)' }, { status: 400 });
+    const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN!;
+    const fullId = username.includes('.') ? username : `${username}.${parentDomain}`;
+
+    const domainEscaped = parentDomain.replace('.', '\\.');
+    const regex = new RegExp(`^[a-z0-9_-]{2,64}\\.${domainEscaped}$`);
+    if (!regex.test(fullId)) {
+      return NextResponse.json(
+        { error: `Invalid account ID format (must end with .${parentDomain})` },
+        { status: 400 }
+      );
     }
 
-    // Relayer call for subaccount creation (2025 API: abstracts CreateAccount action)
-    const relayerUrl = process.env.NEXT_PUBLIC_RELAYER_URL || 'https://relayer.testnet.near.org';
+    const relayerUrl = process.env.NEXT_PUBLIC_RELAYER_URL!;
+    if (!relayerUrl) throw new Error('NEXT_PUBLIC_RELAYER_URL is required');
     const response = await fetch(`${relayerUrl}/v1/account/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         account_id: fullId,
         email,
-        provider: 'auth0',  // Ties to Auth0 claims
-        implicit_account: 'nova-sdk.near',  // Ensures subaccount under nova-sdk.near
+        provider: 'auth0',
+        implicit_account: parentDomain.split('.').slice(-2).join('.'),
       }),
     });
 
@@ -38,9 +52,7 @@ export async function POST(req: NextRequest) {
       throw new Error('No account_id returned from relayer');
     }
 
-    // Optional: Update session.user.near_account_id (client refetch for now)
     console.log(`Created subaccount: ${createdId} for ${email}`);
-
     return NextResponse.json({ accountId: createdId, publicKey: public_key });
   } catch (error) {
     console.error('Create account error:', error);

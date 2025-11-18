@@ -15,7 +15,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Relayer fund (2025 API: confirms Onramp, transfers to subaccount)
-    const relayerUrl = process.env.NEXT_PUBLIC_RELAYER_URL || 'https://relayer.testnet.near.org';
+    const relayerUrl = process.env.NEXT_PUBLIC_RELAYER_URL!;
+    if (!relayerUrl) throw new Error('NEXT_PUBLIC_RELAYER_URL is required');
     const response = await fetch(`${relayerUrl}/v1/account/fund`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

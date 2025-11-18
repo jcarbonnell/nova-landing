@@ -7,7 +7,8 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url);
   const mcpPath = url.pathname.replace('/api/mcp-proxy', '/mcp');  
-  const mcpUrl = `${process.env.MCP_URL || 'https://nova-mcp.fastmcp.app/mcp'}${mcpPath}${url.search}`.replace(/\/mcp\/mcp/, '/mcp');
+  const mcpUrl = process.env.MCP_URL!;
+  if (!mcpUrl) throw new Error('MCP_URL is required');
 
   console.log('Proxy forwarding to:', mcpUrl);
 
@@ -46,7 +47,8 @@ export async function POST(request: NextRequest) {
 
   const url = new URL(request.url);
   const mcpPath = url.pathname.replace('/api/mcp-proxy', '/mcp');
-  const mcpUrl = `${process.env.MCP_URL || 'https://nova-mcp.fastmcp.app/mcp'}${mcpPath}${url.search}`;
+  const mcpUrl = process.env.MCP_URL!;
+  if (!mcpUrl) throw new Error('MCP_URL is required');
 
   const body = await request.json();
   const reqHeaders = await headers();

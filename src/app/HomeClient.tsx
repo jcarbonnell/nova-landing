@@ -79,20 +79,23 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     }
   }, [user, loading, isSignedIn, accountId, checkExistingAccount]);  // Added checkExistingAccount
 
-  // New: handleLoginSuccess (from modal callback)
+  // handleLoginSuccess (from modal callback)
   const handleLoginSuccess = () => {
     setIsLoginOpen(false);
-    // Triggers useEffect check
   };
 
-  // New: handleAccountCreated (from create modal)
+  // handleAccountCreated (from create modal)
   const handleAccountCreated = (newAccountId: string) => {
     setIsCreateOpen(false);
     setWelcomeMessage(`Account ${newAccountId} created! You can now use NOVA.`);
-    // Refetch wallet state or selector.signIn(newAccountId)
+    if (modal) {
+      setTimeout(() => {
+        modal.show();
+      }, 1500);
+    }
   };
 
-  // New: handlePayment (from payment modal)
+  // handlePayment (from payment modal)
   const handlePayment = async (sessionId: string, amount: string) => {
     try {
       const res = await fetch('/api/auth/fund-account', {
@@ -112,13 +115,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     }
   };
 
-  // New: handleSkipPayment
+  // skip payments
   const handleSkipPayment = () => {
     setIsPaymentOpen(false);
     createAccount(pendingId);
   };
 
-  // New: createAccount (calls API)
+  // createAccount (calls API)
   const createAccount = async (fullId: string) => {
     try {
       const res = await fetch('/api/auth/create-account', {
@@ -140,7 +143,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   const handleConnect = () => {
     if (!user) {
-      setIsLoginOpen(true);  // Open modal instead of direct redirect
+      setIsLoginOpen(true);
     } else if (!isSignedIn) {
       if (modal) modal.show();
     }
@@ -149,6 +152,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   return (
     <div className="flex flex-col min-h-screen bg-[#280449]">
       <Header onOpenLogin={() => setIsLoginOpen(true)} /> 
+      
       {welcomeMessage && (
         <div className="p-4 text-center text-green-400 bg-green-500/20 border-b border-green-400/30">
           {welcomeMessage}
@@ -156,9 +160,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       )}
       {error && (
         <div className="p-4 text-center text-red-400 bg-red-500/20 border-b border-red-400/30">
-          {error} <Button variant="ghost" size="sm" onClick={() => setError('')}>Dismiss</Button>
+          {error} {' '}
+          <Button variant="ghost" size="sm" onClick={() => setError('')}>
+            Dismiss
+          </Button>
         </div>
       )}
+
       <main className="flex-1 flex items-center justify-center p-4 lg:p-8">
         <div className="page-container w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-center">
           {/* Hero */}
@@ -180,29 +188,60 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               NOVA is a privacy-first, decentralized file-sharing primitive, empowering user-owned AI at scale with encrypted data persistence.
             </p>
           </section>
-          {/* Gated Chat */}
-          <section className="chat-container flex-1 relative max-w-2xl h-64 md:h-80 lg:h-full lg:max-w-4xl rounded-lg overflow-hidden shadow-lg">
-            {isConnected ? (
+
+          {/* Gated Chat - MCP iframe - only render when connected */}
+          <section className="chat-container flex-1 relative max-w-2xl h-64 md:h-80 lg:h-full sm:h-96 mobile:h-[500px] lg:max-w-4xl rounded-lg overflow-hidden shadow-lg">
+            {isConnected && (
               <iframe
                 key="mcp-frame"
-                src={`/api/mcp-proxy?token=${encodeURIComponent((clientUser?.accessToken as string) || '')}&near=${encodeURIComponent(accountId || '')}`}
+                src="/api/mcp-proxy"
                 className="w-full h-full border border-purple-600/50 bg-[#280449]/50 transition-all duration-300 p-4 connected"
-                title="NOVA Chat - Secure File Sharing Tools"
-                sandbox="allow-scripts allow-popups allow-forms"
+                title="NOVA - Secure File Sharing"
+                sandbox="allow-scripts allow-popups allow-forms allow-same-origin"
                 referrerPolicy="origin-when-cross-origin"
-                style={{ display: 'block' }}
               />
-            ) : null}
+            )}
+
+            {/* MCP loading spinner (shows only while mcpStatus is undefined or loading) */}
+            {isConnected && !mcpStatus && (
+              <div className="absolute inset-0 flex items-center justify-center bg-[#280449]/90 z-20">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="animate-spin rounded-full h-14 w-14 border-4 border-purple-500 border-t-transparent" />
+                  <p className="text-purple-300 text-sm">Loading NOVA chat…</p>
+                </div>
+              </div>
+            )}
+
+            {/* MCP error overlay */}
+            {isConnected && mcpError && (
+              <div className="absolute inset-0 flex items-center justify-center bg-red-900/60 z-20">
+                <div className="text-center">
+                  <p className="text-red-300 mb-3">Chat unavailable</p>
+                  <button
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ['mcp-status'] })}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Blur overlay when not connected */}
             <div className={clsx(
               "absolute inset-0 flex flex-col items-center justify-center bg-[#280449]/80 backdrop-blur-sm rounded-lg transition-opacity duration-300",
               isConnected ? "opacity-0 pointer-events-none" : "opacity-100"
             )}>
               <MessageSquare size={64} className="text-gray-400 mb-4 animate-pulse" />
-              <p className="text-purple-200 mb-4 text-center px-4">Connect to unlock NOVA for confidential file-sharing</p>
+              <p className="text-purple-200 mb-4 text-center px-4">
+                Connect to unlock secure file-sharing
+              </p>
               <Button onClick={handleConnect} className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded">
                 Get Started
               </Button>
             </div>
+
+            {/* MCP status badge */}
             {isConnected && mcpStatus && (
               <p className={clsx(
                 'absolute bottom-2 right-2 text-xs px-2 py-1 rounded bg-white/50',
@@ -225,6 +264,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           </section>
         </div>
       </main>
+
       {/* Footer */}
       <footer className="footer w-full bg-[#280449]/90 border-t border-purple-900/50 p-4 text-center text-sm">
         <div className="flex justify-center space-x-6">
@@ -241,7 +281,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         <p className="mt-2 text-purple-300">&copy; 2025 CivicTech OÜ. All rights reserved.</p>
       </footer>
 
-      {/* Render Modals */}
+      {/* Modals */}
       <LoginModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}

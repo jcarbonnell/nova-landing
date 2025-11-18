@@ -160,7 +160,9 @@ export default function CreateAccountModal({
                       maxLength={64}
                     />
                     <div className={styles.formText}>
-                      Full account: <strong>{username ? `${username}.nova-sdk.near` : '&lt;username&gt;.nova-sdk.near'}</strong>
+                      Full account: <strong>
+                        {username ? `${username}.${process.env.NEXT_PUBLIC_PARENT_DOMAIN || 'nova-sdk-5.testnet'}` : '<username>.nova-sdk-5.testnet'}
+                      </strong>
                     </div>
                   </div>
                   {error && (
