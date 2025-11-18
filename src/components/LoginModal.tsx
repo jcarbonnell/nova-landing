@@ -66,7 +66,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, onOpenWall
               <Button 
                 onClick={handleWalletConnect}  // Updated: Use new handler
                 disabled={isLoading} 
-                className={styles.buttonSecondary}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 rounded-lg transition-all hover:scale-105 flex items-center justify-center gap-3"
               >
                 <Wallet size={18} /> Connect NEAR Wallet  {/* Relabel for clarity */}
               </Button>
