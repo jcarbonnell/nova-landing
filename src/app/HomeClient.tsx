@@ -90,11 +90,18 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   // reload client-side after server-side redirect
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.has('token')) {
-        window.location.reload();
-      }
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    
+    // Auth0 OAuth callback
+    const isAuth0Callback = params.has('code') || params.has('state');
+    // MCP server callback
+    const isMcpCallback = params.has('token');
+    
+    if (isAuth0Callback || isMcpCallback) {
+      // Clean reload without keeping query params
+      window.location.replace(window.location.origin + window.location.pathname);
     }
   }, []);
 
