@@ -11,7 +11,6 @@ export async function middleware(request: NextRequest) {
       return await auth0.middleware(request);
     } catch (error) {
       console.error('Auth0 middleware error:', error);
-      // Return the actual error response instead of custom message
       throw error;
     }
   }

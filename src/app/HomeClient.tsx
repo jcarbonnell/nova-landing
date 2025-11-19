@@ -2,7 +2,7 @@
 'use client';
 import { useUser } from '@auth0/nextjs-auth0/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { MessageSquare } from 'lucide-react';
@@ -36,6 +36,8 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const [userData, setUserData] = useState<{ email: string; publicKey?: string } | null>(null);
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [error, setError] = useState('');
+  const [hasCheckedAccount, setHasCheckedAccount] = useState(false);
+  const [hasNearAccount, setHasNearAccount] = useState(false);
 
   // MCP health query
   const { data: mcpStatus, error: mcpError } = useQuery({
@@ -52,38 +54,54 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   const checkExistingAccount = useCallback(async () => {
     if (!user?.email) return;
+    if (hasCheckedAccount) return;
+
     setError('');
+    setHasCheckedAccount(true);
+
     try {
       const res = await fetch('/api/auth/check-for-account', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email }),
       });
+
       if (!res.ok) throw new Error('Check failed');
+
       const { exists, accountId: existingId } = await res.json();
-      if (exists) {
+
+      if (exists && existingId) {
+        setHasNearAccount(true);
         setWelcomeMessage(`Welcome back! Account ${existingId} ready.`);
       } else {
+        setHasNearAccount(false);
         setUserData({ email: user.email });
         setIsCreateOpen(true);
       }
     } catch (err) {
       setError(`Account check failed: ${(err as Error).message}`);
+      setHasCheckedAccount(false);
     }
-  }, [user?.email]);
+  }, [user?.email, hasCheckedAccount]);
 
   // Check for existing account on auth change
   useEffect(() => {
-    if (user && !loading && isSignedIn && !accountId) {
-      checkExistingAccount();
+    // Only check if user authenticated via email but wallet not connected
+    if (user && !loading && !isSignedIn && !hasCheckedAccount) {
+      // Small delay to ensure Auth0 session is fully established
+      const timer = setTimeout(() => {
+        checkExistingAccount();
+      }, 500);
+      return () => clearTimeout(timer);
     }
-  }, [user, loading, isSignedIn, accountId, checkExistingAccount]);  // Added checkExistingAccount
+  }, [user, loading, isSignedIn, hasCheckedAccount, checkExistingAccount]);
 
   // logout message
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('loggedOut') === '1') {
       setWelcomeMessage('Successfully logged out 👋');
-      // Clean URL
+      // reset on logout
+      setHasCheckedAccount(false);
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -91,19 +109,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   // reload client-side after server-side redirect
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
     const params = new URLSearchParams(window.location.search);
-    
-    // Auth0 callback OR MCP callback
-    const isCallback =
-      params.has("code") ||
-      params.has("state") ||
-      params.has("token") ||
-      params.has("near");
+    const isCallback = params.has("code") || params.has("state") || params.has("token") || params.has("near");
     
     if (isCallback) {
-      // Clean reload without keeping query params
       window.history.replaceState({}, "", "/");
+      // reset check flag after callback
+      setHasCheckedAccount(false);
       window.location.href = "/";
     }
   }, []);
@@ -113,6 +125,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     if (typeof window === "undefined") return;
     const timer = setTimeout(() => {
       if (window.location.search.includes("code=") || window.location.search.includes("token=")) {
+        setHasCheckedAccount(false);
         window.location.href = "/";
       }
     }, 500);
@@ -122,6 +135,8 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   // handleLoginSuccess (from modal callback)
   const handleLoginSuccess = () => {
     setIsLoginOpen(false);
+    // After login, check for existing account
+    setHasCheckedAccount(false);
   };
 
   // handleAccountCreated (from create modal)

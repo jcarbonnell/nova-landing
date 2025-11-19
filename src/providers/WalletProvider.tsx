@@ -96,7 +96,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
 export function useWalletSelector() {
   const context = useContext(WalletContext);
   if (!context) throw new Error('useWalletSelector must be within WalletProvider');
-  return context.selector;
+  return context.selector!;
 }
 
 export function useWalletSelectorModal() {
