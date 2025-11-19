@@ -1,55 +1,99 @@
 // src/app/api/payments/create-onramp-session/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { getServerSession } from '@/lib/auth0';
+import { auth0 } from '@/lib/auth0';
+
+if (!process.env.STRIPE_SECRET_KEY) {
+  throw new Error('STRIPE_SECRET_KEY is required');
+}
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-10-29.clover',  // 2025 Onramp supports NEAR direct
+  apiVersion: '2024-11-20.acacia',
 });
 
 export async function POST(req: NextRequest) {
   try {
     const { accountId, email, amount } = await req.json();  // amount in USD as string
-    const session = await getServerSession();
+    
+    const session = await auth0.getSession();
     if (!session?.user?.email || session.user.email !== email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const parsedAmount = parseFloat(amount);
     if (!accountId || isNaN(parsedAmount) || parsedAmount < 5) {
-      return NextResponse.json({ error: 'Invalid accountId or amount (min $5 USD)' }, { status: 400 });
+      return NextResponse.json({ 
+        error: 'Invalid accountId or amount (min $5 USD)' 
+      }, { status: 400 });
     }
 
-    // Network: Env-based
-    const network = process.env.NODE_ENV === 'production' ? 'near-mainnet' : 'near-testnet';
+    console.log('Creating Stripe Crypto Onramp session:', { 
+      accountId, 
+      email, 
+      amount,
+      stripVersion: stripe.VERSION 
+    });
 
-    // Params (typed as any for TS; refine post-types)
-    const onrampParams = {
-      mint_amount: amount,  // USD (auto → NEAR equiv)
-      destination_currency: 'near',
-      destination_network: network,
-      destination_address: accountId,  // Subaccount
-      customer_email: email,  // KYC
-    };
+    // Check if crypto API exists
+    console.log('Stripe crypto API available:', {
+      hasCrypto: !!stripe.crypto,
+      cryptoKeys: stripe.crypto ? Object.keys(stripe.crypto) : [],
+    });
 
-    // @ts-expect-error - Stripe types lag for 2025 Onramp; runtime works
-    const sessionData = await stripe.crypto.onrampSessions.create(onrampParams);
+    // Correct API call according to Stripe docs
+    const onrampSession = await stripe.crypto.onrampSessions.create({
+      transaction_details: {
+        destination_currency: 'near',
+        destination_network: 'near',
+        destination_exchange_amount: amount,
+        // Optional: specify wallet address
+        wallet_address: accountId,
+      },
+      customer_ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '',
+    });
 
-    if (!sessionData.client_secret) {
-      throw new Error('No client_secret returned from Stripe');
-    }
-
-    console.log(`Onramp session created for ${accountId}: $${amount} USD → NEAR (${network})`);
+    console.log('Onramp session created successfully:', {
+      id: onrampSession.id,
+      status: onrampSession.status,
+    });
 
     return NextResponse.json({
-      clientSecret: sessionData.client_secret,
-      sessionId: sessionData.id,
+      clientSecret: onrampSession.client_secret,
+      sessionId: onrampSession.id,
     });
-  } catch (error: unknown) {
-    console.error('Onramp session creation error:', error);
-    const errMsg = error instanceof Error ? error.message : 'Unknown error';
+
+  } catch (error: any) {
+    console.error('Detailed Onramp error:', {
+      message: error.message,
+      type: error.type,
+      code: error.code,
+      statusCode: error.statusCode,
+      raw: error.raw,
+    });
+
+    // Check if it's an API key issue
+    if (error.type === 'StripeAuthenticationError') {
+      return NextResponse.json({ 
+        error: 'Stripe authentication failed. Check your API keys.',
+        hint: 'Verify STRIPE_SECRET_KEY in Vercel environment variables'
+      }, { status: 500 });
+    }
+
+    // Check if crypto onramp is not enabled
+    if (error.message?.includes('not found') || error.code === 'resource_missing') {
+      return NextResponse.json({ 
+        error: 'Crypto Onramp not enabled for this Stripe account',
+        hint: 'Contact Stripe support or visit https://dashboard.stripe.com/settings/crypto',
+        canSkip: true
+      }, { status: 500 });
+    }
+
     return NextResponse.json(
-      { error: errMsg || 'Server error creating Onramp session' },
+      { 
+        error: error.message || 'Failed to create onramp session',
+        details: error.type || 'unknown',
+        canSkip: true
+      },
       { status: 500 }
     );
   }
