@@ -49,16 +49,31 @@ export async function POST(req: NextRequest) {
       const fullId = username.includes('.') ? username : `${username}.${parentDomain}`;
       
       // Validate format
-      const domainEscaped = parentDomain.replace(/\./g, '\\.');
-      const regex = new RegExp(`^[a-z0-9_-]{2,64}\\.${domainEscaped}$`);
+      const escapedDomain = parentDomain.replace(/\./g, '\\.');
+      const pattern = `^[a-z0-9_-]{2,64}\\.${escapedDomain}$`;
+      const regex = new RegExp(pattern);
+
+      console.log('Validation check:', { 
+        fullId, 
+        pattern,
+        parentDomain,
+        matched: regex.test(fullId)
+    });
+
       if (!regex.test(fullId)) {
+        console.log('Validation failed:', { 
+            fullId, 
+            pattern,
+            expectedFormat: `username.${parentDomain}` 
+        });
         return NextResponse.json(
-          { error: `Invalid account ID format (must end with .${parentDomain})` },
+          { error: `Invalid account ID format (must be: username.${parentDomain})` },
           { status: 400 }
         );
       }
       
       accountIdToCheck = fullId;
+      console.log('Checking username availability:', accountIdToCheck);
     } else {
       // Mode 2: Check if user has account stored in their Auth0 profile
       const storedAccountId = session.user.near_account_id as string | undefined;

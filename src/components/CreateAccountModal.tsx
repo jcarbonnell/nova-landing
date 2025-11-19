@@ -87,19 +87,28 @@ export default function CreateAccountModal({
     setIsLoading(true);
     setError('');
 
-    const accountId = username.includes('.') ? username : `${username}.nova-sdk.near`;
-    if (!/^[a-z0-9_-]{2,64}\.nova-sdk\.near$/.test(accountId)) {
-      setError('Invalid format: Use lowercase letters, numbers, _, - (e.g., myname.nova-sdk.near)');
+    // Validate username (just the prefix part)
+    if (!/^[a-z0-9_-]{2,64}$/.test(username)) {
+      setError('Invalid username: Use lowercase letters, numbers, _, - (2-64 characters)');
       setIsLoading(false);
       return;
     }
 
+    // Construct full account ID
+    const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN || 'nova-sdk-5.testnet';
+    const fullAccountId = `${username}.${parentDomain}`;
+
+    console.log('Checking account:', { username, fullAccountId });
+
     try {
-      // Check uniqueness
+      // Check if username is available
       const checkRes = await fetch('/api/auth/check-for-account', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: accountId, email: userData?.email }),
+        body: JSON.stringify({ 
+          username: username,
+          email: userData?.email 
+        }),
       });
 
       if (!checkRes.ok) {
@@ -108,18 +117,21 @@ export default function CreateAccountModal({
       }
 
       const { exists } = await checkRes.json();
+
       if (exists) {
-        setError(`Account ${accountId} already exists. Choose another username.`);
+        setError(`Username "${username}" is already taken. Please choose another.`);
         setIsLoading(false);
         return;
       }
 
-      // Proceed to payment (optional)
-      onPaymentOpen(accountId);  // Parent opens payment modal
+      // Username is available, proceed to payment modal
+      console.log('Username available, opening payment modal');
+      onPaymentOpen(fullAccountId);
+      setIsLoading(false);
     } catch (err: unknown) {
       console.error('Error checking account:', err);
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
-      setError(`Failed to check: ${errMsg}`);
+      setError(`Failed to check availability: ${errMsg}`);
       setIsLoading(false);
     }
   };
