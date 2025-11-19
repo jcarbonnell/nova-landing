@@ -58,7 +58,7 @@ export default function PaymentModal({
 
   // Load Stripe Crypto script
   useEffect(() => {
-    if (scriptLoaded || !isOpen) return;
+    if (scriptLoaded || !isOpen || isTestnet) return;
 
     const script = document.createElement('script');
     script.src = 'https://crypto-js.stripe.com/crypto-onramp-outer.js';
@@ -78,11 +78,11 @@ export default function PaymentModal({
         script.parentNode.removeChild(script);
       }
     };
-  }, [scriptLoaded, isOpen]);
+  }, [scriptLoaded, isOpen, isTestnet]);
 
   // Create session when modal opens
   useEffect(() => {
-    if (!isOpen || !amount) return;
+    if (!isOpen || !amount || isTestnet) return;
 
     const createSession = async () => {
       setIsLoading(true);
@@ -121,7 +121,7 @@ export default function PaymentModal({
     };
 
     createSession();
-  }, [isOpen, amount, accountId, email]);
+  }, [isOpen, amount, accountId, email, isTestnet]);
 
   // Handle session updates
   const handleSessionUpdate = useRef((e: OnrampSessionEvent) => {
@@ -139,7 +139,7 @@ export default function PaymentModal({
 
   // Mount Stripe Onramp element
   useEffect(() => {
-    if (!clientSecret || !onrampRef.current || !scriptLoaded || sessionRef.current.mounted) {
+    if (!clientSecret || !onrampRef.current || !scriptLoaded || sessionRef.current.mounted || isTestnet) {
       return;
     }
 
@@ -187,7 +187,7 @@ export default function PaymentModal({
         }
       }
     };
-  }, [clientSecret, scriptLoaded]);
+  }, [clientSecret, scriptLoaded, isTestnet]);
 
   if (!isOpen) return null;
 
@@ -213,32 +213,40 @@ export default function PaymentModal({
               </div>
             )}
 
-            <div className={styles.formGroup}>
-              <label className={styles.formLabel}>Amount (USD)</label>
-              <select
-                className={styles.formControl}
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                disabled={isLoading || !!error || isTestnet}
-              >
-                <option value="5.00">$5.00</option>
-                <option value="10.00">$10.00</option>
-                <option value="20.00">$20.00</option>
-              </select>
-            </div>
+            {/* AMOUNT SELECTOR - Hidden on testnet since payment not available */}
+            {!isTestnet && (
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Amount (USD)</label>
+                <select
+                  className={styles.formControl}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  disabled={isLoading || !!error}
+                >
+                  <option value="5.00">$5.00</option>
+                  <option value="10.00">$10.00</option>
+                  <option value="20.00">$20.00</option>
+                </select>
+              </div>
+            )}
             
-            {error && (
+            {/* ERROR MESSAGE - Only show non-testnet errors */}
+            {error && !isTestnet && (
               <div className={styles.alertDanger}>
                 {error}
               </div>
             )}
             
-            {isLoading ? (
+            {/* MAINNET: Loading state */}
+            {!isTestnet && isLoading && (
               <div className="text-center py-4">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2" />
                 <p>Initializing payment...</p>
               </div>
-            ) : clientSecret && scriptLoaded  && !isTestnet ? (
+            )}
+            
+            {/* MAINNET: Stripe payment widget */}
+            {!isTestnet && clientSecret && scriptLoaded && !isLoading && (
               <div style={{ 
                 position: 'relative', 
                 display: 'flex', 
@@ -266,12 +274,39 @@ export default function PaymentModal({
                   Skip Funding (Create Free Account)
                 </Button>
               </div>
-            ) : (
-              !error && (
-                <div className="text-center py-4">
-                  Preparing secure payment...
-                </div>
-              )
+            )}
+            
+            {/* MAINNET: Preparing message */}
+            {!isTestnet && !clientSecret && !isLoading && !error && (
+              <div className="text-center py-4">
+                Preparing secure payment...
+              </div>
+            )}
+            
+            {/* TESTNET: Skip button prominently displayed */}
+            {isTestnet && (
+              <div className="text-center py-8">
+                <p className="text-gray-400 mb-6 text-sm">
+                  Testnet accounts are free and will be funded automatically with test tokens.
+                </p>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    onSkip();
+                    onClose();
+                  }}
+                  className={styles.buttonPrimary}
+                  style={{ 
+                    width: '100%', 
+                    maxWidth: '540px',
+                    margin: '0 auto',
+                    fontSize: '16px',
+                    padding: '12px 24px'
+                  }}
+                >
+                  Skip Funding & Create Account
+                </Button>
+              </div>
             )}
           </div>
         </div>
