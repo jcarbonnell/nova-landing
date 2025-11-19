@@ -1,6 +1,6 @@
 // src/components/PaymentModal.tsx
 'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import styles from '@/styles/modal.module.css';
 
@@ -13,21 +13,20 @@ interface PaymentModalProps {
   email: string;
 }
 
-interface OnrampSessionPayload {
-  session: {
-    status: string;
-    [key: string]: unknown;
-  };
-}
-
 interface OnrampSessionEvent {
-  payload: OnrampSessionPayload;
+  payload: {
+    session: {
+      status: string;
+      [key: string]: unknown;
+    };
+  };
 }
 
 interface OnrampSession {
   mount: (el: HTMLElement) => void;
   addEventListener: (event: 'onramp_session_updated', cb: (e: OnrampSessionEvent) => void) => void;
-  setAppearance: (opts: { theme: 'dark' | 'light' }) => void;  // Align with stripe.d.ts union
+  removeEventListener: (event: 'onramp_session_updated', cb: (e: OnrampSessionEvent) => void) => void;
+  setAppearance: (opts: { theme: 'dark' | 'light' }) => void;
   unmount: () => void;
 }
 
@@ -52,89 +51,140 @@ export default function PaymentModal({
   const [isLoading, setIsLoading] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const onrampRef = useRef<HTMLDivElement>(null);
-  const sessionRef = useRef<OnrampSessionRef>(null);
+  const sessionRef = useRef<OnrampSessionRef>({});
 
-  // Load script dynamically (once)
+  // Load Stripe Crypto script
   useEffect(() => {
     if (scriptLoaded || !isOpen) return;
 
     const script = document.createElement('script');
-    script.src = 'https://js.stripe.com/v3/crypto/embedded.js';
+    script.src = 'https://crypto-js.stripe.com/crypto-onramp-outer.js';
     script.async = true;
     script.onload = () => {
+      console.log('Stripe Crypto script loaded');
       setScriptLoaded(true);
-      console.log('StripeCrypto script loaded');
     };
-    script.onerror = () => setError('Failed to load payment script');
+    script.onerror = () => {
+      console.error('Failed to load Stripe Crypto script');
+      setError('Failed to load payment interface');
+    };
     document.head.appendChild(script);
 
     return () => {
-      if (script.parentNode) script.parentNode.removeChild(script);
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
     };
   }, [scriptLoaded, isOpen]);
 
+  // Create session when modal opens
   useEffect(() => {
-    if (isOpen && amount) {
-      const createSession = async () => {
-        setIsLoading(true);
-        setError('');
-        try {
-          const response = await fetch('/api/payments/create-onramp-session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ accountId, email, amount }),
-          });
+    if (!isOpen || !amount) return;
 
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Failed to create session');
-          }
-
-          const data = await response.json();
-          setClientSecret(data.clientSecret);
-          sessionRef.current = { sessionId: data.sessionId, amount: parseFloat(amount) };
-        } catch (err: unknown) {
-          const errMsg = err instanceof Error ? err.message : 'Unknown error';
-          setError(`Failed to initialize: ${errMsg}`);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      createSession();
-    }
-  }, [isOpen, amount, accountId, email]);
-
-  const handleSessionUpdate = useCallback((e: OnrampSessionEvent) => {
-    console.log('Onramp updated:', e.payload.session.status);
-    if (e.payload.session.status === 'fulfillment_complete') {
-      onSubmit(sessionRef.current!.sessionId!, sessionRef.current!.amount!.toString());
-      onClose();
-    }
-  }, [onSubmit, onClose]);
-
-  useEffect(() => {
-    if (clientSecret && onrampRef.current && scriptLoaded && !sessionRef.current?.mounted && window.StripeCrypto) {
+    const createSession = async () => {
+      setIsLoading(true);
+      setError('');
+      
       try {
-        const session: OnrampSession = window.StripeCrypto.createOnrampSession({ clientSecret });
-        sessionRef.current!.session = session;
-        session.mount(onrampRef.current);
-        sessionRef.current = { ...sessionRef.current, session, mounted: true };
-        if (sessionRef.current!.session) {
-          sessionRef.current!.session.addEventListener('onramp_session_updated', handleSessionUpdate);
-          sessionRef.current!.session.setAppearance({ theme: 'dark' });
+        console.log('Creating onramp session...', { accountId, email, amount });
+        
+        const response = await fetch('/api/payments/create-onramp-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountId, email, amount }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Server error: ${response.status}`);
         }
+
+        const data = await response.json();
+        console.log('Session created:', data.sessionId);
+        
+        setClientSecret(data.clientSecret);
+        sessionRef.current = { 
+          sessionId: data.sessionId, 
+          amount: parseFloat(amount) 
+        };
+        
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : 'Unknown error';
-        setError(`Mount failed: ${errMsg}`);
+        console.error('Session creation error:', errMsg);
+        setError(`Failed to initialize: ${errMsg}`);
+      } finally {
+        setIsLoading(false);
       }
+    };
+
+    createSession();
+  }, [isOpen, amount, accountId, email]);
+
+  // Handle session updates
+  const handleSessionUpdate = useRef((e: OnrampSessionEvent) => {
+    console.log('Onramp session updated:', e.payload.session.status);
+    
+    if (e.payload.session.status === 'fulfillment_complete') {
+      const { sessionId, amount: sessionAmount } = sessionRef.current;
+      if (sessionId && sessionAmount) {
+        console.log('Payment complete, submitting...');
+        onSubmit(sessionId, sessionAmount.toString());
+        onClose();
+      }
+    }
+  });
+
+  // Mount Stripe Onramp element
+  useEffect(() => {
+    if (!clientSecret || !onrampRef.current || !scriptLoaded || sessionRef.current.mounted) {
+      return;
+    }
+
+    if (!window.StripeOnramp) {
+      console.error('StripeOnramp not available');
+      setError('Payment interface not loaded');
+      return;
+    }
+
+    try {
+      console.log('Mounting Stripe Onramp...');
+      
+      const session = window.StripeOnramp.createSession({
+        clientSecret,
+        appearance: { theme: 'dark' },
+      });
+
+      session.mount(onrampRef.current);
+      session.addEventListener('onramp_session_updated', handleSessionUpdate.current);
+      
+      sessionRef.current = {
+        ...sessionRef.current,
+        session,
+        mounted: true,
+      };
+
+      console.log('Stripe Onramp mounted successfully');
+      
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Mount error:', errMsg);
+      setError(`Failed to load payment: ${errMsg}`);
     }
 
     return () => {
-      if (sessionRef.current?.session) {
-        sessionRef.current.session.unmount();
+      if (sessionRef.current.session) {
+        try {
+          sessionRef.current.session.removeEventListener(
+            'onramp_session_updated', 
+            handleSessionUpdate.current
+          );
+          sessionRef.current.session.unmount();
+        } catch (err) {
+          console.warn('Unmount error:', err);
+        }
       }
     };
-  }, [clientSecret, scriptLoaded, handleSessionUpdate]);
+  }, [clientSecret, scriptLoaded]);
 
   if (!isOpen) return null;
 
@@ -144,7 +194,9 @@ export default function PaymentModal({
         <div className={`${styles.modalContent} ${styles.paymentModal}`}>
           <div className={styles.modalHeader}>
             <h5 className={styles.modalTitle}>Fund Your Wallet (Optional)</h5>
-            <button type="button" className={styles.closeButton} onClick={onClose}>x</button>
+            <button type="button" className={styles.closeButton} onClick={onClose}>
+              ×
+            </button>
           </div>
           <div className={styles.modalBody}>
             <div className={styles.formGroup}>
@@ -160,27 +212,52 @@ export default function PaymentModal({
                 <option value="20.00">$20.00</option>
               </select>
             </div>
-            {error && <div className={styles.alertDanger}>{error}</div>}
+            
+            {error && (
+              <div className={styles.alertDanger}>
+                {error}
+              </div>
+            )}
+            
             {isLoading ? (
-              <div className="text-center py-4">Initializing payment...</div>
-            ) : clientSecret ? (
-              <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2" />
+                <p>Initializing payment...</p>
+              </div>
+            ) : clientSecret && scriptLoaded ? (
+              <div style={{ 
+                position: 'relative', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center' 
+              }}>
                 <div
                   ref={onrampRef}
-                  style={{ maxWidth: '540px', height: '500px' }}
+                  style={{ maxWidth: '540px', height: '500px', width: '100%' }}
                 />
                 <Button
                   type="button"
-                  onClick={onSkip}
+                  onClick={() => {
+                    onSkip();
+                    onClose();
+                  }}
                   disabled={isLoading}
                   className={styles.buttonSecondary}
-                  style={{ marginTop: '15px', width: '100%', maxWidth: '540px' }}
+                  style={{ 
+                    marginTop: '15px', 
+                    width: '100%', 
+                    maxWidth: '540px' 
+                  }}
                 >
                   Skip Funding (Create Free Account)
                 </Button>
               </div>
             ) : (
-              !error && <div className="text-center py-4">Preparing secure payment...</div>
+              !error && (
+                <div className="text-center py-4">
+                  Preparing secure payment...
+                </div>
+              )
             )}
           </div>
         </div>
