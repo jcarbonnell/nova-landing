@@ -2,16 +2,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth0 } from '@/lib/auth0';
 
-// Validate env vars
 if (!process.env.NEXT_PUBLIC_RPC_URL) {
-  throw new Error('NEXT_PUBLIC_RPC_URL env var missing—add to .env.local (e.g., https://rpc.testnet.near.org)');
+  throw new Error('NEXT_PUBLIC_RPC_URL env var missing');
 }
 
 if (!process.env.NEXT_PUBLIC_PARENT_DOMAIN) {
-  throw new Error('NEXT_PUBLIC_PARENT_DOMAIN env var missing (e.g., nova-sdk-5.testnet)');
+  throw new Error('NEXT_PUBLIC_PARENT_DOMAIN env var missing');
 }
 
-// Full response shape from near-api-js (for view_account)
+if (!process.env.NEXT_PUBLIC_SHADE_API_URL) {
+  throw new Error('NEXT_PUBLIC_SHADE_API_URL env var missing');
+}
+
 interface ViewAccountResponse {
   kind: 'ViewAccount';
   result: {
@@ -29,7 +31,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email required' }, { status: 400 });
     }
 
-    // Get session from Auth0 middleware
+    // Validate Auth0 session
     const session = await auth0.getSession();
 
     if (!session?.user?.email || session.user.email !== email) {
@@ -37,95 +39,190 @@ export async function POST(req: NextRequest) {
     }
 
     const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN!;
-    
-    // Two modes:
-    // 1. If username provided: Check if that specific account exists (for availability check)
-    // 2. If no username: Check if user has any account linked to their session
-    
     let accountIdToCheck: string | null = null;
     
     if (username) {
-      // Mode 1: Check specific username availability
+      // ==========================================
+      // MODE 1: Check specific username availability
+      // (Called from CreateAccountModal when user types username)
+      // ==========================================
+      
+      // Construct full account ID from username
       const fullId = username.includes('.') ? username : `${username}.${parentDomain}`;
       
-      // Validate format
-      const escapedDomain = parentDomain.replace(/\./g, '\\.');
-      const pattern = `^[a-z0-9_-]{2,64}\\.${escapedDomain}$`;
-      const regex = new RegExp(pattern);
-
-      console.log('Validation check:', { 
-        fullId, 
-        pattern,
-        parentDomain,
-        matched: regex.test(fullId)
-    });
-
+      // Validate format (e.g., jcarbonnell.nova-sdk-5.testnet)
+      const domainEscaped = parentDomain.replace(/\./g, '\\.');
+      const regex = new RegExp(`^[a-z0-9_-]{2,64}\\.${domainEscaped}$`);
+      
       if (!regex.test(fullId)) {
-        console.log('Validation failed:', { 
-            fullId, 
-            pattern,
-            expectedFormat: `username.${parentDomain}` 
-        });
+        console.error('Validation failed:', { fullId, pattern: regex.source });
         return NextResponse.json(
-          { error: `Invalid account ID format (must be: username.${parentDomain})` },
+          { error: `Invalid account ID format (must end with .${parentDomain})` },
           { status: 400 }
         );
       }
       
       accountIdToCheck = fullId;
-      console.log('Checking username availability:', accountIdToCheck);
+      console.log('Mode 1: Checking username availability:', accountIdToCheck);
+      
     } else {
-      // Mode 2: Check if user has account stored in their Auth0 profile
-      const storedAccountId = session.user.near_account_id as string | undefined;
-      if (!storedAccountId) {
-        // No account stored in profile
-        console.log(`No NEAR account stored for ${email}`);
-        return NextResponse.json({ exists: false, accountId: null });
+      // ==========================================
+      // MODE 2: Check if user has account stored in Shade
+      // (Called from HomeClient after Auth0 login to see if account exists)
+      // ==========================================
+      
+      const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL!;
+      
+      try {
+        // Generate auth token (matching create-account implementation)
+        const authToken = Buffer.from(`${email}:${Date.now()}:${session.user.sub || ''}`).toString('base64');
+        
+        console.log('Mode 2: Querying Shade for user account:', email);
+        
+        const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/check`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            email, 
+            auth_token: authToken 
+          }),
+          // Add timeout to prevent hanging
+          signal: AbortSignal.timeout(10000), // 10 second timeout
+        });
+
+        if (shadeResponse.ok) {
+          const shadeData = await shadeResponse.json();
+          
+          if (shadeData.exists && shadeData.account_id) {
+            accountIdToCheck = shadeData.account_id;
+            console.log('✅ Found account in Shade TEE:', {
+              accountId: accountIdToCheck,
+              network: shadeData.network,
+              publicKey: shadeData.public_key?.substring(0, 20) + '...',
+              createdAt: shadeData.created_at,
+            });
+          } else {
+            console.log('No account found in Shade for:', email);
+            return NextResponse.json({ 
+              exists: false, 
+              accountId: null 
+            });
+          }
+        } else if (shadeResponse.status === 404) {
+          // 404 means user not found - this is expected for new users
+          console.log('User not found in Shade (new user):', email);
+          return NextResponse.json({ 
+            exists: false, 
+            accountId: null 
+          });
+        } else {
+          const errorText = await shadeResponse.text();
+          console.error('Shade API error:', {
+            status: shadeResponse.status,
+            statusText: shadeResponse.statusText,
+            error: errorText.substring(0, 200),
+          });
+          
+          // Shade error - assume no account (safe default for new users)
+          console.log('Shade error, assuming no account for:', email);
+          return NextResponse.json({ 
+            exists: false, 
+            accountId: null 
+          });
+        }
+      } catch (shadeError) {
+        console.error('Shade check error:', shadeError);
+        
+        // Network error, timeout, or other issue
+        if (shadeError instanceof Error) {
+          console.error('Shade error details:', {
+            message: shadeError.message,
+            name: shadeError.name,
+          });
+        }
+        
+        // If Shade is unreachable, assume no account (safe default)
+        console.log('Shade unreachable, assuming no account for:', email);
+        return NextResponse.json({ 
+          exists: false, 
+          accountId: null 
+        });
       }
-      accountIdToCheck = storedAccountId;
     }
 
-    // Query NEAR RPC to check if account exists on-chain
+    // ==========================================
+    // Verify account exists on NEAR blockchain
+    // (Both modes end up here with accountIdToCheck)
+    // ==========================================
+    
+    if (!accountIdToCheck) {
+      console.error('No account ID to check (should not reach here)');
+      return NextResponse.json({ 
+        exists: false, 
+        accountId: null 
+      });
+    }
+
+    console.log('Verifying account on NEAR blockchain:', accountIdToCheck);
+
+    // Import NEAR API dynamically (tree-shaking)
     const near = await import('near-api-js');
     const { JsonRpcProvider } = near.providers;
+    
+    // Create RPC provider
     const provider = new JsonRpcProvider({ url: process.env.NEXT_PUBLIC_RPC_URL! });
 
     try {
+      // Query NEAR RPC to check if account exists
       const rawResponse = await provider.query({
         request_type: 'view_account',
         finality: 'final',
         account_id: accountIdToCheck,
       });
 
+      // Cast response to known type
       const response = rawResponse as unknown as ViewAccountResponse;
+      
+      // Account exists if it has code_hash and storage_paid
       const exists = response.result.code_hash !== null && response.result.storage_paid !== null;
 
-      if (username) {
-        // Mode 1: Return availability status
-        console.log(`Username check: ${accountIdToCheck} - exists: ${exists}`);
-        return NextResponse.json({ 
-          exists, 
-          accountId: exists ? accountIdToCheck : null 
+      if (exists) {
+        console.log('✅ Account verified on blockchain:', { 
+          accountId: accountIdToCheck, 
+          codeHash: response.result.code_hash?.substring(0, 16) + '...',
+          storagePaid: response.result.storage_paid?.total,
         });
       } else {
-        // Mode 2: Return user's account status
-        if (exists) {
-          console.log(`User ${email} has existing account: ${accountIdToCheck}`);
-          return NextResponse.json({ 
-            exists: true, 
-            accountId: accountIdToCheck 
-          });
+        console.log('Account structure exists but is not initialized:', accountIdToCheck);
+      }
+
+      return NextResponse.json({ 
+        exists, 
+        accountId: exists ? accountIdToCheck : null 
+      });
+      
+    } catch (rpcError) {
+      // Account doesn't exist on-chain (expected for availability checks)
+      console.log(`Account ${accountIdToCheck} not found on NEAR blockchain`);
+      
+      // Log RPC error details for debugging (helps identify network issues)
+      if (rpcError instanceof Error) {
+        console.log('RPC error details:', {
+          message: rpcError.message,
+          accountId: accountIdToCheck,
+        });
+        
+        // Check if it's an actual "account not found" vs network error
+        if (rpcError.message.includes('does not exist') || 
+            rpcError.message.includes('UNKNOWN_ACCOUNT')) {
+          console.log('→ Account does not exist (available for registration)');
         } else {
-          console.log(`Stored account ${accountIdToCheck} not found on-chain for ${email}`);
-          return NextResponse.json({ 
-            exists: false, 
-            accountId: null 
-          });
+          console.error('→ Unexpected RPC error:', rpcError.message);
         }
       }
-    } catch (error) {
-      // Account doesn't exist on-chain (RPC error)
-      console.log(`Account ${accountIdToCheck} not found on NEAR: ${error}`);
+      
       return NextResponse.json({ 
         exists: false, 
         accountId: null 
@@ -133,9 +230,19 @@ export async function POST(req: NextRequest) {
     }
     
   } catch (error) {
-    console.error('Check account error:', error);
+    console.error('❌ Check account error:', error);
+    
+    // Log full error stack for debugging
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+      });
+    }
+    
     return NextResponse.json({ 
-      error: 'Server error during check',
+      error: 'Server error during account check',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }

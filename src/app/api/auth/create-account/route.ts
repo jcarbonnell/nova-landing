@@ -2,11 +2,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth0 } from '@/lib/auth0';
 
-if (!process.env.NEXT_PUBLIC_RELAYER_URL) {
-  throw new Error('NEXT_PUBLIC_RELAYER_URL is required');
-}
 if (!process.env.NEXT_PUBLIC_PARENT_DOMAIN) {
   throw new Error('NEXT_PUBLIC_PARENT_DOMAIN is required');
+}
+
+if (!process.env.NEAR_CREATOR_PRIVATE_KEY) {
+  throw new Error('NEAR_CREATOR_PRIVATE_KEY is required for account creation');
 }
 
 export async function POST(req: NextRequest) {
@@ -19,16 +20,33 @@ export async function POST(req: NextRequest) {
     }
 
     const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN!;
-    const fullId = username.includes('.') ? username : `${username}.${parentDomain}`;
+    const cleanUsername = username.includes('.') ? username.split('.')[0] : username;
+    const fullId = `${cleanUsername}.${parentDomain}`;
 
-    const domainEscaped = parentDomain.replace('.', '\\.');
+    // Validate format
+    const domainEscaped = parentDomain.replace(/\./g, '\\.');
     const regex = new RegExp(`^[a-z0-9_-]{2,64}\\.${domainEscaped}$`);
+    
     if (!regex.test(fullId)) {
+      console.error('Create validation failed:', { fullId, pattern: regex.source });
       return NextResponse.json(
         { error: `Invalid account ID format (must end with .${parentDomain})` },
         { status: 400 }
       );
     }
+
+    // Determine network
+    const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK !== 'mainnet';
+    const networkId = isTestnet ? 'testnet' : 'mainnet';
+    const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL!;
+
+    console.log('Creating NEAR account:', { 
+      username: cleanUsername, 
+      fullId, 
+      email,
+      network: networkId,
+      parent: parentDomain
+    });
 
     const relayerUrl = process.env.NEXT_PUBLIC_RELAYER_URL!;
     if (!relayerUrl) throw new Error('NEXT_PUBLIC_RELAYER_URL is required');
