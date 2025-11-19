@@ -88,6 +88,16 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     }
   }, []);
 
+  // reload client-side after server-side redirect
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('token')) {
+        window.location.reload();
+      }
+    }
+  }, []);
+
   // handleLoginSuccess (from modal callback)
   const handleLoginSuccess = () => {
     setIsLoginOpen(false);
