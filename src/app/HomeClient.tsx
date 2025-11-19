@@ -94,15 +94,29 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
     const params = new URLSearchParams(window.location.search);
     
-    // Auth0 OAuth callback
-    const isAuth0Callback = params.has('code') || params.has('state');
-    // MCP server callback
-    const isMcpCallback = params.has('token');
+    // Auth0 callback OR MCP callback
+    const isCallback =
+      params.has("code") ||
+      params.has("state") ||
+      params.has("token") ||
+      params.has("near");
     
-    if (isAuth0Callback || isMcpCallback) {
+    if (isCallback) {
       // Clean reload without keeping query params
-      window.location.replace(window.location.origin + window.location.pathname);
+      window.history.replaceState({}, "", "/");
+      window.location.href = "/";
     }
+  }, []);
+
+  // in case the above runs too early, a fallback timeout
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const timer = setTimeout(() => {
+      if (window.location.search.includes("code=") || window.location.search.includes("token=")) {
+        window.location.href = "/";
+      }
+    }, 500);
+    return () => clearTimeout(timer);
   }, []);
 
   // handleLoginSuccess (from modal callback)
