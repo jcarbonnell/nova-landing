@@ -12,6 +12,15 @@ if (!STRIPE_SECRET_KEY) {
 export async function POST(req: NextRequest) {
   try {
     const { accountId, email, amount } = await req.json();
+
+    // Check if testnet - reject immediately
+    const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK !== 'mainnet';
+    if (isTestnet) {
+      return NextResponse.json({ 
+        error: 'Payment not available on testnet. Please skip funding to create a free testnet account.' 
+      }, { status: 400 });
+    }
+
     
     // Validate session
     const session = await auth0.getSession();
@@ -26,10 +35,8 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Determine network (testnet for now)
-    const network = process.env.NEXT_PUBLIC_NEAR_NETWORK === 'mainnet' 
-      ? 'near-mainnet' 
-      : 'near-testnet';
+    // always mainnet for real payments
+    const network = 'mainnet';
 
     console.log('Creating Onramp session:', { 
       accountId, 
@@ -39,7 +46,6 @@ export async function POST(req: NextRequest) {
     });
 
     // Create onramp session via Stripe REST API
-    // Docs: https://stripe.com/docs/crypto/onramp
     const response = await fetch('https://api.stripe.com/v1/crypto/onramp_sessions', {
       method: 'POST',
       headers: {
@@ -47,10 +53,21 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
+        // Source: What the user pays (USD)
+        'transaction_details[source_currency]': 'usd',
+        'transaction_details[source_amount]': String(parsedAmount),
+        
+        // Destination: Where the crypto goes
         'transaction_details[destination_currency]': 'near',
         'transaction_details[destination_network]': network,
-        'transaction_details[destination_amount]': String(parsedAmount),
-        'wallet_addresses[near]': accountId, // NEAR account to receive funds
+        
+        // Lock destination network (required for NEAR)
+        'transaction_details[lock_wallet_address]': 'true',
+        
+        // Wallet address
+        [`wallet_addresses[${network}]`]: accountId, // Use network-specific key
+        
+        // Customer info
         'customer_information[email]': email,
       }).toString(),
     });
@@ -64,8 +81,16 @@ export async function POST(req: NextRequest) {
       try {
         const errorData = JSON.parse(errorText);
         errorMessage = errorData.error?.message || errorMessage;
+
+        // Log detailed error for debugging
+        console.error('Stripe error details:', {
+          type: errorData.error?.type,
+          code: errorData.error?.code,
+          param: errorData.error?.param,
+          message: errorData.error?.message,
+        });
       } catch {
-        errorMessage = errorText.substring(0, 200); // Truncate long errors
+        errorMessage = errorText.substring(0, 200);
       }
       
       return NextResponse.json({ 
@@ -83,7 +108,8 @@ export async function POST(req: NextRequest) {
     console.log('Onramp session created:', {
       sessionId: sessionData.id,
       network,
-      amount: parsedAmount,
+      sourceAmount: parsedAmount,
+      status: sessionData.status,
     });
 
     return NextResponse.json({

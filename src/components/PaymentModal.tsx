@@ -53,6 +53,9 @@ export default function PaymentModal({
   const onrampRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<OnrampSessionRef>({});
 
+  // Detect testnet
+  const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK !== 'mainnet';
+
   // Load Stripe Crypto script
   useEffect(() => {
     if (scriptLoaded || !isOpen) return;
@@ -199,13 +202,24 @@ export default function PaymentModal({
             </button>
           </div>
           <div className={styles.modalBody}>
+            {/* ADD TESTNET WARNING */}
+            {isTestnet && (
+              <div className="mb-4 p-4 bg-yellow-500/20 border border-yellow-500/50 rounded-lg">
+                <p className="text-yellow-200 text-sm">
+                  <strong>🧪 Testnet Mode:</strong> You're on testnet. 
+                  Real payments don't work here. Click "Skip Funding" below to create 
+                  your account with free testnet tokens.
+                </p>
+              </div>
+            )}
+
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>Amount (USD)</label>
               <select
                 className={styles.formControl}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                disabled={isLoading || !!error}
+                disabled={isLoading || !!error || isTestnet}
               >
                 <option value="5.00">$5.00</option>
                 <option value="10.00">$10.00</option>
@@ -224,7 +238,7 @@ export default function PaymentModal({
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2" />
                 <p>Initializing payment...</p>
               </div>
-            ) : clientSecret && scriptLoaded ? (
+            ) : clientSecret && scriptLoaded  && !isTestnet ? (
               <div style={{ 
                 position: 'relative', 
                 display: 'flex', 
