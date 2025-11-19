@@ -17,12 +17,16 @@ export interface User {
   [key: string]: unknown;
 }
 
-// v4: Instantiate client (reads env auto—no config obj needed)
+// v4: Instantiate client with explicit config to ensure all vars are read
 export const auth0 = new Auth0Client({
   appBaseUrl: process.env.APP_BASE_URL!,
+  secret: process.env.AUTH0_SECRET!,
+  clientId: process.env.AUTH0_CLIENT_ID!,
+  clientSecret: process.env.AUTH0_CLIENT_SECRET!,
+  domain: process.env.AUTH0_DOMAIN!,
   authorizationParameters: {
     scope: 'openid profile email offline_access',
-    audience: process.env.AUTH0_AUDIENCE, 
+    audience: process.env.AUTH0_AUDIENCE,
   },
 });
 

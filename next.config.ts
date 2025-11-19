@@ -8,40 +8,15 @@ const nextConfig = {
     NEXT_PUBLIC_RPC_URL: process.env.NEXT_PUBLIC_RPC_URL,
     NEXT_PUBLIC_RELAYER_URL: process.env.NEXT_PUBLIC_RELAYER_URL,
   },
-  // New: Proxy config replaces middleware
+  
   async rewrites() {
     return [
-      // Proxy MCP (your /api/mcp-proxy → MCP URL)
       {
         source: '/api/mcp-proxy/:path*',
         destination: `${process.env.MCP_URL || 'https://nova-mcp.fastmcp.app'}/mcp/:path*`,
       },
-      // Auth redirects (protect non-public)
-      {
-        source: '/api/auth/:path*',
-        destination: '/api/auth/:path*',  // Passthrough
-      },
-      // Static/public passthrough
-      {
-        source: '/_next/static/:path*',
-        destination: '/_next/static/:path*',
-      },
-      {
-        source: '/_next/image/:path*',
-        destination: '/_next/image/:path*',
-      },
-      {
-        source: '/favicon.ico',
-        destination: '/favicon.ico',
-      },
-      // Catch-all: Redirect unauth to login (simulate middleware check)
-      {
-        source: '/:path*',
-        destination: '/:path*',  // Default passthrough; add logic in pages if needed
-      },
     ];
   },
-  // CSP via headers (move from middleware)
   async headers() {
     const csp = `
       default-src 'self';
