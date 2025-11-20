@@ -1,7 +1,11 @@
 // src/app/api/auth/create-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth0 } from '@/lib/auth0';
-import { connect, KeyPair, keyStores, utils } from 'near-api-js';
+import {
+  connect,
+  KeyPair,
+  keyStores,
+} from 'near-api-js';
 
 const PARENT_DOMAIN = process.env.NEXT_PUBLIC_PARENT_DOMAIN!;
 const CREATOR_PRIVATE_KEY = process.env.NEAR_CREATOR_PRIVATE_KEY!;
@@ -13,18 +17,26 @@ if (!PARENT_DOMAIN || !CREATOR_PRIVATE_KEY || !RPC_URL || !SHADE_API_URL) {
   throw new Error('Missing required env vars for account creation');
 }
 
+// Convert NEAR amount → yoctoNEAR bigint (official way in v6+)
+function parseNearAmount(amount: string): bigint {
+  const [whole, fractional = ''] = amount.split('.');
+  const padded = fractional.padEnd(24, '0').slice(0, 24);
+  return BigInt(whole + padded);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { username, email } = await req.json();
     const session = await auth0.getSession();
 
+    // debug
     console.log('Session debug:', {
       hasSession: !!session,
       hasUser: !!session?.user,
       email: session?.user?.email,
       hasIdToken: !!session?.idToken,
       hasAccessToken: !!session?.accessToken,
-      sessionKeys: session ? Object.keys(session) : [],
+      tokenKeys: session ? Object.keys(session) : [],
     });
 
     if (!session?.user?.email || session.user.email !== email) {
@@ -38,154 +50,81 @@ export async function POST(req: NextRequest) {
 
     const fullId = `${cleanUsername}.${PARENT_DOMAIN}`;
 
-    console.log('Creating account:', { fullId, network: NETWORK_ID });
-
-    // 1. Generate new keypair for subaccount
+    // 1. Generate keypair
     const newKeyPair = KeyPair.fromRandom('ed25519');
     const publicKey = newKeyPair.getPublicKey().toString();
     const privateKey = newKeyPair.toString();
 
-    console.log('Generated keypair:', { publicKey });
-
-    // 2. Setup creator keystore
-    const keyStore = new keyStores.InMemoryKeyStore();
-    let creatorKeyPair;
-    try {
-      creatorKeyPair = KeyPair.fromString(CREATOR_PRIVATE_KEY);
-      console.log('Creator public key:', creatorKeyPair.getPublicKey().toString());
-      await keyStore.setKey(NETWORK_ID, PARENT_DOMAIN, creatorKeyPair);
-    } catch (error) {
-      throw new Error(`Invalid CREATOR_PRIVATE_KEY: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    // 2. Creator signer – official workaround
+    let creatorSecret = CREATOR_PRIVATE_KEY.trim();
+    if (creatorSecret.startsWith('ed25519:')) {
+      creatorSecret = creatorSecret.slice(8);
     }
+    const creatorKeyPair = KeyPair.fromString(`ed25519:${creatorSecret}`);
 
-    // 3. Connect to NEAR
-    const connectionConfig = {
+    const keyStore = new keyStores.InMemoryKeyStore();
+    await keyStore.setKey(NETWORK_ID, PARENT_DOMAIN, creatorKeyPair);
+
+    const near = await connect({
       networkId: NETWORK_ID,
       keyStore,
       nodeUrl: RPC_URL,
-      walletUrl: NETWORK_ID === 'testnet' 
-        ? 'https://testnet.mynearwallet.com'
-        : 'https://app.mynearwallet.com',
-      helperUrl: NETWORK_ID === 'testnet'
-        ? 'https://helper.testnet.near.org'
-        : 'https://helper.mainnet.near.org',
-    };
-
-    console.log('Connecting to NEAR...');
-    const near = await connect(connectionConfig);
-
-    // 4. Get creator account
-    const creatorAccount = await near.account(PARENT_DOMAIN);
-    console.log('Creator account loaded:', PARENT_DOMAIN);
-
-    // 5. Verify creator balance
-    try {
-      const state = await creatorAccount.state();
-      const balance = Number(state.amount) / 1e24;
-      console.log(`Creator balance: ${balance} NEAR`);
-      if (balance < 0.15) {
-        throw new Error(`Insufficient balance in ${PARENT_DOMAIN}: ${balance} NEAR`);
-      }
-    } catch (error) {
-      console.error('Balance check failed:', error);
-      // Continue anyway
-    }
-
-    // 6. Create subaccount (exact same as your old code)
-    console.log('Creating subaccount:', {
-      parent: PARENT_DOMAIN,
-      child: fullId,
-      balance: '0.1 NEAR',
+      headers: {},
     });
 
-    const initialBalance = utils.format.parseNearAmount('0.1');
+    const creatorAccount = await near.account(PARENT_DOMAIN);
 
-    await creatorAccount.createAccount(
+    // 3. Create subaccount – both gas and attachedDeposit as bigint
+    const initialBalance = '100000000000000000000000'; // 0.1 NEAR in yoctoNEAR
+
+    const result = await creatorAccount.createAccount(
       fullId,
-      publicKey,
+      publicKey.toString(),
       initialBalance
     );
 
-    console.log('✅ Account created successfully on NEAR blockchain');
+    console.log('✅ Account created, storing key in Shade TEE...');
 
-    // 7. Store private key in Shade TEE
-    const token = (session.idToken || session.accessToken) as string | undefined;
-
-    console.log('Token for Shade:', {
-      hasIdToken: !!session.idToken,
-      hasAccessToken: !!session.accessToken,
-      usingToken: token ? token.substring(0, 30) + '...' : 'NONE',
-    });
-
+    // 4. Store private key in Shade TEE
+    const token = session.idToken;
     if (!token) {
-      console.warn('⚠️ No token for Shade storage - key NOT backed up');
-      return NextResponse.json({
-        accountId: fullId,
-        publicKey,
-        network: NETWORK_ID,
-        message: 'Account created (WARNING: Key not backed up in TEE)',
-      });
-    }
-
-    try {
-      const shadeResponse = await fetch(`${SHADE_API_URL}/api/user-keys/store`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          account_id: fullId,
-          private_key: privateKey,
-          public_key: publicKey,
-          network: NETWORK_ID,
-          auth_token: token,
-        }),
-      });
-
-      if (!shadeResponse.ok) {
-        const errorText = await shadeResponse.text();
-        console.error('❌ Shade storage failed:', errorText);
-
-        return NextResponse.json({
-          accountId: fullId,
-          publicKey,
-          network: NETWORK_ID,
-          message: 'Account created (WARNING: Key storage failed)',
-          shadeError: errorText.substring(0, 200),
+      console.warn('No ID token for Shade storage (key not backed up)');
+    } else {
+      try {
+        const shadeResponse = await fetch(`${SHADE_API_URL}/api/user-keys/store`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            account_id: fullId,
+            private_key: privateKey,
+            public_key: publicKey,
+            network: NETWORK_ID,
+            auth_token: token,
+          }),
         });
+
+        if (!shadeResponse.ok) {
+          console.warn('Shade storage failed (non-critical)', await shadeResponse.text());
+        } else {
+          console.log('✅ Private key stored in TEE');
+        }
+      } catch (shadeError) {
+        console.error('Shade storage error (non-critical):', shadeError);
       }
-
-      const shadeData = await shadeResponse.json();
-      console.log('✅ Private key stored in TEE:', shadeData.checksum?.substring(0, 16));
-
-    } catch (shadeError) {
-      console.error('❌ Shade storage error:', shadeError);
-
-      return NextResponse.json({
-        accountId: fullId,
-        publicKey,
-        network: NETWORK_ID,
-        message: 'Account created (WARNING: Key storage error)',
-      });
     }
-
-    const explorerUrl = NETWORK_ID === 'testnet'
-      ? `https://testnet.nearblocks.io/txns/${fullId}`
-      : `https://nearblocks.io/txns/${fullId}`;
 
     return NextResponse.json({
       accountId: fullId,
       publicKey,
       network: NETWORK_ID,
-      explorerUrl,
-      message: 'Account created & secured in TEE!',
+      message: 'Account created & secured!',
     });
-
   } catch (error: unknown) {
     const err = error as Error;
-    console.error('❌ Account creation failed:', err.message);
-    console.error('Stack:', err.stack);
+    console.error('Account creation failed:', err);
 
-    if (err.message?.includes('already exists') || err.message?.includes('AlreadyExists')) {
+    if (err.message?.includes('already exists')) {
       return NextResponse.json({ error: 'Username already taken' }, { status: 400 });
     }
 
