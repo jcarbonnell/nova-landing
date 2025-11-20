@@ -69,16 +69,11 @@ export async function POST(req: NextRequest) {
 
     console.log('Creating subaccount:', fullId);
 
-    await creatorAccount.functionCall({
-      contractId: 'testnet',
-      methodName: 'create_account',
-      args: {
-        new_account_id: fullId,
-        new_public_key: publicKey,
-      },
-      gas: BigInt('300000000000000'),     // bigint
-      attachedDeposit: initialBalance,     // bigint
-    });
+    await creatorAccount.createAccount(
+      fullId,
+      publicKey,
+      initialBalance
+    );
 
     console.log('✅ Account created, storing key in Shade TEE...');
 

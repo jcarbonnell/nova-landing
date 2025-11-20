@@ -28,6 +28,10 @@ export const auth0 = new Auth0Client({
     scope: 'openid profile email offline_access',
     audience: process.env.AUTH0_AUDIENCE,
   },
+  // ensure access token is returned
+  session: {
+    storeAccessToken: true,  // Store access token in session
+  },
 });
 
 // Named export: Wrapper for getSession (v4 method, no mocks/req/res)
