@@ -1,6 +1,9 @@
 // src/app/api/auth/create-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth0 } from '@/lib/auth0';
+import * as nearAPI from 'near-api-js';
+
+const { connect, keyStores, KeyPair } = nearAPI;
 
 if (!process.env.NEXT_PUBLIC_PARENT_DOMAIN) {
   throw new Error('NEXT_PUBLIC_PARENT_DOMAIN is required');
@@ -52,10 +55,6 @@ export async function POST(req: NextRequest) {
       parent: parentDomain
     });
 
-    // Import NEAR API
-    const near = await import('near-api-js');
-    const { connect, keyStores, KeyPair } = near;
-
     // Generate keypair for the new account
     const newAccountKeyPair = KeyPair.fromRandom('ed25519');
     const publicKey = newAccountKeyPair.getPublicKey().toString();
@@ -82,7 +81,7 @@ export async function POST(req: NextRequest) {
     await keyStore.setKey(networkId, creatorAccountId, creatorKeyPair);
 
     // Connect to NEAR
-    const config = {
+    const nearConnection = await connect({
       networkId,
       keyStore,
       nodeUrl: rpcUrl,
@@ -92,9 +91,8 @@ export async function POST(req: NextRequest) {
       helperUrl: isTestnet 
         ? 'https://helper.testnet.near.org' 
         : 'https://helper.mainnet.near.org',
-    };
+    });
 
-    const nearConnection = await connect(config);
     const creatorAccount = await nearConnection.account(creatorAccountId);
 
     // Check creator account balance
@@ -104,7 +102,7 @@ export async function POST(req: NextRequest) {
       console.log(`Creator account balance: ${balanceInNear.toFixed(4)} NEAR`);
       
       // Minimum balance check
-      const minRequired = 0.5; // NEAR (buffer for multiple account creations)
+      const minRequired = 0.5;
       if (balanceInNear < minRequired) {
         console.error(`Insufficient balance: ${balanceInNear} NEAR < ${minRequired} NEAR`);
         return NextResponse.json(
@@ -114,7 +112,6 @@ export async function POST(req: NextRequest) {
       }
     } catch (balanceError) {
       console.error('Failed to check creator balance:', balanceError);
-      // Continue anyway - let the creation fail with proper error if balance is insufficient
     }
 
     // Initial balance: 0.1 NEAR for both testnet and mainnet
@@ -202,7 +199,6 @@ export async function POST(req: NextRequest) {
         console.error('❌ CRITICAL: Failed to store private key in Shade:', shadeError);
         
         // CRITICAL ERROR: Account was created but key storage failed
-        // Log the private key to server logs for emergency recovery
         console.error('=====================================');
         console.error('EMERGENCY RECOVERY INFORMATION');
         console.error('=====================================');

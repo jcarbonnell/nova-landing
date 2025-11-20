@@ -1,6 +1,9 @@
 // src/app/api/auth/check-for-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth0 } from '@/lib/auth0';
+import * as nearAPI from 'near-api-js';
+
+const { providers } = nearAPI;
 
 if (!process.env.NEXT_PUBLIC_RPC_URL) {
   throw new Error('NEXT_PUBLIC_RPC_URL env var missing');
@@ -171,8 +174,10 @@ export async function POST(req: NextRequest) {
     const near = await import('near-api-js');
     const { JsonRpcProvider } = near.providers;
     
-    // Create RPC provider
-    const provider = new JsonRpcProvider({ url: process.env.NEXT_PUBLIC_RPC_URL! });
+    // Query NEAR RPC
+    const provider = new providers.JsonRpcProvider({ 
+      url: process.env.NEXT_PUBLIC_RPC_URL! 
+    });
 
     try {
       // Query NEAR RPC to check if account exists
