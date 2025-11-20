@@ -109,11 +109,13 @@ export async function POST(req: NextRequest) {
       balance: '0.1 NEAR',
     });
 
-    // 5. Create subaccount (official method from docs)
-    const result = await creatorAccount.createSubAccount(
+    // 5. Create account
+    const initialBalance = '100000000000000000000000';
+    
+    const result = await creatorAccount.createAccount(
       fullId,
-      publicKey,
-      '100000000000000000000000' // 0.1 NEAR in yoctoNEAR
+      publicKey.toString(),
+      initialBalance
     );
 
     console.log('Transaction result:', {
