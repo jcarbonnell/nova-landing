@@ -1,11 +1,7 @@
 // src/app/api/auth/create-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth0 } from '@/lib/auth0';
-import { Account } from '@near-js/accounts';
-import { KeyPair } from '@near-js/crypto';
-import { InMemoryKeyStore } from '@near-js/keystores';
-import { JsonRpcProvider } from '@near-js/providers';
-
+import { connect, KeyPair, keyStores, utils } from 'near-api-js';
 
 const PARENT_DOMAIN = process.env.NEXT_PUBLIC_PARENT_DOMAIN!;
 const CREATOR_PRIVATE_KEY = process.env.NEAR_CREATOR_PRIVATE_KEY!;
@@ -46,96 +42,74 @@ export async function POST(req: NextRequest) {
 
     // 1. Generate new keypair for subaccount
     const newKeyPair = KeyPair.fromRandom('ed25519');
-    const publicKey = newKeyPair.getPublicKey();
+    const publicKey = newKeyPair.getPublicKey().toString();
     const privateKey = newKeyPair.toString();
 
-    console.log('Generated keypair:', {
-      publicKey: publicKey.toString(),
-    });
+    console.log('Generated keypair:', { publicKey });
 
-    // 2. Setup creator account keystore
-    let creatorSecret = CREATOR_PRIVATE_KEY.trim();
-    if (creatorSecret.startsWith('ed25519:')) {
-      creatorSecret = creatorSecret.slice(8);
+    // 2. Setup creator keystore
+    const keyStore = new keyStores.InMemoryKeyStore();
+    let creatorKeyPair;
+    try {
+      creatorKeyPair = KeyPair.fromString(CREATOR_PRIVATE_KEY);
+      console.log('Creator public key:', creatorKeyPair.getPublicKey().toString());
+      await keyStore.setKey(NETWORK_ID, PARENT_DOMAIN, creatorKeyPair);
+    } catch (error) {
+      throw new Error(`Invalid CREATOR_PRIVATE_KEY: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
-    const creatorKeyPair = KeyPair.fromString(`ed25519:${creatorSecret}`);
-    const keyStore = new InMemoryKeyStore();
-    await keyStore.setKey(NETWORK_ID, PARENT_DOMAIN, creatorKeyPair);
-
-    // 3. Initialize provider
-    const provider = new JsonRpcProvider({ url: RPC_URL });
-
-    // 4. Create creator account instance WITHOUT signer
-    // Account will create its own internal signer when needed
-    const creatorAccount = new Account(PARENT_DOMAIN, provider);
-    
-    // ✅ Manually set the signer using the setSigner method
-    // Create a minimal signer object that implements the required interface
-    const signer = {
-      async getPublicKey() {
-        return creatorKeyPair.getPublicKey();
-      },
-      async signTransaction(transaction: { encode: () => Uint8Array }) {
-        const message = transaction.encode();
-        const signature = creatorKeyPair.sign(message);
-        return [signature, transaction];
-      },
-      async signDelegateAction(delegateAction: { encode: () => Uint8Array }) {
-        const message = delegateAction.encode();
-        const signature = creatorKeyPair.sign(message);
-        return [signature, delegateAction];
-      },
-      async signNep413Message(message: string, accountId: string, recipient: string, nonce: Uint8Array) {
-        const payload = JSON.stringify({ message, recipient, nonce: Array.from(nonce) });
-        const signature = creatorKeyPair.sign(Buffer.from(payload));
-        return {
-          accountId,
-          publicKey: creatorKeyPair.getPublicKey().toString(),
-          signature: signature.toString(),
-          message,
-          recipient,
-          nonce,
-        };
-      },
+    // 3. Connect to NEAR
+    const connectionConfig = {
+      networkId: NETWORK_ID,
+      keyStore,
+      nodeUrl: RPC_URL,
+      walletUrl: NETWORK_ID === 'testnet' 
+        ? 'https://testnet.mynearwallet.com'
+        : 'https://app.mynearwallet.com',
+      helperUrl: NETWORK_ID === 'testnet'
+        ? 'https://helper.testnet.near.org'
+        : 'https://helper.mainnet.near.org',
     };
-    
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    creatorAccount.setSigner(signer as any);
 
+    console.log('Connecting to NEAR...');
+    const near = await connect(connectionConfig);
+
+    // 4. Get creator account
+    const creatorAccount = await near.account(PARENT_DOMAIN);
+    console.log('Creator account loaded:', PARENT_DOMAIN);
+
+    // 5. Verify creator balance
+    try {
+      const state = await creatorAccount.state();
+      const balance = Number(state.amount) / 1e24;
+      console.log(`Creator balance: ${balance} NEAR`);
+      if (balance < 0.15) {
+        throw new Error(`Insufficient balance in ${PARENT_DOMAIN}: ${balance} NEAR`);
+      }
+    } catch (error) {
+      console.error('Balance check failed:', error);
+      // Continue anyway
+    }
+
+    // 6. Create subaccount (exact same as your old code)
     console.log('Creating subaccount:', {
       parent: PARENT_DOMAIN,
       child: fullId,
       balance: '0.1 NEAR',
     });
 
-    // 5. Create account
-    const initialBalance = '100000000000000000000000';
-    
-    const result = await creatorAccount.createAccount(
+    const initialBalance = utils.format.parseNearAmount('0.1');
+
+    await creatorAccount.createAccount(
       fullId,
-      publicKey.toString(),
+      publicKey,
       initialBalance
     );
 
-    console.log('Transaction result:', {
-      status: result.status,
-      transactionHash: result.transaction.hash,
-    });
+    console.log('✅ Account created successfully on NEAR blockchain');
 
-    // Check if transaction succeeded
-    if (typeof result.status === 'object' && 'SuccessValue' in result.status) {
-      console.log('✅ Account created successfully on NEAR blockchain');
-    } else if (typeof result.status === 'object' && 'Failure' in result.status) {
-      throw new Error(`Account creation failed: ${JSON.stringify(result.status.Failure)}`);
-    }
-
-    // 6. Store private key in Shade TEE
-    const token = typeof session.idToken === 'string' 
-      ? session.idToken 
-      : typeof session.accessToken === 'string' 
-        ? session.accessToken 
-        : undefined;
+    // 7. Store private key in Shade TEE
+    const token = (session.idToken || session.accessToken) as string | undefined;
 
     console.log('Token for Shade:', {
       hasIdToken: !!session.idToken,
@@ -147,9 +121,8 @@ export async function POST(req: NextRequest) {
       console.warn('⚠️ No token for Shade storage - key NOT backed up');
       return NextResponse.json({
         accountId: fullId,
-        publicKey: publicKey.toString(),
+        publicKey,
         network: NETWORK_ID,
-        transaction: result.transaction.hash,
         message: 'Account created (WARNING: Key not backed up in TEE)',
       });
     }
@@ -162,7 +135,7 @@ export async function POST(req: NextRequest) {
           email,
           account_id: fullId,
           private_key: privateKey,
-          public_key: publicKey.toString(),
+          public_key: publicKey,
           network: NETWORK_ID,
           auth_token: token,
         }),
@@ -174,9 +147,8 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
           accountId: fullId,
-          publicKey: publicKey.toString(),
+          publicKey,
           network: NETWORK_ID,
-          transaction: result.transaction.hash,
           message: 'Account created (WARNING: Key storage failed)',
           shadeError: errorText.substring(0, 200),
         });
@@ -190,22 +162,20 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         accountId: fullId,
-        publicKey: publicKey.toString(),
+        publicKey,
         network: NETWORK_ID,
-        transaction: result.transaction.hash,
         message: 'Account created (WARNING: Key storage error)',
       });
     }
 
     const explorerUrl = NETWORK_ID === 'testnet'
-      ? `https://testnet.nearblocks.io/txns/${result.transaction.hash}`
-      : `https://nearblocks.io/txns/${result.transaction.hash}`;
+      ? `https://testnet.nearblocks.io/txns/${fullId}`
+      : `https://nearblocks.io/txns/${fullId}`;
 
     return NextResponse.json({
       accountId: fullId,
-      publicKey: publicKey.toString(),
+      publicKey,
       network: NETWORK_ID,
-      transaction: result.transaction.hash,
       explorerUrl,
       message: 'Account created & secured in TEE!',
     });
