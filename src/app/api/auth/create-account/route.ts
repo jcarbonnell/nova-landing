@@ -78,9 +78,9 @@ export async function POST(req: NextRequest) {
     console.log('✅ Account created, storing key in Shade TEE...');
 
     // 4. Store private key in Shade TEE
-    const accessToken = session.accessToken;
-    if (!accessToken) {
-      console.warn('No access token for Shade storage (key not backed up)');
+    const token = session.idToken;
+    if (!token) {
+      console.warn('No ID token for Shade storage (key not backed up)');
     } else {
       try {
         const shadeResponse = await fetch(`${SHADE_API_URL}/api/user-keys/store`, {
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
             private_key: privateKey,
             public_key: publicKey,
             network: NETWORK_ID,
-            auth_token: accessToken,
+            auth_token: token,
           }),
         });
 

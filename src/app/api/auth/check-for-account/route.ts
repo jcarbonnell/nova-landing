@@ -78,9 +78,9 @@ export async function POST(req: NextRequest) {
       
       try {
         // Generate auth token (matching create-account implementation)
-        const accessToken = session.accessToken;
-        if (!accessToken) {
-          console.log('No access token in session, assuming no account for:', email);
+        const token = session.idToken;
+        if (!token) {
+          console.log('No ID token in session, assuming no account for:', email);
           return NextResponse.json({ exists: false, accountId: null });
         }
         
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
           },
           body: JSON.stringify({ 
             email, 
-            auth_token: accessToken 
+            auth_token: token 
           }),
           // Add timeout to prevent hanging
           signal: AbortSignal.timeout(10000), // 10 second timeout
