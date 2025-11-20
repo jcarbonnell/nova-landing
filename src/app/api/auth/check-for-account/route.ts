@@ -1,9 +1,7 @@
 // src/app/api/auth/check-for-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth0 } from '@/lib/auth0';
-import * as nearAPI from 'near-api-js';
-
-const { providers } = nearAPI;
+import { JsonRpcProvider } from '@near-js/providers';
 
 if (!process.env.NEXT_PUBLIC_RPC_URL) {
   throw new Error('NEXT_PUBLIC_RPC_URL env var missing');
@@ -15,14 +13,6 @@ if (!process.env.NEXT_PUBLIC_PARENT_DOMAIN) {
 
 if (!process.env.NEXT_PUBLIC_SHADE_API_URL) {
   throw new Error('NEXT_PUBLIC_SHADE_API_URL env var missing');
-}
-
-interface ViewAccountResponse {
-  kind: 'ViewAccount';
-  result: {
-    code_hash: string | null;
-    storage_paid: { total: string; owned: number; storage_byte_cost: string; } | null;
-  };
 }
 
 export async function POST(req: NextRequest) {
@@ -174,42 +164,23 @@ export async function POST(req: NextRequest) {
 
     console.log('Verifying account on NEAR blockchain:', accountIdToCheck);
 
-    // Import NEAR API dynamically (tree-shaking)
-    const near = await import('near-api-js');
-    const { JsonRpcProvider } = near.providers;
-    
-    // Query NEAR RPC
-    const provider = new providers.JsonRpcProvider({ 
+    const provider = new JsonRpcProvider({ 
       url: process.env.NEXT_PUBLIC_RPC_URL! 
     });
 
     try {
       // Query NEAR RPC to check if account exists
-      const rawResponse = await provider.query({
+      const account = await provider.query({
         request_type: 'view_account',
         finality: 'final',
         account_id: accountIdToCheck,
       });
 
-      // Cast response to known type
-      const response = rawResponse as unknown as ViewAccountResponse;
-      
-      // Account exists if it has code_hash and storage_paid
-      const exists = response.result.code_hash !== null && response.result.storage_paid !== null;
-
-      if (exists) {
-        console.log('✅ Account verified on blockchain:', { 
-          accountId: accountIdToCheck, 
-          codeHash: response.result.code_hash?.substring(0, 16) + '...',
-          storagePaid: response.result.storage_paid?.total,
-        });
-      } else {
-        console.log('Account structure exists but is not initialized:', accountIdToCheck);
-      }
+      console.log('✅ Account verified on blockchain:', accountIdToCheck);
 
       return NextResponse.json({ 
-        exists, 
-        accountId: exists ? accountIdToCheck : null 
+        exists: true, 
+        accountId: accountIdToCheck 
       });
       
     } catch (rpcError) {
