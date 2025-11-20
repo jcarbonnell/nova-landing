@@ -78,7 +78,11 @@ export async function POST(req: NextRequest) {
       
       try {
         // Generate auth token (matching create-account implementation)
-        const authToken = Buffer.from(`${email}:${Date.now()}:${session.user.sub || ''}`).toString('base64');
+        const accessToken = session.accessToken;
+        if (!accessToken) {
+          console.log('No access token in session, assuming no account for:', email);
+          return NextResponse.json({ exists: false, accountId: null });
+        }
         
         console.log('Mode 2: Querying Shade for user account:', email);
         
@@ -89,7 +93,7 @@ export async function POST(req: NextRequest) {
           },
           body: JSON.stringify({ 
             email, 
-            auth_token: authToken 
+            auth_token: accessToken 
           }),
           // Add timeout to prevent hanging
           signal: AbortSignal.timeout(10000), // 10 second timeout

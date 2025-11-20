@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     if (creatorSecret.startsWith('ed25519:')) {
       creatorSecret = creatorSecret.slice(8);
     }
-    const creatorKeyPair = (KeyPair as unknown as { fromString(s: string): InstanceType<typeof KeyPair> }).fromString(creatorSecret);
+    const creatorKeyPair = KeyPair.fromString(`ed25519:${creatorSecret}`);
 
     const keyStore = new keyStores.InMemoryKeyStore();
     await keyStore.setKey(NETWORK_ID, PARENT_DOMAIN, creatorKeyPair);
@@ -80,27 +80,35 @@ export async function POST(req: NextRequest) {
       attachedDeposit: initialBalance,     // bigint
     });
 
+    console.log('✅ Account created, storing key in Shade TEE...');
+
     // 4. Store private key in Shade TEE
     const accessToken = session.accessToken;
-    if (!accessToken) throw new Error('Missing access token');
-
-    const shadeResponse = await fetch(`${SHADE_API_URL}/api/user-keys/store`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email,
-        account_id: fullId,
-        private_key: privateKey,
-        public_key: publicKey,
-        network: NETWORK_ID,
-        auth_token: accessToken,
-      }),
-    });
-
-    if (!shadeResponse.ok) {
-      console.warn('Shade storage failed (non-critical)', await shadeResponse.text());
+    if (!accessToken) {
+      console.warn('No access token for Shade storage (key not backed up)');
     } else {
-      console.log('Private key stored in TEE');
+      try {
+        const shadeResponse = await fetch(`${SHADE_API_URL}/api/user-keys/store`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            account_id: fullId,
+            private_key: privateKey,
+            public_key: publicKey,
+            network: NETWORK_ID,
+            auth_token: accessToken,
+          }),
+        });
+
+        if (!shadeResponse.ok) {
+          console.warn('Shade storage failed (non-critical)', await shadeResponse.text());
+        } else {
+          console.log('✅ Private key stored in TEE');
+        }
+      } catch (shadeError) {
+        console.error('Shade storage error (non-critical):', shadeError);
+      }
     }
 
     return NextResponse.json({
@@ -109,8 +117,8 @@ export async function POST(req: NextRequest) {
       network: NETWORK_ID,
       message: 'Account created & secured!',
     });
-  } catch (error: unknown) { // Fixed: unknown instead of any
-    const err = error as Error; // Now safe to cast
+  } catch (error: unknown) {
+    const err = error as Error;
     console.error('Account creation failed:', err);
 
     if (err.message?.includes('already exists')) {
