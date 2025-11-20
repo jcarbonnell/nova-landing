@@ -5,8 +5,6 @@ import { headers } from 'next/headers';
 export async function GET(request: NextRequest) {
   console.log('Proxy GET hit:', request.url);
 
-  const url = new URL(request.url);
-  const mcpPath = url.pathname.replace('/api/mcp-proxy', '/mcp');  
   const mcpUrl = process.env.MCP_URL!;
   if (!mcpUrl) throw new Error('MCP_URL is required');
 
@@ -45,8 +43,6 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   console.log('Proxy POST hit:', request.url);
 
-  const url = new URL(request.url);
-  const mcpPath = url.pathname.replace('/api/mcp-proxy', '/mcp');
   const mcpUrl = process.env.MCP_URL!;
   if (!mcpUrl) throw new Error('MCP_URL is required');
 

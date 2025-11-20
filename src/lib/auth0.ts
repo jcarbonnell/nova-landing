@@ -36,7 +36,6 @@ export async function getServerSession() {
     return await auth0.getSession();
   } catch (error: unknown) {
     console.error('getServerSession error:', error);
-    const errMsg = error instanceof Error ? error.message : 'Unknown error';
     return null;
   }
 }

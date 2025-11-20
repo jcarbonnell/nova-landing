@@ -4,7 +4,6 @@ import { useUser } from '@auth0/nextjs-auth0/client';
 import { useWalletState, useWalletSelectorModal } from '@/providers/WalletProvider';
 import { Button } from './ui/button';
 import { LogIn, User, Wallet } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 
 interface HeaderProps {
   onOpenLogin?: () => void;
@@ -14,7 +13,6 @@ export default function Header({ onOpenLogin }: HeaderProps) {
   const { user, isLoading: authLoading } = useUser();
   const { isSignedIn, accountId, loading: walletLoading } = useWalletState();
   const { modal } = useWalletSelectorModal();
-  const router = useRouter();
 
   const isConnected = isSignedIn && !!accountId;
   const loading = authLoading || walletLoading;

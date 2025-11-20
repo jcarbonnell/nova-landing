@@ -2,7 +2,7 @@
 'use client';
 import { useUser } from '@auth0/nextjs-auth0/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { MessageSquare } from 'lucide-react';
@@ -37,7 +37,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [error, setError] = useState('');
   const [hasCheckedAccount, setHasCheckedAccount] = useState(false);
-  const [hasNearAccount, setHasNearAccount] = useState(false);
 
   // MCP health query
   const { data: mcpStatus, error: mcpError } = useQuery({
@@ -71,10 +70,8 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       const { exists, accountId: existingId } = await res.json();
 
       if (exists && existingId) {
-        setHasNearAccount(true);
         setWelcomeMessage(`Welcome back! Account ${existingId} ready.`);
       } else {
-        setHasNearAccount(false);
         setUserData({ email: user.email });
         setIsCreateOpen(true);
       }

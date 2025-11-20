@@ -123,20 +123,6 @@ export default function PaymentModal({
     createSession();
   }, [isOpen, amount, accountId, email, isTestnet]);
 
-  // Handle session updates
-  const handleSessionUpdate = useRef((e: OnrampSessionEvent) => {
-    console.log('Onramp session updated:', e.payload.session.status);
-    
-    if (e.payload.session.status === 'fulfillment_complete') {
-      const { sessionId, amount: sessionAmount } = sessionRef.current;
-      if (sessionId && sessionAmount) {
-        console.log('Payment complete, submitting...');
-        onSubmit(sessionId, sessionAmount.toString());
-        onClose();
-      }
-    }
-  });
-
   // Mount Stripe Onramp element
   useEffect(() => {
     if (!clientSecret || !onrampRef.current || !scriptLoaded || sessionRef.current.mounted || isTestnet) {
@@ -149,6 +135,20 @@ export default function PaymentModal({
       return;
     }
 
+    // Define handler inside effect to capture current closure
+    const handleSessionUpdate = (e: OnrampSessionEvent) => {
+      console.log('Onramp session updated:', e.payload.session.status);
+    
+      if (e.payload.session.status === 'fulfillment_complete') {
+        const { sessionId, amount: sessionAmount } = sessionRef.current;
+        if (sessionId && sessionAmount) {
+          console.log('Payment complete, submitting...');
+          onSubmit(sessionId, sessionAmount.toString());
+          onClose();
+        }
+      }
+    };
+
     try {
       console.log('Mounting Stripe Onramp...');
       
@@ -158,7 +158,7 @@ export default function PaymentModal({
       });
 
       session.mount(onrampRef.current);
-      session.addEventListener('onramp_session_updated', handleSessionUpdate.current);
+      session.addEventListener('onramp_session_updated', handleSessionUpdate);
       
       sessionRef.current = {
         ...sessionRef.current,
@@ -179,7 +179,7 @@ export default function PaymentModal({
         try {
           sessionRef.current.session.removeEventListener(
             'onramp_session_updated', 
-            handleSessionUpdate.current
+            handleSessionUpdate
           );
           sessionRef.current.session.unmount();
         } catch (err) {
@@ -187,7 +187,7 @@ export default function PaymentModal({
         }
       }
     };
-  }, [clientSecret, scriptLoaded, isTestnet]);
+  }, [clientSecret, scriptLoaded, isTestnet, onSubmit, onClose]);
 
   if (!isOpen) return null;
 
@@ -206,8 +206,8 @@ export default function PaymentModal({
             {isTestnet && (
               <div className="mb-4 p-4 bg-yellow-500/20 border border-yellow-500/50 rounded-lg">
                 <p className="text-yellow-200 text-sm">
-                  <strong>🧪 Testnet Mode:</strong> You're on testnet. 
-                  Real payments don't work here. Click "Skip Funding" below to create 
+                  <strong>🧪 Testnet Mode:</strong> You&apos;re on testnet. 
+                  Real payments don&apos;t work here. Click &quot;Skip Funding&quot; below to create 
                   your account with free testnet tokens.
                 </p>
               </div>
