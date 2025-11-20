@@ -6,7 +6,6 @@ import { KeyPair } from '@near-js/crypto';
 import { InMemoryKeyStore } from '@near-js/keystores';
 import { JsonRpcProvider } from '@near-js/providers';
 
-
 const PARENT_DOMAIN = process.env.NEXT_PUBLIC_PARENT_DOMAIN!;
 const CREATOR_PRIVATE_KEY = process.env.NEAR_CREATOR_PRIVATE_KEY!;
 const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL!;
@@ -131,11 +130,29 @@ export async function POST(req: NextRequest) {
     }
 
     // 6. Store private key in Shade TEE
-    const token = typeof session.idToken === 'string' 
-      ? session.idToken 
-      : typeof session.accessToken === 'string' 
-        ? session.accessToken 
-        : undefined;
+    let idToken: string | undefined;
+
+    try {
+      const cookieStore = await import('next/headers').then(m => m.cookies());
+      const sessionCookie = cookieStore().get('appSession');
+
+      if (sessionCookie?.value) {
+        const sessionData = JSON.parse(
+          Buffer.from(sessionCookie.value.split('.')[1], 'base64').toString()
+        );
+        idToken = sessionData.id_token;
+      }
+    } catch (err) {
+      console.warn('Could not extract id_token from cookie', err);
+    }
+
+    if (!idToken) {
+      console.error('No id_token found in session cookie');
+      return NextResponse.json(
+        { error: 'Authentication failed: missing identity token' },
+        { status: 401 }
+      );
+    }
 
     console.log('Token for Shade:', {
       hasIdToken: !!session.idToken,
@@ -164,7 +181,7 @@ export async function POST(req: NextRequest) {
           private_key: privateKey,
           public_key: publicKey.toString(),
           network: NETWORK_ID,
-          auth_token: token,
+          auth_token: idToken,
         }),
       });
 
