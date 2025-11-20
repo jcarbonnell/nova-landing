@@ -29,6 +29,16 @@ export async function POST(req: NextRequest) {
     const { username, email } = await req.json();
     const session = await auth0.getSession();
 
+    // debug
+    console.log('Session debug:', {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      email: session?.user?.email,
+      hasIdToken: !!session?.idToken,
+      hasAccessToken: !!session?.accessToken,
+      tokenKeys: session ? Object.keys(session) : [],
+    });
+
     if (!session?.user?.email || session.user.email !== email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
