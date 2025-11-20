@@ -5,7 +5,6 @@ import {
   connect,
   KeyPair,
   keyStores,
-  utils,
 } from 'near-api-js';
 
 const PARENT_DOMAIN = process.env.NEXT_PUBLIC_PARENT_DOMAIN!;
@@ -16,6 +15,13 @@ const NETWORK_ID = PARENT_DOMAIN.includes('testnet') ? 'testnet' : 'mainnet';
 
 if (!PARENT_DOMAIN || !CREATOR_PRIVATE_KEY || !RPC_URL || !SHADE_API_URL) {
   throw new Error('Missing required env vars for account creation');
+}
+
+// Convert NEAR amount → yoctoNEAR bigint (official way in v6+)
+function parseNearAmount(amount: string): bigint {
+  const [whole, fractional = ''] = amount.split('.');
+  const padded = fractional.padEnd(24, '0').slice(0, 24);
+  return BigInt(whole + padded);
 }
 
 export async function POST(req: NextRequest) {
@@ -34,20 +40,18 @@ export async function POST(req: NextRequest) {
 
     const fullId = `${cleanUsername}.${PARENT_DOMAIN}`;
 
-    // === Generate fresh keypair for the new user ===
+    // 1. Generate keypair
     const newKeyPair = KeyPair.fromRandom('ed25519');
-    const publicKey = newKeyPair.getPublicKey().toString(); // "ed25519:..."
-    const privateKey = newKeyPair.toString();               // "ed25519:..."
+    const publicKey = newKeyPair.getPublicKey().toString();
+    const privateKey = newKeyPair.toString();
 
-    // === Creator signer – the only breaking change in near-api-js v6+ ===
-    let creatorSecretKey = CREATOR_PRIVATE_KEY;
-
-    // Remove "ed25519:" prefix if present – fromString() now expects raw base58 seed
-    if (creatorSecretKey.startsWith('ed25519:')) {
-      creatorSecretKey = creatorSecretKey.slice(8);
+    // 2. Creator signer – official workaround
+    let creatorSecret = CREATOR_PRIVATE_KEY.trim();
+    if (creatorSecret.startsWith('ed25519:')) {
+      creatorSecret = creatorSecret.slice(8);
     }
-
-    const creatorKeyPair = KeyPair.fromString(creatorSecretKey);
+    // Fixed line: cast to unknown first, then to string (satisfies @typescript-eslint/no-explicit-any)
+    const creatorKeyPair = (KeyPair as unknown as { fromString(s: string): InstanceType<typeof KeyPair> }).fromString(creatorSecret);
 
     const keyStore = new keyStores.InMemoryKeyStore();
     await keyStore.setKey(NETWORK_ID, PARENT_DOMAIN, creatorKeyPair);
@@ -61,25 +65,25 @@ export async function POST(req: NextRequest) {
 
     const creatorAccount = await near.account(PARENT_DOMAIN);
 
-    // === Create subaccount with 0.1 NEAR initial balance ===
-    const initialBalance = utils.format.parseNearAmount('0.1')!;
+    // 3. Create subaccount – both gas and attachedDeposit as bigint
+    const initialBalance = parseNearAmount('0.1');
 
-    console.log('Creating subaccount:', { fullId, publicKey });
+    console.log('Creating subaccount:', fullId);
 
     await creatorAccount.functionCall({
-      contractId: 'testnet', // This is required even though it's not a real contract call
+      contractId: 'testnet',
       methodName: 'create_account',
       args: {
         new_account_id: fullId,
         new_public_key: publicKey,
       },
-      gas: '300000000000000',
-      attachedDeposit: initialBalance,
+      gas: BigInt('300000000000000'),     // bigint
+      attachedDeposit: initialBalance,     // bigint
     });
 
-    // === Store private key securely in Shade TEE ===
+    // 4. Store private key in Shade TEE
     const accessToken = session.accessToken;
-    if (!accessToken) throw new Error('Missing Auth0 access token');
+    if (!accessToken) throw new Error('Missing access token');
 
     const shadeResponse = await fetch(`${SHADE_API_URL}/api/user-keys/store`, {
       method: 'POST',
@@ -95,8 +99,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!shadeResponse.ok) {
-      console.error('Shade storage failed (non-critical)', await shadeResponse.text());
-      // Continue – user can still recover later
+      console.warn('Shade storage failed (non-critical)', await shadeResponse.text());
     } else {
       console.log('Private key stored in TEE');
     }
@@ -107,15 +110,16 @@ export async function POST(req: NextRequest) {
       network: NETWORK_ID,
       message: 'Account created & secured!',
     });
-  } catch (error: any) {
-    console.error('Account creation failed:', error);
+  } catch (error: unknown) { // Fixed: unknown instead of any
+    const err = error as Error; // Now safe to cast
+    console.error('Account creation failed:', err);
 
-    if (error.message?.includes('already exists')) {
+    if (err.message?.includes('already exists')) {
       return NextResponse.json({ error: 'Username already taken' }, { status: 400 });
     }
 
     return NextResponse.json(
-      { error: 'Failed to create account', details: error.message },
+      { error: 'Failed to create account', details: err.message },
       { status: 500 }
     );
   }
