@@ -27,6 +27,7 @@ export const auth0 = new Auth0Client({
   authorizationParameters: {
     scope: 'openid profile email offline_access',
     audience: process.env.AUTH0_AUDIENCE,
+    response_type: 'code',
   },
 });
 
