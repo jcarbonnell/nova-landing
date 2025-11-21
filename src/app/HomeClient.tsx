@@ -7,7 +7,7 @@ import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
-import { useWalletState, useWalletSelectorModal } from '@/providers/WalletProvider';
+import { useWalletState, useWalletSelector, useWalletSelectorModal } from '@/providers/WalletProvider';
 import type { User } from '@/lib/auth0';
 import Image from 'next/image';
 import LoginModal from '../components/LoginModal';
@@ -81,17 +81,71 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     }
   }, [user?.email, hasCheckedAccount]);
 
-  // Check for existing account on auth change
-  useEffect(() => {
-    // Only check if user authenticated via email but wallet not connected
-    if (user && !loading && !isSignedIn && !hasCheckedAccount) {
-      // Small delay to ensure Auth0 session is fully established
-      const timer = setTimeout(() => {
-        checkExistingAccount();
-      }, 500);
-      return () => clearTimeout(timer);
+  // AUTO-SIGN-IN FROM SHADE TEE after account creation
+  const selector = useWalletSelector();
+  const autoSignInFromShade = useCallback(async () => {
+    if (!user?.email || isSignedIn || !selector) return;
+
+    try {
+      // 1. Check if account exists in Shade
+      const checkRes = await fetch('/api/auth/check-for-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email }),
+      });
+
+      if (!checkRes.ok) return;
+      const { exists, accountId } = await checkRes.json();
+      if (!exists || !accountId) return;
+
+      // 2. Retrieve private key from Shade
+      const keyRes = await fetch('/api/auth/retrieve-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email }),
+      });
+
+      if (!keyRes.ok) return;
+      const { private_key } = await keyRes.json();
+      if (!private_key) return;
+
+      const networkId = selector.options.network.networkId;
+
+      // Store key in localStorage
+      localStorage.setItem(
+        `near-api-js:keystore:${accountId}:${networkId}`,
+        private_key
+      );
+
+      // 3. Use the existing selector from context to sign in
+      const wallet = await selector.wallet();
+
+      await wallet.signIn({
+        contractId: process.env.NEXT_PUBLIC_CONTRACT_ID!,
+        accounts: [accountId],
+      });
+
+      setWelcomeMessage(`Signed in as ${accountId.split('.')[0]}!`);
+      setTimeout(() => setWelcomeMessage(''), 6000);
+
+    } catch (err) {
+      console.error('Auto sign-in failed:', err);
     }
-  }, [user, loading, isSignedIn, hasCheckedAccount, checkExistingAccount]);
+  }, [user?.email, isSignedIn, selector, setWelcomeMessage]);
+
+  useEffect(() => {
+    if (!user || loading) return;
+
+    if (!isSignedIn) {
+      if (!hasCheckedAccount) {
+        // check if account exists
+        checkExistingAccount();
+      } else {
+        // auto sign-in if key exists in shade
+        autoSignInFromShade();
+      }
+    }
+  }, [user, loading, isSignedIn, hasCheckedAccount, checkExistingAccount, autoSignInFromShade]);
 
   // logout message
   useEffect(() => {

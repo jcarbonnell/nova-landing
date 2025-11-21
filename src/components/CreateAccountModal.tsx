@@ -66,7 +66,7 @@ export default function CreateAccountModal({
     } finally {
       setCheckLoading(false);
     }
-  }, [userData?.email, onAccountCreated]);  // Deps: email stable, callback prop
+  }, [userData?.email, onAccountCreated, onClose]);
 
   useEffect(() => {
     if (isOpen && userData) {
