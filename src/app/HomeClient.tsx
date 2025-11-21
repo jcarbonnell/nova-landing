@@ -188,6 +188,12 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
       const { accountId } = await res.json();
       handleAccountCreated(accountId);
+
+      // Reload page to refresh Auth0 session and allow blockchain propagation
+    setTimeout(() => {
+      window.location.reload();
+    }, 2000);
+
     } catch (err) {
       setError(`Creation error: ${(err as Error).message}`);
     }
