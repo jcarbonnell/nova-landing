@@ -140,11 +140,10 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const handleAccountCreated = (newAccountId: string) => {
     setIsCreateOpen(false);
     setWelcomeMessage(`Account ${newAccountId} created! You can now use NOVA.`);
-    if (modal) {
-      setTimeout(() => {
-        modal.show();
-      }, 1500);
-    }
+    // small delay to show message
+    setTimeout(() => {
+      setWelcomeMessage('');
+    }, 5000);
   };
 
   // handlePayment (from payment modal)
@@ -188,11 +187,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
       const { accountId } = await res.json();
       handleAccountCreated(accountId);
-
-      // Reload page to refresh Auth0 session and allow blockchain propagation
-    setTimeout(() => {
-      window.location.reload();
-    }, 2000);
 
     } catch (err) {
       setError(`Creation error: ${(err as Error).message}`);

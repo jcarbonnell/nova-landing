@@ -51,10 +51,13 @@ export default function CreateAccountModal({
       }
 
       const { exists, accountId } = await response.json();
-      if (exists) {
+      if (exists && accountId) {
         setExistingAccount(accountId);
         setIsAccountCreated(true);
-        onAccountCreated(accountId);  // Update parent
+        onAccountCreated(accountId);
+        
+        // Auto-close after showing message
+        setTimeout(() => onClose(), 1500);
       }
     } catch (err: unknown) {
       console.error('Error checking existing account:', err);
