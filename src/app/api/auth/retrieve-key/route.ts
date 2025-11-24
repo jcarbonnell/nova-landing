@@ -1,6 +1,6 @@
 // src/app/api/auth/retrieve-key/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth0, getShadeToken } from '@/lib/auth0';
+import { auth0, getAuthToken } from '@/lib/auth0';
 
 export async function POST(req: NextRequest) {
   const session = await auth0.getSession();
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const token = await getShadeToken();
+  const token = await getAuthToken();
 
   if (!token) {
     console.error('❌ No auth token available for key retrieval');
