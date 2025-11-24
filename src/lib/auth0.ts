@@ -71,29 +71,36 @@ export async function getAuthToken(): Promise<string | null> {
     }
     
     // Strategy 1: Try accessToken first (preferred for authentication)
-    if (session.tokenSet?.accessToken) {
-      console.log('✅ Using accessToken from tokenSet');
-      return session.tokenSet.accessToken;
+    if (session.tokenSet?.idToken) {
+      console.log('✅ Using idToken from tokenSet');
+      return session.tokenSet.idToken;
     }
     
     // Strategy 2: Fallback to idToken
-    if (session.tokenSet?.idToken) {
-      console.log('⚠️ accessToken missing, falling back to idToken');
-      return session.tokenSet.idToken;
+    if (session.tokenSet?.accessToken) {
+      console.log('⚠️ accessToken missing, falling back to accessToken');
+      return session.tokenSet.accessToken;
     }
     
     // Strategy 3: Try to refresh tokens if refresh token exists
     if (session.tokenSet?.refreshToken) {
       console.log('🔄 Attempting token refresh...');
       try {
-        // Use getAccessToken which automatically refreshes
-        const { token } = await auth0.getAccessToken();
-        if (token) {
-          console.log('✅ Token refreshed successfully');
-          return token;
+        // Refresh session to get fresh tokens
+        const refreshedSession = await auth0.getSession();
+        
+        if (refreshedSession?.tokenSet?.idToken) {
+          console.log('✅ Got fresh idToken after refresh');
+          return refreshedSession.tokenSet.idToken;
+        }
+        
+        // If still no idToken, try accessToken
+        if (refreshedSession?.tokenSet?.accessToken) {
+          console.warn('⚠️ After refresh, only accessToken available');
+          return refreshedSession.tokenSet.accessToken;
         }
       } catch (refreshError) {
-        console.error('Token refresh failed:', refreshError);
+        console.error('❌ Token refresh failed:', refreshError);
       }
     }
     
@@ -102,6 +109,42 @@ export async function getAuthToken(): Promise<string | null> {
     
   } catch (error: unknown) {
     console.error('getAuthToken error:', error);
+    return null;
+  }
+}
+
+// Helper to get specifically the ID token (for user identity)
+export async function getIdToken(): Promise<string | null> {
+  try {
+    const session = await auth0.getSession();
+    
+    if (!session?.tokenSet?.idToken) {
+      console.warn('❌ No idToken in session');
+      return null;
+    }
+    
+    console.log('✅ Retrieved idToken');
+    return session.tokenSet.idToken;
+  } catch (error: unknown) {
+    console.error('❌ getIdToken error:', error);
+    return null;
+  }
+}
+
+// Helper to get specifically the access token (for API calls)
+export async function getAccessToken(): Promise<string | null> {
+  try {
+    const { token } = await auth0.getAccessToken();
+    
+    if (!token) {
+      console.warn('❌ No accessToken available');
+      return null;
+    }
+    
+    console.log('✅ Retrieved accessToken');
+    return token;
+  } catch (error: unknown) {
+    console.error('❌ getAccessToken error:', error);
     return null;
   }
 }
