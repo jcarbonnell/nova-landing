@@ -76,11 +76,11 @@ export default function CreateAccountModal({
       setExistingAccount(null);
       checkExistingAccount();
     }
-  }, [isOpen, userData, checkExistingAccount]);  // Now includes stable callback
+  }, [isOpen, userData, checkExistingAccount]);
 
   const handleClose = () => {
     if (!isAccountCreated && !username) {
-      router.push('/api/auth/logout');  // Logout if no progress
+      router.push('/api/auth/logout?returnTo=/');
     }
     onClose();
   };

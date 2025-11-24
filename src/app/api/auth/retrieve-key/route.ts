@@ -1,6 +1,6 @@
 // src/app/api/auth/retrieve-key/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth0 } from '@/lib/auth0';
+import { auth0, getAuthToken } from '@/lib/auth0';
 
 export async function POST(req: NextRequest) {
   const session = await auth0.getSession();
@@ -13,9 +13,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const token = session.idToken ?? session.accessToken;
+  const token = await getAuthToken();
+
   if (!token) {
-    return NextResponse.json({ error: 'No token' }, { status: 401 });
+    console.error('❌ No auth token available for key retrieval');
+    return NextResponse.json({ 
+      error: 'No authentication token available',
+      details: 'Session exists but token is missing'
+    }, { status: 401 });
   }
 
   try {
@@ -25,12 +30,24 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({ email, auth_token: token }),
     });
 
-    if (!res.ok) throw new Error('Shade retrieve failed');
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('Shade retrieve failed:', {
+        status: res.status,
+        error: errorText.substring(0, 200),
+      });
+      throw new Error('Shade retrieve failed');
+    }
 
     const data = await res.json();
+    console.log('✅ Key retrieved from Shade TEE for:', email);
+
     return NextResponse.json({ private_key: data.private_key });
   } catch (err) {
-    console.error('Retrieve key error:', err);
-    return NextResponse.json({ error: 'Failed to retrieve key' }, { status: 500 });
+    console.error('❌ Retrieve key error:', err);
+    return NextResponse.json({ 
+      error: 'Failed to retrieve key',
+      details: err instanceof Error ? err.message : 'Unknown error'
+    }, { status: 500 });
   }
 }

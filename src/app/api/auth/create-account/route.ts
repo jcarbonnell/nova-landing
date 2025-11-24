@@ -1,6 +1,6 @@
 // src/app/api/auth/create-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth0 } from '@/lib/auth0';
+import { auth0, getAuthToken } from '@/lib/auth0';
 
 import { Account } from '@near-js/accounts';
 import { KeyPair, type KeyPairString } from '@near-js/crypto';
@@ -66,7 +66,8 @@ export async function POST(req: NextRequest) {
     console.log('Account created:', fullId);
 
     // 6. Store key in Shade TEE
-    const token = session.idToken ?? session.accessToken;
+    const token = await getAuthToken();
+    
     if (token) {
       try {
         const res = await fetch(`${SHADE_API_URL}/api/user-keys/store`, {
@@ -81,11 +82,21 @@ export async function POST(req: NextRequest) {
             auth_token: token,
           }),
         });
-        if (res.ok) console.log('Key backed up');
-        else console.error('Shade failed:', await res.text());
+
+        if (res.ok) {
+          console.log('✅ Key backed up to Shade TEE');
+        } else {
+          const errorText = await res.text();
+          console.error('⚠️ Shade backup failed:', {
+            status: res.status,
+            error: errorText.substring(0, 200),
+          });
+        }
       } catch (e) {
-        console.error('Shade error:', e);
+        console.error('❌ Shade backup error:', e);
       }
+    } else {
+      console.warn('⚠️ No auth token available - key NOT backed up to Shade TEE');
     }
 
     const explorerUrl = NETWORK_ID === 'testnet'
@@ -99,6 +110,7 @@ export async function POST(req: NextRequest) {
       transaction: result.transaction.hash,
       explorerUrl,
       message: 'Success!',
+      keyBackedUp: !!token,
     });
 
   } catch (error: unknown) {

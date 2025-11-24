@@ -1,6 +1,6 @@
 // src/app/api/auth/check-for-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth0 } from '@/lib/auth0';
+import { auth0, getAuthToken } from '@/lib/auth0';
 import { JsonRpcProvider } from '@near-js/providers';
 
 if (!process.env.NEXT_PUBLIC_RPC_URL) {
@@ -35,12 +35,7 @@ export async function POST(req: NextRequest) {
     let accountIdToCheck: string | null = null;
     
     if (username) {
-      // ==========================================
-      // MODE 1: Check specific username availability
-      // (Called from CreateAccountModal when user types username)
-      // ==========================================
-      
-      // Construct full account ID from username
+      // Check username availability
       const fullId = username.includes('.') ? username : `${username}.${parentDomain}`;
       
       // Validate format (e.g., jcarbonnell.nova-sdk-5.testnet)
@@ -56,36 +51,40 @@ export async function POST(req: NextRequest) {
       }
       
       accountIdToCheck = fullId;
-      console.log('Mode 1: Checking username availability:', accountIdToCheck);
+      console.log('Checking username availability:', accountIdToCheck);
       
     } else {
-      // ==========================================
-      // MODE 2: Check if user has account stored in Shade
-      // (Called from HomeClient after Auth0 login to see if account exists)
-      // ==========================================
-      
+      // Check if user has account stored in Shade      
       const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL!;
+
+      // Use helper with fallback logic
+      const authToken = await getAuthToken();
+
+      if (!authToken) {
+        console.warn('⚠️ No auth token available - Shade check may fail');
+        console.log('Session state:', {
+          hasSession: !!session,
+          hasTokenSet: !!session.tokenSet,
+          hasIdToken: !!session.tokenSet?.idToken,
+          hasAccessToken: !!session.tokenSet?.accessToken,
+          hasRefreshToken: !!session.tokenSet?.refreshToken,
+        });
+      }
+
+      console.log('Querying Shade for user account:', email, authToken ? '(with token)' : '(WARNING: no token)');
       
       try {
-        // Generate auth token (matching create-account implementation)
-        const token = session.idToken;
-        if (!token) {
-          console.log('No ID token in session, assuming no account for:', email);
-          return NextResponse.json({ exists: false, accountId: null });
+        const shadePayload: Record<string, string> = { email };
+        if (authToken) {
+          shadePayload.auth_token = authToken;
         }
-        
-        console.log('Mode 2: Querying Shade for user account:', email);
-        
+
         const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/check`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ 
-            email, 
-            auth_token: token 
-          }),
-          // Add timeout to prevent hanging
+          body: JSON.stringify(shadePayload),
           signal: AbortSignal.timeout(10000), // 10 second timeout
         });
 
@@ -99,12 +98,14 @@ export async function POST(req: NextRequest) {
               network: shadeData.network,
               publicKey: shadeData.public_key?.substring(0, 20) + '...',
               createdAt: shadeData.created_at,
+              authMethod: authToken ? 'token' : 'email-only',
             });
           } else {
             console.log('No account found in Shade for:', email);
             return NextResponse.json({ 
               exists: false, 
-              accountId: null 
+              accountId: null,
+              accountCheck: true, 
             });
           }
         } else if (shadeResponse.status === 404) {
@@ -112,53 +113,80 @@ export async function POST(req: NextRequest) {
           console.log('User not found in Shade (new user):', email);
           return NextResponse.json({ 
             exists: false, 
-            accountId: null 
+            accountId: null,
+            accountCheck: true,
+          });
+        } else if (shadeResponse.status === 401 || shadeResponse.status === 403) {
+          // Auth error - likely missing or invalid token
+          const errorText = await shadeResponse.text();
+          console.error('🔐 Shade authentication failed:', {
+            status: shadeResponse.status,
+            error: errorText.substring(0, 200),
+            hadToken: !!authToken,
+          });
+
+          // If we had a token and it failed, this is a problem
+          if (authToken) {
+            return NextResponse.json({ 
+              error: 'Authentication with Shade TEE failed',
+              details: 'Token may be invalid or expired',
+              accountCheck: false,
+            }, { status: 401 });
+          }
+          
+          // Shade error - assume no account (safe default for new users)
+          console.log('⚠️ No token available, assuming new user');
+          return NextResponse.json({ 
+            exists: false, 
+            accountId: null,
+            accountCheck: true,
+            warning: 'No authentication token available',
           });
         } else {
           const errorText = await shadeResponse.text();
-          console.error('Shade API error:', {
+          console.error('⚠️ Shade API error:', {
             status: shadeResponse.status,
             statusText: shadeResponse.statusText,
             error: errorText.substring(0, 200),
+            hadToken: !!authToken,
           });
           
-          // Shade error - assume no account (safe default for new users)
-          console.log('Shade error, assuming no account for:', email);
+          // Shade error - assume no account (safe default)
           return NextResponse.json({ 
             exists: false, 
-            accountId: null 
+            accountId: null,
+            accountCheck: true,
+            warning: 'Shade check failed',
           });
         }
       } catch (shadeError) {
-        console.error('Shade check error:', shadeError);
+        console.error('❌ Shade check exception:', shadeError);
         
-        // Network error, timeout, or other issue
         if (shadeError instanceof Error) {
           console.error('Shade error details:', {
             message: shadeError.message,
             name: shadeError.name,
+            hadToken: !!authToken,
           });
         }
         
-        // If Shade is unreachable, assume no account (safe default)
-        console.log('Shade unreachable, assuming no account for:', email);
+        // Network error - assume no account
         return NextResponse.json({ 
           exists: false, 
-          accountId: null 
+          accountId: null,
+          accountCheck: true,
+          warning: 'Shade service unreachable',
         });
       }
     }
 
-    // ==========================================
     // Verify account exists on NEAR blockchain
-    // (Both modes end up here with accountIdToCheck)
-    // ==========================================
-    
     if (!accountIdToCheck) {
       console.error('No account ID to check (should not reach here)');
       return NextResponse.json({ 
         exists: false, 
-        accountId: null 
+        accountId: null,
+        accountCheck: true,
       });
     }
 
@@ -170,7 +198,7 @@ export async function POST(req: NextRequest) {
 
     try {
       // Query NEAR RPC to check if account exists
-      const account = await provider.query({
+      await provider.query({
         request_type: 'view_account',
         finality: 'final',
         account_id: accountIdToCheck,
@@ -180,7 +208,8 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({ 
         exists: true, 
-        accountId: accountIdToCheck 
+        accountId: accountIdToCheck,
+        accountCheck: true,
       });
       
     } catch (rpcError) {
@@ -196,7 +225,8 @@ export async function POST(req: NextRequest) {
         
         // Check if it's an actual "account not found" vs network error
         if (rpcError.message.includes('does not exist') || 
-            rpcError.message.includes('UNKNOWN_ACCOUNT')) {
+            rpcError.message.includes('UNKNOWN_ACCOUNT') ||
+            rpcError.message.includes("doesn't exist")) {
           console.log('→ Account does not exist (available for registration)');
         } else {
           console.error('→ Unexpected RPC error:', rpcError.message);
@@ -205,7 +235,8 @@ export async function POST(req: NextRequest) {
       
       return NextResponse.json({ 
         exists: false, 
-        accountId: null 
+        accountId: null,
+        accountCheck: true, 
       });
     }
     
@@ -223,7 +254,8 @@ export async function POST(req: NextRequest) {
     
     return NextResponse.json({ 
       error: 'Server error during account check',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error.message : 'Unknown error',
+      accountCheck: false,
     }, { status: 500 });
   }
 }

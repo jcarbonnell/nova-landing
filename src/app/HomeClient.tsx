@@ -37,6 +37,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [error, setError] = useState('');
   const [hasCheckedAccount, setHasCheckedAccount] = useState(false);
+  const [sessionTokenVerified, setSessionTokenVerified] = useState(false);
 
   // MCP health query
   const { data: mcpStatus, error: mcpError } = useQuery({
@@ -51,12 +52,64 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     refetchInterval: 30000,
   });
 
+  // CRITICAL: Verify session token before checking account
+  const verifySessionToken = useCallback(async () => {
+    if (!user?.email || sessionTokenVerified) return true;
+
+    console.log('🔐 Verifying Auth0 session token...');
+    
+    try {
+      const response = await fetch('/auth/profile');
+      
+      if (response.ok) {
+        const profile = await response.json();
+        console.log('✅ Session token verified:', { 
+          email: profile.email,
+          sub: profile.sub?.substring(0, 20) + '...',
+        });
+        setSessionTokenVerified(true);
+        return true;
+      } else {
+        console.warn('⚠️ Session verification failed, status:', response.status);
+        
+        // If unauthorized, may need to re-login
+        if (response.status === 401) {
+          console.log('Session expired, redirecting to login...');
+          setIsLoginOpen(true);
+          return false;
+        }
+        
+        return false;
+      }
+    } catch (err) {
+      console.error('❌ Session verification error:', err);
+      return false;
+    }
+  }, [user?.email, sessionTokenVerified]);
+
   const checkExistingAccount = useCallback(async () => {
-    if (!user?.email) return;
-    if (hasCheckedAccount) return;
+    if (!user?.email) {
+      console.log('❌ No user email, cannot check account');
+      return;
+    }
+    
+    if (hasCheckedAccount) {
+      console.log('ℹ️ Account already checked, skipping...');
+      return;
+    }
+
+    // CRITICAL: Verify session before checking account
+    const tokenValid = await verifySessionToken();
+    if (!tokenValid) {
+      console.warn('⚠️ Session token invalid, cannot proceed with account check');
+      setError('Session expired. Please log in again.');
+      return;
+    }
 
     setError('');
     setHasCheckedAccount(true);
+
+    console.log('🔍 Checking for existing account:', user.email);
 
     try {
       const res = await fetch('/api/auth/check-for-account', {
@@ -65,26 +118,63 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         body: JSON.stringify({ email: user.email }),
       });
 
-      if (!res.ok) throw new Error('Check failed');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Check failed');
+      }
 
-      const { exists, accountId: existingId } = await res.json();
+      const { exists, accountId: existingId, accountCheck, warning } = await res.json();
+
+      console.log('📊 Account check result:', { 
+        exists, 
+        accountId: existingId, 
+        accountCheck,
+        warning,
+      });
+
+      if (warning) {
+        console.warn('⚠️ Account check warning:', warning);
+        // Continue anyway - warning is informational
+      }
+
+      if (!accountCheck) {
+        console.error('❌ Account check failed to complete');
+        setError('Account verification failed. Please try again.');
+        setHasCheckedAccount(false); // Allow retry
+        return;
+      }
 
       if (exists && existingId) {
+        console.log('✅ Existing account found:', existingId);
         setWelcomeMessage(`Welcome back! Account ${existingId} ready.`);
+        // Don't call autoSignInFromShade here - let the useEffect handle it
+        // based on the hasCheckedAccount and sessionTokenVerified flags
       } else {
+        console.log('ℹ️ No existing account, opening creation modal...');
         setUserData({ email: user.email });
         setIsCreateOpen(true);
       }
     } catch (err) {
-      setError(`Account check failed: ${(err as Error).message}`);
-      setHasCheckedAccount(false);
+      console.error('❌ Check existing account error:', err);
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Account check failed: ${errMsg}`);
+      setHasCheckedAccount(false); // Allow retry on error
     }
-  }, [user?.email, hasCheckedAccount]);
+  }, [user?.email, hasCheckedAccount, verifySessionToken]);
 
   // AUTO-SIGN-IN FROM SHADE TEE after account creation
   const selector = useWalletSelector();
   const autoSignInFromShade = useCallback(async () => {
-    if (!user?.email || isSignedIn || !selector) return;
+    if (!user?.email || isSignedIn || !selector) {
+      console.log('⏭️ Skipping auto-sign-in:', {
+        hasEmail: !!user?.email,
+        alreadySignedIn: isSignedIn,
+        hasSelector: !!selector,
+      });
+      return;
+    }
+
+    console.log('🔑 Attempting auto-sign-in from Shade TEE...');
 
     try {
       // 1. Check if account exists in Shade
@@ -94,9 +184,19 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         body: JSON.stringify({ email: user.email }),
       });
 
-      if (!checkRes.ok) return;
-      const { exists, accountId } = await checkRes.json();
-      if (!exists || !accountId) return;
+      if (!checkRes.ok) {
+        console.warn('⚠️ Account check failed during auto-sign-in');
+        return;
+      }
+      
+      const { exists, accountId: existingAccountId } = await checkRes.json();
+      
+      if (!exists || !existingAccountId) {
+        console.log('ℹ️ No account in Shade, cannot auto-sign-in');
+        return;
+      }
+
+      console.log('📋 Account found in Shade:', existingAccountId);
 
       // 2. Retrieve private key from Shade
       const keyRes = await fetch('/api/auth/retrieve-key', {
@@ -105,47 +205,75 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         body: JSON.stringify({ email: user.email }),
       });
 
-      if (!keyRes.ok) return;
+      if (!keyRes.ok) {
+        console.warn('⚠️ Failed to retrieve key from Shade');
+        return;
+      }
+      
       const { private_key } = await keyRes.json();
-      if (!private_key) return;
+      
+      if (!private_key) {
+        console.warn('⚠️ No private key returned from Shade');
+        return;
+      }
+
+      console.log('🔐 Private key retrieved, storing in localStorage...');
 
       const networkId = selector.options.network.networkId;
 
       // Store key in localStorage
       localStorage.setItem(
-        `near-api-js:keystore:${accountId}:${networkId}`,
+        `near-api-js:keystore:${existingAccountId}:${networkId}`,
         private_key
       );
+
+      console.log('💾 Key stored in localStorage, signing in...');
 
       // 3. Use the existing selector from context to sign in
       const wallet = await selector.wallet();
 
       await wallet.signIn({
         contractId: process.env.NEXT_PUBLIC_CONTRACT_ID!,
-        accounts: [accountId],
+        accounts: [existingAccountId],
       });
 
-      setWelcomeMessage(`Signed in as ${accountId.split('.')[0]}!`);
+      console.log('✅ Auto-sign-in successful!');
+
+      const displayName = existingAccountId.split('.')[0];
+      setWelcomeMessage(`Signed in as ${displayName}!`);
       setTimeout(() => setWelcomeMessage(''), 6000);
 
     } catch (err) {
-      console.error('Auto sign-in failed:', err);
-    }
-  }, [user?.email, isSignedIn, selector, setWelcomeMessage]);
-
-  useEffect(() => {
-    if (!user || loading) return;
-
-    if (!isSignedIn) {
-      if (!hasCheckedAccount) {
-        // check if account exists
-        checkExistingAccount();
-      } else {
-        // auto sign-in if key exists in shade
-        autoSignInFromShade();
+      console.error('❌ Auto sign-in failed:', err);
+      if (err instanceof Error) {
+        console.error('Error details:', err.message);
       }
     }
-  }, [user, loading, isSignedIn, hasCheckedAccount, checkExistingAccount, autoSignInFromShade]);
+  }, [user?.email, isSignedIn, selector]);
+
+  useEffect(() => {
+    if (!user || loading) {
+      console.log('⏸️ Waiting for user/wallet load...', { 
+        hasUser: !!user, 
+        loading 
+      });
+      return;
+    }
+
+    if (isSignedIn) {
+      console.log('✅ Already signed in:', accountId);
+      return;
+    }
+
+    // Not signed in - check if we need to do account check or auto-sign-in
+    if (!hasCheckedAccount && !sessionTokenVerified) {
+      console.log('🚀 User logged in, checking account...');
+      checkExistingAccount();
+    } else if (hasCheckedAccount && sessionTokenVerified) {
+      console.log('🔄 Account checked, attempting auto-sign-in...');
+      autoSignInFromShade();
+    }
+  }, [user, loading, isSignedIn, hasCheckedAccount, sessionTokenVerified, accountId, checkExistingAccount, autoSignInFromShade]);
 
   // logout message
   useEffect(() => {
@@ -153,6 +281,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       setWelcomeMessage('Successfully logged out 👋');
       // reset on logout
       setHasCheckedAccount(false);
+      setSessionTokenVerified(false);
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -164,9 +293,11 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     const isCallback = params.has("code") || params.has("state") || params.has("token") || params.has("near");
     
     if (isCallback) {
+      console.log('🔄 OAuth callback detected, cleaning URL and resetting state...');
       window.history.replaceState({}, "", "/");
-      // reset check flag after callback
+      // reset check flags after callback
       setHasCheckedAccount(false);
+      setSessionTokenVerified(false);
       window.location.href = "/";
     }
   }, []);
@@ -176,7 +307,9 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     if (typeof window === "undefined") return;
     const timer = setTimeout(() => {
       if (window.location.search.includes("code=") || window.location.search.includes("token=")) {
+        console.log('🔄 Fallback: Cleaning OAuth params...');
         setHasCheckedAccount(false);
+        setSessionTokenVerified(false);
         window.location.href = "/";
       }
     }, 500);
@@ -185,49 +318,66 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   // handleLoginSuccess (from modal callback)
   const handleLoginSuccess = () => {
+    console.log('✅ Login success, closing modal...');
     setIsLoginOpen(false);
-    // After login, check for existing account
+    // After login, reset flags to trigger account check
     setHasCheckedAccount(false);
+    setSessionTokenVerified(false);
   };
 
   // handleAccountCreated (from create modal)
   const handleAccountCreated = (newAccountId: string) => {
+    console.log('✅ Account created:', newAccountId);
     setIsCreateOpen(false);
     setWelcomeMessage(`Account ${newAccountId} created! You can now use NOVA.`);
-    // small delay to show message
+    
+    // Trigger auto-sign-in after account creation
     setTimeout(() => {
+      console.log('🔄 Triggering auto-sign-in after account creation...');
+      autoSignInFromShade();
       setWelcomeMessage('');
-    }, 5000);
+    }, 3000);
   };
 
   // handlePayment (from payment modal)
   const handlePayment = async (sessionId: string, amount: string) => {
+    console.log('💳 Processing payment:', { sessionId, amount, accountId: pendingId });
+    
     try {
       const res = await fetch('/api/auth/fund-account', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId, amount, accountId: pendingId }),
       });
+      
       if (!res.ok) throw new Error('Funding failed');
 
       const { fundedAmountNear, txHash } = await res.json();
+      console.log('✅ Funding successful:', { fundedAmountNear, txHash });
+      
       setWelcomeMessage(`Funded ${fundedAmountNear} NEAR (tx: ${txHash})!`);
       setIsPaymentOpen(false);
+      
       // Proceed to create
       await createAccount(pendingId);
     } catch (err) {
-      setError(`Funding error: ${(err as Error).message}`);
+      console.error('❌ Payment error:', err);
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Funding error: ${errMsg}`);
     }
   };
 
   // skip payments
   const handleSkipPayment = () => {
+    console.log('⏭️ Skipping payment...');
     setIsPaymentOpen(false);
     createAccount(pendingId);
   };
 
   // createAccount (calls API)
   const createAccount = async (fullId: string) => {
+    console.log('🔨 Creating account:', fullId);
+    
     try {
       const res = await fetch('/api/auth/create-account', {
         method: 'POST',
@@ -237,20 +387,32 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           email: userData?.email 
         }),
       });
-      if (!res.ok) throw new Error('Creation failed');
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Creation failed');
+      }
 
       const { accountId } = await res.json();
+      console.log('✅ Account created successfully:', accountId);
+      
       handleAccountCreated(accountId);
 
     } catch (err) {
-      setError(`Creation error: ${(err as Error).message}`);
+      console.error('❌ Account creation error:', err);
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Creation error: ${errMsg}`);
     }
   };
 
   const handleConnect = () => {
+    console.log('🔌 Connect button clicked');
+    
     if (!user) {
+      console.log('📧 No user, opening login modal...');
       setIsLoginOpen(true);
     } else if (!isSignedIn) {
+      console.log('🔑 User exists but not signed in, opening wallet modal...');
       if (modal) modal.show();
     }
   };
