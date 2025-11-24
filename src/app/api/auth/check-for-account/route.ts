@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth0, getAuthToken } from '@/lib/auth0';
 import { JsonRpcProvider } from '@near-js/providers';
+import jwt from 'jsonwebtoken';
 
 if (!process.env.NEXT_PUBLIC_RPC_URL) {
   throw new Error('NEXT_PUBLIC_RPC_URL env var missing');
@@ -35,7 +36,12 @@ export async function POST(req: NextRequest) {
     let accountIdToCheck: string | null = null;
     
     if (username) {
-      // Check username availability
+      // ==========================================
+      // MODE 1: Check specific username availability
+      // (Called from CreateAccountModal when user types username)
+      // ==========================================
+      
+      // Construct full account ID from username
       const fullId = username.includes('.') ? username : `${username}.${parentDomain}`;
       
       // Validate format (e.g., jcarbonnell.nova-sdk-5.testnet)
@@ -51,17 +57,66 @@ export async function POST(req: NextRequest) {
       }
       
       accountIdToCheck = fullId;
-      console.log('Checking username availability:', accountIdToCheck);
+      console.log('Mode 1: Checking username availability:', accountIdToCheck);
       
     } else {
-      // Check if user has account stored in Shade      
+      // ==========================================
+      // MODE 2: Check if user has account stored in Shade
+      // (Called from HomeClient after Auth0 login to see if account exists)
+      // ==========================================
+      
       const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL!;
-
-      // Use helper with fallback logic
+      
+      // CRITICAL FIX: Use helper with fallback strategies
       const authToken = await getAuthToken();
-
-      if (!authToken) {
-        console.warn('⚠️ No auth token available - Shade check may fail');
+      
+      // DEBUG: Inspect token claims
+      if (authToken) {
+        try {
+          interface JwtPayload {
+            aud?: string | string[];
+            iss?: string;
+            sub?: string;
+            exp?: number;
+            azp?: string;
+          }
+          
+          const decoded = jwt.decode(authToken, { complete: true }) as { payload?: JwtPayload } | null;
+          
+          console.log('🔍 Token inspection:', {
+            audience: decoded?.payload?.aud,
+            issuer: decoded?.payload?.iss,
+            subject: decoded?.payload?.sub,
+            expires: decoded?.payload?.exp,
+            tokenType: decoded?.payload?.azp ? 'idToken' : 'accessToken',
+          });
+          
+          // Check if audience matches Shade expectation
+          const expectedAudience = 'https://nova-mcp.fastmcp.app';
+          const actualAudience = decoded?.payload?.aud;
+          
+          if (Array.isArray(actualAudience)) {
+            if (!actualAudience.includes(expectedAudience)) {
+              console.error('❌ Token audience mismatch!', {
+                expected: expectedAudience,
+                actual: actualAudience,
+              });
+            } else {
+              console.log('✅ Token audience matches Shade expectation');
+            }
+          } else if (actualAudience !== expectedAudience) {
+            console.error('❌ Token audience mismatch!', {
+              expected: expectedAudience,
+              actual: actualAudience,
+            });
+          } else {
+            console.log('✅ Token audience matches Shade expectation');
+          }
+        } catch (decodeError) {
+          console.error('JWT decode error:', decodeError);
+        }
+      } else {
+        console.warn('⚠️ No auth token available - Shade check will fail');
         console.log('Session state:', {
           hasSession: !!session,
           hasTokenSet: !!session.tokenSet,
@@ -70,15 +125,16 @@ export async function POST(req: NextRequest) {
           hasRefreshToken: !!session.tokenSet?.refreshToken,
         });
       }
-
-      console.log('Querying Shade for user account:', email, authToken ? '(with token)' : '(WARNING: no token)');
+      
+      console.log('Mode 2: Querying Shade for user account:', email, 
+                  authToken ? '(with token)' : '(WARNING: no token)');
       
       try {
         const shadePayload: Record<string, string> = { email };
         if (authToken) {
           shadePayload.auth_token = authToken;
         }
-
+        
         const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/check`, {
           method: 'POST',
           headers: { 
@@ -101,16 +157,16 @@ export async function POST(req: NextRequest) {
               authMethod: authToken ? 'token' : 'email-only',
             });
           } else {
-            console.log('No account found in Shade for:', email);
+            console.log('ℹ️ No account found in Shade for:', email);
             return NextResponse.json({ 
               exists: false, 
               accountId: null,
-              accountCheck: true, 
+              accountCheck: true,
             });
           }
         } else if (shadeResponse.status === 404) {
-          // 404 means user not found - this is expected for new users
-          console.log('User not found in Shade (new user):', email);
+          // 404 means user not found - expected for new users
+          console.log('ℹ️ User not found in Shade (new user):', email);
           return NextResponse.json({ 
             exists: false, 
             accountId: null,
@@ -124,7 +180,7 @@ export async function POST(req: NextRequest) {
             error: errorText.substring(0, 200),
             hadToken: !!authToken,
           });
-
+          
           // If we had a token and it failed, this is a problem
           if (authToken) {
             return NextResponse.json({ 
@@ -134,7 +190,7 @@ export async function POST(req: NextRequest) {
             }, { status: 401 });
           }
           
-          // Shade error - assume no account (safe default for new users)
+          // If no token, assume new user
           console.log('⚠️ No token available, assuming new user');
           return NextResponse.json({ 
             exists: false, 
@@ -180,9 +236,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ==========================================
     // Verify account exists on NEAR blockchain
+    // (Both modes end up here with accountIdToCheck)
+    // ==========================================
+    
     if (!accountIdToCheck) {
-      console.error('No account ID to check (should not reach here)');
+      console.error('❌ No account ID to check (should not reach here)');
       return NextResponse.json({ 
         exists: false, 
         accountId: null,
@@ -190,7 +250,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.log('Verifying account on NEAR blockchain:', accountIdToCheck);
+    console.log('🔍 Verifying account on NEAR blockchain:', accountIdToCheck);
 
     const provider = new JsonRpcProvider({ 
       url: process.env.NEXT_PUBLIC_RPC_URL! 
@@ -213,17 +273,15 @@ export async function POST(req: NextRequest) {
       });
       
     } catch (rpcError) {
-      // Account doesn't exist on-chain (expected for availability checks)
-      console.log(`Account ${accountIdToCheck} not found on NEAR blockchain`);
+      // Account doesn't exist on-chain
+      console.log(`ℹ️ Account ${accountIdToCheck} not found on NEAR blockchain`);
       
-      // Log RPC error details for debugging (helps identify network issues)
       if (rpcError instanceof Error) {
         console.log('RPC error details:', {
           message: rpcError.message,
           accountId: accountIdToCheck,
         });
         
-        // Check if it's an actual "account not found" vs network error
         if (rpcError.message.includes('does not exist') || 
             rpcError.message.includes('UNKNOWN_ACCOUNT') ||
             rpcError.message.includes("doesn't exist")) {
@@ -236,14 +294,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ 
         exists: false, 
         accountId: null,
-        accountCheck: true, 
+        accountCheck: true,
       });
     }
     
   } catch (error) {
     console.error('❌ Check account error:', error);
     
-    // Log full error stack for debugging
     if (error instanceof Error) {
       console.error('Error details:', {
         message: error.message,

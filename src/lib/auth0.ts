@@ -17,6 +17,8 @@ export interface User {
   [key: string]: unknown;
 }
 
+const SHADE_AUDIENCE = 'https://nova-mcp.fastmcp.app';
+
 // v4: Instantiate client with explicit config to ensure all vars are read
 export const auth0 = new Auth0Client({
   appBaseUrl: process.env.APP_BASE_URL!,
@@ -26,7 +28,7 @@ export const auth0 = new Auth0Client({
   domain: process.env.AUTH0_DOMAIN!,
   authorizationParameters: {
     scope: 'openid profile email offline_access',
-    audience: process.env.AUTH0_AUDIENCE,
+    audience: process.env.AUTH0_AUDIENCE || SHADE_AUDIENCE,
     response_type: 'code',
     response_mode: 'query',
   },
@@ -69,15 +71,15 @@ export async function getAuthToken(): Promise<string | null> {
     }
     
     // Strategy 1: Try idToken first (preferred for authentication)
-    if (session.tokenSet?.idToken) {
+    if (session.tokenSet?.accessToken) {
       console.log('✅ Using idToken from tokenSet');
-      return session.tokenSet.idToken;
+      return session.tokenSet.accessToken;
     }
     
     // Strategy 2: Fallback to accessToken
-    if (session.tokenSet?.accessToken) {
+    if (session.tokenSet?.idToken) {
       console.log('⚠️ idToken missing, falling back to accessToken');
-      return session.tokenSet.accessToken;
+      return session.tokenSet.idToken;
     }
     
     // Strategy 3: Try to refresh tokens if refresh token exists
