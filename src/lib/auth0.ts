@@ -60,7 +60,7 @@ export async function getServerSession() {
   }
 }
 
-// CRITICAL: Get access token with correct audience for Shade TEE
+// Get access token with correct audience for Shade TEE
 // The access token has the right audience (https://nova-mcp.fastmcp.app)
 // We need to ensure it ALSO contains user claims (email/sub) via Auth0 API settings
 export async function getAuthToken(): Promise<string | null> {

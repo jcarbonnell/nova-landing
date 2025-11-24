@@ -9,6 +9,7 @@ import { MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 import { useWalletState, useWalletSelector, useWalletSelectorModal } from '@/providers/WalletProvider';
 import type { User } from '@/lib/auth0';
+import { connectWithPrivateKey } from '@/lib/nearWallet';
 import Image from 'next/image';
 import LoginModal from '../components/LoginModal';
 import CreateAccountModal from '../components/CreateAccountModal';
@@ -190,7 +191,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       }
       
       const { exists, accountId: existingAccountId } = await checkRes.json();
-      
       if (!exists || !existingAccountId) {
         console.log('ℹ️ No account in Shade, cannot auto-sign-in');
         return;
@@ -211,37 +211,28 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       }
       
       const { private_key } = await keyRes.json();
-      
       if (!private_key) {
         console.warn('⚠️ No private key returned from Shade');
         return;
       }
 
-      console.log('🔐 Private key retrieved, storing in localStorage...');
+      console.log('🔐 Private key retrieved, injecting into wallet selector...');
 
-      const networkId = selector.options.network.networkId;
+      // THIS IS ALL YOU NEED — inject the key and fake selection
+      await connectWithPrivateKey(private_key, existingAccountId);
 
-      // Store key in localStorage
-      localStorage.setItem(
-        `near-api-js:keystore:${existingAccountId}:${networkId}`,
-        private_key
-      );
-
-      console.log('💾 Key stored in localStorage, signing in...');
-
-      // 3. Use the existing selector from context to sign in
-      const wallet = await selector.wallet();
-
-      await wallet.signIn({
-        contractId: process.env.NEXT_PUBLIC_CONTRACT_ID!,
-        accounts: [existingAccountId],
-      });
-
-      console.log('✅ Auto-sign-in successful!');
+      // DO NOT manually set state — the wallet selector will detect it!
+      console.log('Injected key — wallet selector should now show as signed in');
 
       const displayName = existingAccountId.split('.')[0];
       setWelcomeMessage(`Signed in as ${displayName}!`);
       setTimeout(() => setWelcomeMessage(''), 6000);
+
+      // Optional: force a tiny delay to let selector update UI
+      setTimeout(() => {
+        // This triggers a re-render if needed
+        queryClient.invalidateQueries({ queryKey: ['wallet'] });
+      }, 300);
 
     } catch (err) {
       console.error('❌ Auto sign-in failed:', err);
@@ -249,7 +240,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         console.error('Error details:', err.message);
       }
     }
-  }, [user?.email, isSignedIn, selector]);
+  }, [user?.email, isSignedIn, selector, queryClient]);
 
   useEffect(() => {
     if (!user || loading) {
