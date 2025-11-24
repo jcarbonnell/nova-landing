@@ -27,7 +27,7 @@ export const auth0 = new Auth0Client({
   clientSecret: process.env.AUTH0_CLIENT_SECRET!,
   domain: process.env.AUTH0_DOMAIN!,
   authorizationParameters: {
-    scope: 'openid profile email offline_access',
+    scope: 'openid profile email offline_access read:keys write:keys check:keys',
     audience: process.env.AUTH0_AUDIENCE || SHADE_AUDIENCE,
     response_type: 'code',
     response_mode: 'query',
@@ -70,15 +70,15 @@ export async function getAuthToken(): Promise<string | null> {
       return null;
     }
     
-    // Strategy 1: Try idToken first (preferred for authentication)
+    // Strategy 1: Try accessToken first (preferred for authentication)
     if (session.tokenSet?.accessToken) {
-      console.log('✅ Using idToken from tokenSet');
+      console.log('✅ Using accessToken from tokenSet');
       return session.tokenSet.accessToken;
     }
     
-    // Strategy 2: Fallback to accessToken
+    // Strategy 2: Fallback to idToken
     if (session.tokenSet?.idToken) {
-      console.log('⚠️ idToken missing, falling back to accessToken');
+      console.log('⚠️ accessToken missing, falling back to idToken');
       return session.tokenSet.idToken;
     }
     
