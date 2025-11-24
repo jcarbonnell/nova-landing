@@ -60,55 +60,47 @@ export async function getServerSession() {
   }
 }
 
-// Helper to get token with fallback strategies
+// CRITICAL: Get access token with correct audience for Shade TEE
+// The access token has the right audience (https://nova-mcp.fastmcp.app)
+// We need to ensure it ALSO contains user claims (email/sub) via Auth0 API settings
 export async function getAuthToken(): Promise<string | null> {
   try {
     const session = await auth0.getSession();
     
     if (!session) {
-      console.warn('No session found');
+      console.warn('❌ No session found');
       return null;
     }
     
-    // Strategy 1: Try accessToken first (preferred for authentication)
-    if (session.tokenSet?.idToken) {
-      console.log('✅ Using idToken from tokenSet');
-      return session.tokenSet.idToken;
-    }
-    
-    // Strategy 2: Fallback to idToken
+    // STRATEGY 1: Use accessToken (has correct audience for Shade)
     if (session.tokenSet?.accessToken) {
-      console.log('⚠️ accessToken missing, falling back to accessToken');
+      console.log('✅ Using accessToken with audience: https://nova-mcp.fastmcp.app');
       return session.tokenSet.accessToken;
     }
     
-    // Strategy 3: Try to refresh tokens if refresh token exists
-    if (session.tokenSet?.refreshToken) {
-      console.log('🔄 Attempting token refresh...');
-      try {
-        // Refresh session to get fresh tokens
-        const refreshedSession = await auth0.getSession();
-        
-        if (refreshedSession?.tokenSet?.idToken) {
-          console.log('✅ Got fresh idToken after refresh');
-          return refreshedSession.tokenSet.idToken;
-        }
-        
-        // If still no idToken, try accessToken
-        if (refreshedSession?.tokenSet?.accessToken) {
-          console.warn('⚠️ After refresh, only accessToken available');
-          return refreshedSession.tokenSet.accessToken;
-        }
-      } catch (refreshError) {
-        console.error('❌ Token refresh failed:', refreshError);
+    // STRATEGY 2: Try to get fresh access token using getAccessToken helper
+    console.log('🔄 Attempting to get fresh access token...');
+    try {
+      const { token } = await auth0.getAccessToken();
+      if (token) {
+        console.log('✅ Got fresh accessToken');
+        return token;
       }
+    } catch (refreshError) {
+      console.error('❌ getAccessToken failed:', refreshError);
+    }
+    
+    // STRATEGY 3: Fallback to idToken (wrong audience but has user claims)
+    if (session.tokenSet?.idToken) {
+      console.warn('⚠️ Falling back to idToken (may have wrong audience)');
+      return session.tokenSet.idToken;
     }
     
     console.error('❌ No valid tokens available in session');
     return null;
     
   } catch (error: unknown) {
-    console.error('getAuthToken error:', error);
+    console.error('❌ getAuthToken error:', error);
     return null;
   }
 }
