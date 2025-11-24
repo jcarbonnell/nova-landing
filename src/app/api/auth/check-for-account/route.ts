@@ -79,6 +79,8 @@ export async function POST(req: NextRequest) {
             sub?: string;
             exp?: number;
             azp?: string;
+            email?: string;
+            [key: string]: any; // Allow any other claims
           }
           
           const decoded = jwt.decode(authToken, { complete: true }) as { payload?: JwtPayload } | null;
@@ -89,7 +91,11 @@ export async function POST(req: NextRequest) {
             subject: decoded?.payload?.sub,
             expires: decoded?.payload?.exp,
             tokenType: decoded?.payload?.azp ? 'idToken' : 'accessToken',
+            email: decoded?.payload?.email,
           });
+          
+          // CRITICAL: Log ALL claims to see if namespaced claims are present
+          console.log('🔍 ALL TOKEN CLAIMS:', JSON.stringify(decoded?.payload, null, 2));
           
           // Check if audience matches Shade expectation
           const expectedAudience = 'https://nova-mcp.fastmcp.app';
