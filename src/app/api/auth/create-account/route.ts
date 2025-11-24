@@ -1,6 +1,6 @@
 // src/app/api/auth/create-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth0, getAuthToken } from '@/lib/auth0';
+import { auth0, getShadeToken } from '@/lib/auth0';
 
 import { Account } from '@near-js/accounts';
 import { KeyPair, type KeyPairString } from '@near-js/crypto';
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     console.log('Account created:', fullId);
 
     // 6. Store key in Shade TEE
-    const token = await getAuthToken();
+    const token = await getShadeToken();
     
     if (token) {
       try {

@@ -105,3 +105,29 @@ export async function getAuthToken(): Promise<string | null> {
     return null;
   }
 }
+
+// For Shade TEE calls - returns idToken which has email/sub claims
+export async function getShadeToken(): Promise<string | null> {
+  try {
+    const session = await auth0.getSession();
+    
+    if (!session) {
+      console.warn('No session found');
+      return null;
+    }
+    
+    // Shade needs email/sub claims -> use idToken (always has these)
+    if (session.tokenSet?.idToken) {
+      console.log('✅ Using idToken for Shade (has email/sub claims)');
+      return session.tokenSet.idToken;
+    }
+    
+    // No idToken available
+    console.error('❌ No idToken available for Shade');
+    return null;
+    
+  } catch (error: unknown) {
+    console.error('getShadeToken error:', error);
+    return null;
+  }
+}

@@ -1,6 +1,6 @@
 // src/app/api/auth/check-for-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth0, getAuthToken } from '@/lib/auth0';
+import { auth0, getShadeToken } from '@/lib/auth0';
 import { JsonRpcProvider } from '@near-js/providers';
 import jwt from 'jsonwebtoken';
 
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL!;
       
       // CRITICAL FIX: Use helper with fallback strategies
-      const authToken = await getAuthToken();
+      const authToken = await getShadeToken();
       
       // DEBUG: Inspect token claims
       if (authToken) {
