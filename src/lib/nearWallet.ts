@@ -12,7 +12,6 @@ export async function connectWithPrivateKey(
 
   // Type-safe cast — this is the official way in the NEAR ecosystem
   const keyPair = KeyPair.fromString(privateKey as KeyPairString);
-
   const keyStore = new BrowserLocalStorageKeyStore();
   await keyStore.setKey(networkId, accountId, keyPair);
 
@@ -22,8 +21,7 @@ export async function connectWithPrivateKey(
   // Force selector to reload accounts from localStorage
   if (selector) {
     try {
-      const state = selector.store.getState();
-      console.log("🔄 Current wallet state:", state);
+      console.log("🔄 Current wallet state:", selector.store.getState());
       
       // Get the my-near-wallet instance
       const wallet = await selector.wallet("my-near-wallet");
@@ -37,6 +35,24 @@ export async function connectWithPrivateKey(
         
         // If accounts are found, the subscription should fire automatically
         if (accounts.length > 0) {
+          // Access the internal store and force update
+          const store = selector.store as any;
+          
+          // Dispatch state change to update accounts
+          store.dispatch?.({
+            type: 'ACCOUNTS_CHANGED',
+            payload: { accounts }
+          });
+          
+          // Also try setState if available
+          if (store.setState) {
+            store.setState({
+              ...store.getState(),
+              accounts,
+              selectedWalletId: "my-near-wallet",
+            });
+          }
+          
           console.log("✅ Wallet selector state updated:", accounts[0].accountId);
         }
       }
