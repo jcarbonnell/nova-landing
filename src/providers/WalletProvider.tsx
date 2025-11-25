@@ -28,6 +28,22 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     refreshWalletState: async () => {},
   });
 
+  //Expose global function to force wallet state
+  useEffect(() => {
+    (window as any).__forceWalletConnect = (accountId: string) => {
+      console.log('🚨 FORCING wallet connection:', accountId);
+      setWallet(prev => ({
+        ...prev,
+        isSignedIn: true,
+        accountId,
+      }));
+    };
+    
+    return () => {
+      delete (window as any).__forceWalletConnect;
+    };
+  }, []);
+
   // manually refresh wallet state
   const [selectorRef, setSelectorRef] = useState<WalletSelector | null>(null);
 
@@ -106,15 +122,11 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
             });
 
             if (mounted) {
-              setSelectorRef(selector);
-              setWallet({
-                selector,
-                modal,
-                isSignedIn,
-                accountId,
-                loading: false,
-                refreshWalletState: refresh,
-              });
+              setWallet(prev => ({
+                ...prev,
+                isSignedIn: currentIsSignedIn,
+                accountId: currentAccountId,
+              }));
             }
           } catch (err) {
             console.error('❌ Refresh error:', err);
@@ -122,6 +134,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         };
 
         if (mounted) {
+          setSelectorRef(selector);
           setWallet({
             selector,
             modal,

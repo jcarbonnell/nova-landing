@@ -220,41 +220,10 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     // Inject key into localStorage
     await connectWithPrivateKey(private_key, existingAccountId);
 
-    console.log('✅ Key injected, manually updating WalletProvider state...');
+    console.log('✅ Key injected, forcing state via global function...');
 
-    // ✅ CRITICAL FIX: Manually trigger state update by calling refreshWalletState
-    // But first, we need to force the selector to see the accounts
-    // Try to get the wallet and force it to read from keystore
-    try {
-      const wallet = await selector.wallet("my-near-wallet");
-      const accounts = await wallet.getAccounts();
-      
-      if (accounts.length > 0) {
-        console.log('✅ Wallet found accounts:', accounts);
-        
-        // Force selector store update
-        const store = selector.store as any;
-        if (store._state) {
-          store._state = {
-            ...store._state,
-            accounts,
-            selectedWalletId: "my-near-wallet",
-          };
-        }
-        
-        // Manually trigger observable
-        if (store._subject) {
-          store._subject.next(store._state || selector.store.getState());
-        }
-      }
-    } catch (err) {
-      console.warn('⚠️ Could not access wallet:', err);
-    }
-
-    // Force refresh after a delay
-    await new Promise(resolve => setTimeout(resolve, 100));
-    await refreshWalletState();
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Force state update
+    (window as any).__forceWalletConnect?.(existingAccountId);
 
     const displayName = existingAccountId.split('.')[0];
     setWelcomeMessage(`Signed in as ${displayName}!`);
@@ -266,7 +235,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       console.error('Error details:', err.message);
     }
   }
-}, [user?.email, isSignedIn, selector, refreshWalletState]);
+}, [user?.email, isSignedIn, selector]);
 
   useEffect(() => {
     if (!user || loading) {
