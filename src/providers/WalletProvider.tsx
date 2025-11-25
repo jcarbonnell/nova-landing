@@ -1,6 +1,6 @@
 // src/providers/WalletProvider.tsx
 'use client';
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import type { WalletSelector } from '@near-wallet-selector/core';
 import "@near-wallet-selector/modal-ui/styles.css";
 
@@ -16,15 +16,48 @@ interface WalletContextType {
   accountId?: string;
   loading: boolean;
   error?: string;
+  refreshWalletState: () => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextType | null>(null);
 
 export function NearWalletProvider({ children }: { children: ReactNode }) {
-  const [wallet, setWallet] = useState<WalletContextType>({ isSignedIn: false, loading: true });
+  const [wallet, setWallet] = useState<WalletContextType>({ 
+    isSignedIn: false, 
+    loading: true,
+    refreshWalletState: async () => {},
+  });
+
+  // manually refresh wallet state
+  const refreshWalletState = useCallback(async () => {
+    if (!wallet.selector) {
+      console.warn('⚠️ No selector available to refresh');
+      return;
+    }
+
+    try {
+      console.log('🔄 Manually refreshing wallet state...');
+      
+      const state = wallet.selector.store.getState();
+      const accounts = state.accounts || [];
+      const isSignedIn = accounts.length > 0;
+      const accountId = accounts[0]?.accountId;
+
+      console.log('📊 Refreshed state:', { isSignedIn, accountId, accounts });
+
+      setWallet(prev => ({
+        ...prev,
+        isSignedIn,
+        accountId,
+      }));
+    } catch (err) {
+      console.error('❌ Refresh wallet state error:', err);
+    }
+  }, [wallet.selector]);
 
   useEffect(() => {
     let mounted = true;
+    let unsubscribe: (() => void) | undefined;
 
     async function init() {
       try {
@@ -55,6 +88,33 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         const isSignedIn = accounts.length > 0;
         const accountId = accounts[0]?.accountId;
 
+        console.log('🔄 Initial wallet state:', { isSignedIn, accountId });
+
+        // Function to refresh wallet state
+        const refresh = async () => {
+          try {
+            const currentState = selector.store.getState();
+            const currentAccounts = currentState.accounts || [];
+            const currentIsSignedIn = currentAccounts.length > 0;
+            const currentAccountId = currentAccounts[0]?.accountId;
+
+            console.log('🔄 Refreshed wallet state:', { 
+              isSignedIn: currentIsSignedIn, 
+              accountId: currentAccountId 
+            });
+
+            if (mounted) {
+              setWallet(prev => ({
+                ...prev,
+                isSignedIn: currentIsSignedIn,
+                accountId: currentAccountId,
+              }));
+            }
+          } catch (err) {
+            console.error('❌ Refresh error:', err);
+          }
+        };
+
         if (mounted) {
           setWallet({
             selector,
@@ -62,19 +122,61 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
             isSignedIn,
             accountId,
             loading: false,
+            refreshWalletState: refresh,
           });
         }
 
         // Subscribe to account changes
-        selector.subscribeOnAccountChange((newAccountId) => {
+        const subscription = selector.store.observable.subscribe((state) => {
+          console.log('🔔 Wallet selector state changed:', state);
+          
+          const accounts = state.accounts || [];
+          const isSignedIn = accounts.length > 0;
+          const accountId = accounts[0]?.accountId;
+          
           if (mounted) {
             setWallet(prev => ({
               ...prev,
-              isSignedIn: !!newAccountId,
-              accountId: newAccountId || undefined,
+              isSignedIn,
+              accountId,
             }));
           }
         });
+
+        unsubscribe = () => subscription.unsubscribe();
+
+        // ✅ POLL for changes (backup mechanism)
+        const pollInterval = setInterval(() => {
+          if (mounted && selector) {
+            const currentState = selector.store.getState();
+            const currentAccounts = currentState.accounts || [];
+            const currentIsSignedIn = currentAccounts.length > 0;
+            const currentAccountId = currentAccounts[0]?.accountId;
+
+            setWallet(prev => {
+              if (prev.accountId !== currentAccountId || prev.isSignedIn !== currentIsSignedIn) {
+                console.log('📊 Polling detected state change:', {
+                  from: { isSignedIn: prev.isSignedIn, accountId: prev.accountId },
+                  to: { isSignedIn: currentIsSignedIn, accountId: currentAccountId },
+                });
+                
+                return {
+                  ...prev,
+                  isSignedIn: currentIsSignedIn,
+                  accountId: currentAccountId,
+                };
+              }
+              return prev;
+            });
+          }
+        }, 1000); // Poll every second
+
+        // Cleanup polling
+        return () => {
+          clearInterval(pollInterval);
+          if (unsubscribe) unsubscribe();
+        };
+
       } catch (err) {
         console.error('Wallet selector init failed:', err);
         if (mounted) {
@@ -83,10 +185,11 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    init();
+    const cleanup = init();
 
     return () => {
       mounted = false;
+      cleanup?.then(cleanupFn => cleanupFn?.());
     };
   }, []);
 
@@ -113,5 +216,6 @@ export function useWalletState() {
     accountId: context.accountId,
     loading: context.loading,
     error: context.error,
+    refreshWalletState: context.refreshWalletState,
   };
 }

@@ -22,7 +22,7 @@ interface HomeClientProps {
 export default function HomeClient({ serverUser }: HomeClientProps) {
   const { user: clientUser, isLoading: authLoading } = useUser();
   const user = serverUser || clientUser;
-  const { isSignedIn, accountId, loading: walletLoading } = useWalletState();
+  const { isSignedIn, accountId, loading: walletLoading, refreshWalletState } = useWalletState();
   const { modal } = useWalletSelectorModal();
   const queryClient = useQueryClient();
 
@@ -222,7 +222,10 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       // Inject key and pass selector for state update
       await connectWithPrivateKey(private_key, existingAccountId, selector);
 
-      console.log('✅ Wallet connected, waiting for state propagation...');
+      console.log('✅ Wallet connected, forcing state refresh...');
+
+      // ✅ FORCE MANUAL REFRESH
+      await refreshWalletState();
 
       // Give selector time to propagate state changes
       await new Promise(resolve => setTimeout(resolve, 500));
