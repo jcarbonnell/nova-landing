@@ -167,80 +167,106 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const selector = useWalletSelector();
 
   const autoSignInFromShade = useCallback(async () => {
-    if (!user?.email || isSignedIn || !selector) {
-      console.log('⏭️ Skipping auto-sign-in:', {
-        hasEmail: !!user?.email,
-        alreadySignedIn: isSignedIn,
-        hasSelector: !!selector,
-      });
+  if (!user?.email || isSignedIn || !selector) {
+    console.log('⏭️ Skipping auto-sign-in:', {
+      hasEmail: !!user?.email,
+      alreadySignedIn: isSignedIn,
+      hasSelector: !!selector,
+    });
+    return;
+  }
+
+  console.log('🔑 Attempting auto-sign-in from Shade TEE...');
+
+  try {
+    const checkRes = await fetch('/api/auth/check-for-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: user.email }),
+    });
+
+    if (!checkRes.ok) {
+      console.warn('⚠️ Account check failed during auto-sign-in');
+      return;
+    }
+    
+    const { exists, accountId: existingAccountId } = await checkRes.json();
+    if (!exists || !existingAccountId) {
+      console.log('ℹ️ No account in Shade, cannot auto-sign-in');
       return;
     }
 
-    console.log('🔑 Attempting auto-sign-in from Shade TEE...');
+    console.log('📋 Account found in Shade:', existingAccountId);
 
-    try {
-      // 1. Check if account exists in Shade
-      const checkRes = await fetch('/api/auth/check-for-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email }),
-      });
+    const keyRes = await fetch('/api/auth/retrieve-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: user.email }),
+    });
 
-      if (!checkRes.ok) {
-        console.warn('⚠️ Account check failed during auto-sign-in');
-        return;
-      }
-      
-      const { exists, accountId: existingAccountId } = await checkRes.json();
-      if (!exists || !existingAccountId) {
-        console.log('ℹ️ No account in Shade, cannot auto-sign-in');
-        return;
-      }
-
-      console.log('📋 Account found in Shade:', existingAccountId);
-
-      // 2. Retrieve private key from Shade
-      const keyRes = await fetch('/api/auth/retrieve-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email }),
-      });
-
-      if (!keyRes.ok) {
-        console.warn('⚠️ Failed to retrieve key from Shade');
-        return;
-      }
-      
-      const { private_key } = await keyRes.json();
-      if (!private_key) {
-        console.warn('⚠️ No private key returned from Shade');
-        return;
-      }
-
-      console.log('🔐 Private key retrieved, injecting into wallet selector...');
-
-      // Inject key and pass selector for state update
-      await connectWithPrivateKey(private_key, existingAccountId, selector);
-
-      console.log('✅ Wallet connected, forcing state refresh...');
-
-      // ✅ FORCE MANUAL REFRESH
-      await refreshWalletState();
-
-      // Give selector time to propagate state changes
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const displayName = existingAccountId.split('.')[0];
-      setWelcomeMessage(`Signed in as ${displayName}!`);
-      setTimeout(() => setWelcomeMessage(''), 6000);
-
-    } catch (err) {
-      console.error('❌ Auto sign-in failed:', err);
-      if (err instanceof Error) {
-        console.error('Error details:', err.message);
-      }
+    if (!keyRes.ok) {
+      console.warn('⚠️ Failed to retrieve key from Shade');
+      return;
     }
-  }, [user?.email, isSignedIn, selector]);
+    
+    const { private_key } = await keyRes.json();
+    if (!private_key) {
+      console.warn('⚠️ No private key returned from Shade');
+      return;
+    }
+
+    console.log('🔐 Private key retrieved, injecting into wallet selector...');
+
+    // Inject key into localStorage
+    await connectWithPrivateKey(private_key, existingAccountId);
+
+    console.log('✅ Key injected, manually updating WalletProvider state...');
+
+    // ✅ CRITICAL FIX: Manually trigger state update by calling refreshWalletState
+    // But first, we need to force the selector to see the accounts
+    // Try to get the wallet and force it to read from keystore
+    try {
+      const wallet = await selector.wallet("my-near-wallet");
+      const accounts = await wallet.getAccounts();
+      
+      if (accounts.length > 0) {
+        console.log('✅ Wallet found accounts:', accounts);
+        
+        // Force selector store update
+        const store = selector.store as any;
+        if (store._state) {
+          store._state = {
+            ...store._state,
+            accounts,
+            selectedWalletId: "my-near-wallet",
+          };
+        }
+        
+        // Manually trigger observable
+        if (store._subject) {
+          store._subject.next(store._state || selector.store.getState());
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ Could not access wallet:', err);
+    }
+
+    // Force refresh after a delay
+    await new Promise(resolve => setTimeout(resolve, 100));
+    await refreshWalletState();
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const displayName = existingAccountId.split('.')[0];
+    setWelcomeMessage(`Signed in as ${displayName}!`);
+    setTimeout(() => setWelcomeMessage(''), 6000);
+
+  } catch (err) {
+    console.error('❌ Auto sign-in failed:', err);
+    if (err instanceof Error) {
+      console.error('Error details:', err.message);
+    }
+  }
+}, [user?.email, isSignedIn, selector, refreshWalletState]);
 
   useEffect(() => {
     if (!user || loading) {
