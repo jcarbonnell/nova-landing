@@ -164,35 +164,8 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
 
         unsubscribe = () => subscription.unsubscribe();
 
-        // ✅ POLL for changes (backup mechanism)
-        const pollInterval = setInterval(() => {
-          if (mounted && selector) {
-            const currentState = selector.store.getState();
-            const currentAccounts = currentState.accounts || [];
-            const currentIsSignedIn = currentAccounts.length > 0;
-            const currentAccountId = currentAccounts[0]?.accountId;
-
-            setWallet(prev => {
-              if (prev.accountId !== currentAccountId || prev.isSignedIn !== currentIsSignedIn) {
-                console.log('📊 Polling detected state change:', {
-                  from: { isSignedIn: prev.isSignedIn, accountId: prev.accountId },
-                  to: { isSignedIn: currentIsSignedIn, accountId: currentAccountId },
-                });
-                
-                return {
-                  ...prev,
-                  isSignedIn: currentIsSignedIn,
-                  accountId: currentAccountId,
-                };
-              }
-              return prev;
-            });
-          }
-        }, 1000); // Poll every second
-
         // Cleanup polling
         return () => {
-          clearInterval(pollInterval);
           if (unsubscribe) unsubscribe();
         };
 
