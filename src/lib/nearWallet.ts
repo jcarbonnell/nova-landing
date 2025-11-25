@@ -21,8 +21,6 @@ export async function connectWithPrivateKey(
     publicKey: keyPair.getPublicKey().toString(),
   }]);
   localStorage.setItem(":wallet-selector:my-near-wallet:accounts", pendingAccounts);
-
-  (window as any).__forceWalletConnect?.(accountId);
   
   console.log("✅ Key injected with correct format:", accountId);
 }

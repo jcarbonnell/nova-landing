@@ -252,14 +252,20 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     }
 
     // Not signed in - check if we need to do account check or auto-sign-in
-    if (!hasCheckedAccount && !sessionTokenVerified) {
-      console.log('🚀 User logged in, checking account...');
+    if (!sessionTokenVerified) {
+      // Step 1: Verify session first
+      console.log('🚀 User logged in, verifying session...');
+      verifySessionToken();
+    } else if (!hasCheckedAccount) {
+      // Step 2: Then check for account
+      console.log('🔍 Session verified, checking account...');
       checkExistingAccount();
     } else if (hasCheckedAccount && sessionTokenVerified) {
-      console.log('🔄 Account checked, attempting auto-sign-in...');
+      // Step 3: Finally attempt auto-sign-in (runs ONCE)
+      console.log('🔄 Account exists, attempting auto-sign-in...');
       autoSignInFromShade();
     }
-  }, [user, loading, isSignedIn, hasCheckedAccount, sessionTokenVerified, accountId, checkExistingAccount, autoSignInFromShade]);
+  }, [user, loading, isSignedIn, hasCheckedAccount, sessionTokenVerified, accountId, verifySessionToken, checkExistingAccount, autoSignInFromShade]);
 
   // logout message
   useEffect(() => {
