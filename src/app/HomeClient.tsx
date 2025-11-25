@@ -165,6 +165,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   // AUTO-SIGN-IN FROM SHADE TEE after account creation
   const selector = useWalletSelector();
+
   const autoSignInFromShade = useCallback(async () => {
     if (!user?.email || isSignedIn || !selector) {
       console.log('⏭️ Skipping auto-sign-in:', {
@@ -218,21 +219,17 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
       console.log('🔐 Private key retrieved, injecting into wallet selector...');
 
-      // THIS IS ALL YOU NEED — inject the key and fake selection
-      await connectWithPrivateKey(private_key, existingAccountId);
+      // Inject key and pass selector for state update
+      await connectWithPrivateKey(private_key, existingAccountId, selector);
 
-      // DO NOT manually set state — the wallet selector will detect it!
-      console.log('Injected key — wallet selector should now show as signed in');
+      console.log('✅ Wallet connected, waiting for state propagation...');
+
+      // Give selector time to propagate state changes
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       const displayName = existingAccountId.split('.')[0];
       setWelcomeMessage(`Signed in as ${displayName}!`);
       setTimeout(() => setWelcomeMessage(''), 6000);
-
-      // Optional: force a tiny delay to let selector update UI
-      setTimeout(() => {
-        // This triggers a re-render if needed
-        queryClient.invalidateQueries({ queryKey: ['wallet'] });
-      }, 300);
 
     } catch (err) {
       console.error('❌ Auto sign-in failed:', err);
@@ -240,7 +237,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         console.error('Error details:', err.message);
       }
     }
-  }, [user?.email, isSignedIn, selector, queryClient]);
+  }, [user?.email, isSignedIn, selector]);
 
   useEffect(() => {
     if (!user || loading) {

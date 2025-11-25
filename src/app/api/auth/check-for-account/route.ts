@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
             exp?: number;
             azp?: string;
             email?: string;
-            [key: string]: any; // Allow any other claims
+            [key: string]: unknown;
           }
           
           const decoded = jwt.decode(authToken, { complete: true }) as { payload?: JwtPayload } | null;
