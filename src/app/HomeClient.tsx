@@ -58,17 +58,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const verifySessionToken = useCallback(async () => {
     if (!user?.email || sessionTokenVerified) return true;
 
-    console.log('🔐 Verifying Auth0 session token...');
+    console.log('Verifying Auth0 session token...');
     
     try {
       const response = await fetch('/auth/profile');
       
       if (response.ok) {
         const profile = await response.json();
-        console.log('✅ Session token verified:', { 
-          email: profile.email,
-          sub: profile.sub?.substring(0, 20) + '...',
-        });
         setSessionTokenVerified(true);
         return true;
       } else {
@@ -91,12 +87,12 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   const checkExistingAccount = useCallback(async () => {
     if (!user?.email) {
-      console.log('❌ No user email, cannot check account');
+      console.log('No user email, cannot check account');
       return;
     }
     
     if (hasCheckedAccount) {
-      console.log('ℹ️ Account already checked, skipping...');
+      console.log('Account already checked, skipping...');
       return;
     }
 
@@ -111,7 +107,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     setError('');
     setHasCheckedAccount(true);
 
-    console.log('🔍 Checking for existing account:', user.email);
+    console.log('Checking for existing account');
 
     try {
       const res = await fetch('/api/auth/check-for-account', {
@@ -127,13 +123,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
       const { exists, accountId: existingId, accountCheck, warning } = await res.json();
 
-      console.log('📊 Account check result:', { 
-        exists, 
-        accountId: existingId, 
-        accountCheck,
-        warning,
-      });
-
       if (warning) {
         console.warn('⚠️ Account check warning:', warning);
         // Continue anyway - warning is informational
@@ -147,12 +136,11 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       }
 
       if (exists && existingId) {
-        console.log('✅ Existing account found:', existingId);
         setWelcomeMessage(`Welcome back! Account ${existingId} ready.`);
         // Don't call autoSignInFromShade here - let the useEffect handle it
         // based on the hasCheckedAccount and sessionTokenVerified flags
       } else {
-        console.log('ℹ️ No existing account, opening creation modal...');
+        console.log('No existing account, opening creation modal...');
         setUserData({ email: user.email });
         setIsCreateOpen(true);
       }
@@ -169,15 +157,10 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   const autoSignInFromShade = useCallback(async () => {
   if (!user?.email || isSignedIn || !selector) {
-    console.log('⏭️ Skipping auto-sign-in:', {
-      hasEmail: !!user?.email,
-      alreadySignedIn: isSignedIn,
-      hasSelector: !!selector,
-    });
     return;
   }
 
-  console.log('🔑 Attempting auto-sign-in from Shade TEE...');
+  console.log('Attempting auto-sign-in from Shade TEE...');
 
   try {
     const checkRes = await fetch('/api/auth/check-for-account', {
@@ -193,11 +176,11 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     
     const { exists, accountId: existingAccountId } = await checkRes.json();
     if (!exists || !existingAccountId) {
-      console.log('ℹ️ No account in Shade, cannot auto-sign-in');
+      console.log('No account in Shade, cannot auto-sign-in');
       return;
     }
 
-    console.log('📋 Account found in Shade:', existingAccountId);
+    console.log('Account found in Shade');
 
     const keyRes = await fetch('/api/auth/retrieve-key', {
       method: 'POST',
@@ -216,12 +199,12 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       return;
     }
 
-    console.log('🔐 Private key retrieved, injecting into wallet selector...');
+    console.log('Auto-login successful');
 
     // Inject key into localStorage
     await connectWithPrivateKey(private_key, existingAccountId);
 
-    console.log('✅ Key injected, forcing state via global function...');
+    console.log('Key injected, forcing state via global function...');
 
     // Force state update
     (window as any).__forceWalletConnect?.(existingAccountId);
@@ -240,31 +223,28 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   useEffect(() => {
     if (!user || loading) {
-      console.log('⏸️ Waiting for user/wallet load...', { 
-        hasUser: !!user, 
-        loading 
-      });
+      console.log('Waiting for user/wallet load...');
       return;
     }
 
     if (isSignedIn) {
-      console.log('✅ Already signed in:', accountId);
+      console.log('Already signed in');
       return;
     }
 
     // Not signed in - check if we need to do account check or auto-sign-in
     if (!sessionTokenVerified) {
       // Step 1: Verify session first
-      console.log('🚀 User logged in, verifying session...');
+      console.log('User logged in, verifying session...');
       verifySessionToken();
     } else if (!hasCheckedAccount) {
       // Step 2: Then check for account
-      console.log('🔍 Session verified, checking account...');
+      console.log('Session verified, checking account...');
       checkExistingAccount();
     } else if (hasCheckedAccount && sessionTokenVerified && !autoSignInAttemptedRef.current) {
-      // ✅ CRITICAL: Only attempt ONCE using ref
-      console.log('🔄 Account exists, attempting auto-sign-in...');
-      autoSignInAttemptedRef.current = true;  // Mark as attempted
+      // Step 3: Only attempt ONCE using ref
+      console.log('Account exists, attempting auto-sign-in...');
+      autoSignInAttemptedRef.current = true;
       autoSignInFromShade();
     }
   }, [user, loading, isSignedIn, sessionTokenVerified, hasCheckedAccount, accountId, verifySessionToken, checkExistingAccount, autoSignInFromShade]);
@@ -272,7 +252,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   // logout message
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('loggedOut') === '1') {
-      setWelcomeMessage('Successfully logged out 👋');
+      setWelcomeMessage('Successfully logged out.');
       // reset on logout
       setHasCheckedAccount(false);
       setSessionTokenVerified(false);
@@ -287,7 +267,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     const isCallback = params.has("code") || params.has("state") || params.has("token") || params.has("near");
     
     if (isCallback) {
-      console.log('🔄 OAuth callback detected, cleaning URL and resetting state...');
+      console.log('OAuth callback detected, cleaning URL and resetting state...');
       window.history.replaceState({}, "", "/");
       // reset check flags after callback
       setHasCheckedAccount(false);
@@ -301,7 +281,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     if (typeof window === "undefined") return;
     const timer = setTimeout(() => {
       if (window.location.search.includes("code=") || window.location.search.includes("token=")) {
-        console.log('🔄 Fallback: Cleaning OAuth params...');
+        console.log('Fallback: Cleaning OAuth params...');
         setHasCheckedAccount(false);
         setSessionTokenVerified(false);
         window.location.href = "/";
@@ -312,7 +292,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   // handleLoginSuccess (from modal callback)
   const handleLoginSuccess = () => {
-    console.log('✅ Login success, closing modal...');
+    console.log('Login success, closing modal...');
     setIsLoginOpen(false);
     // After login, reset flags to trigger account check
     setHasCheckedAccount(false);
@@ -321,13 +301,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   // handleAccountCreated (from create modal)
   const handleAccountCreated = (newAccountId: string) => {
-    console.log('✅ Account created:', newAccountId);
+    console.log('Account created');
     setIsCreateOpen(false);
     setWelcomeMessage(`Account ${newAccountId} created! You can now use NOVA.`);
     
     // Trigger auto-sign-in after account creation
     setTimeout(() => {
-      console.log('🔄 Triggering auto-sign-in after account creation...');
+      console.log('Triggering auto-sign-in after account creation...');
       autoSignInFromShade();
       setWelcomeMessage('');
     }, 3000);
@@ -335,7 +315,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   // handlePayment (from payment modal)
   const handlePayment = async (sessionId: string, amount: string) => {
-    console.log('💳 Processing payment:', { sessionId, amount, accountId: pendingId });
+    console.log('Processing payment');
     
     try {
       const res = await fetch('/api/auth/fund-account', {
@@ -347,7 +327,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       if (!res.ok) throw new Error('Funding failed');
 
       const { fundedAmountNear, txHash } = await res.json();
-      console.log('✅ Funding successful:', { fundedAmountNear, txHash });
+      console.log('Funding successful');
       
       setWelcomeMessage(`Funded ${fundedAmountNear} NEAR (tx: ${txHash})!`);
       setIsPaymentOpen(false);
@@ -363,14 +343,14 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   // skip payments
   const handleSkipPayment = () => {
-    console.log('⏭️ Skipping payment...');
+    console.log('Skipping payment...');
     setIsPaymentOpen(false);
     createAccount(pendingId);
   };
 
   // createAccount (calls API)
   const createAccount = async (fullId: string) => {
-    console.log('🔨 Creating account:', fullId);
+    console.log('Creating account');
     
     try {
       const res = await fetch('/api/auth/create-account', {
@@ -388,7 +368,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       }
 
       const { accountId } = await res.json();
-      console.log('✅ Account created successfully:', accountId);
+      console.log('Account created successfully');
       
       handleAccountCreated(accountId);
 
@@ -400,13 +380,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   };
 
   const handleConnect = () => {
-    console.log('🔌 Connect button clicked');
+    console.log('Connect button clicked');
     
     if (!user) {
-      console.log('📧 No user, opening login modal...');
+      console.log('No user, opening login modal...');
       setIsLoginOpen(true);
     } else if (!isSignedIn) {
-      console.log('🔑 User exists but not signed in, opening wallet modal...');
+      console.log('User exists but not signed in, opening wallet modal...');
       if (modal) modal.show();
     }
   };

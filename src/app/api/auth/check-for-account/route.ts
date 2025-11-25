@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       }
       
       accountIdToCheck = fullId;
-      console.log('Mode 1: Checking username availability:', accountIdToCheck);
+      console.log('Checking username availability');
       
     } else {
       // 2. Check if user has account stored in Shade      
@@ -76,18 +76,6 @@ export async function POST(req: NextRequest) {
           
           const decoded = jwt.decode(authToken, { complete: true }) as { payload?: JwtPayload } | null;
           
-          console.log('🔍 Token inspection:', {
-            audience: decoded?.payload?.aud,
-            issuer: decoded?.payload?.iss,
-            subject: decoded?.payload?.sub,
-            expires: decoded?.payload?.exp,
-            tokenType: decoded?.payload?.azp ? 'idToken' : 'accessToken',
-            email: decoded?.payload?.email,
-          });
-          
-          // Log ALL claims to see if namespaced claims are present
-          console.log('🔍 ALL TOKEN CLAIMS:', JSON.stringify(decoded?.payload, null, 2));
-          
           // Check if audience matches Shade expectation
           const expectedAudience = 'https://nova-mcp.fastmcp.app';
           const actualAudience = decoded?.payload?.aud;
@@ -99,7 +87,7 @@ export async function POST(req: NextRequest) {
                 actual: actualAudience,
               });
             } else {
-              console.log('✅ Token audience matches Shade expectation');
+              console.log('Token audience matches Shade expectation');
             }
           } else if (actualAudience !== expectedAudience) {
             console.error('❌ Token audience mismatch!', {
@@ -107,24 +95,16 @@ export async function POST(req: NextRequest) {
               actual: actualAudience,
             });
           } else {
-            console.log('✅ Token audience matches Shade expectation');
+            console.log('Token audience matches Shade expectation');
           }
         } catch (decodeError) {
           console.error('JWT decode error:', decodeError);
         }
       } else {
         console.warn('⚠️ No auth token available - Shade check will fail');
-        console.log('Session state:', {
-          hasSession: !!session,
-          hasTokenSet: !!session.tokenSet,
-          hasIdToken: !!session.tokenSet?.idToken,
-          hasAccessToken: !!session.tokenSet?.accessToken,
-          hasRefreshToken: !!session.tokenSet?.refreshToken,
-        });
       }
       
-      console.log('Mode 2: Querying Shade for user account:', email, 
-                  authToken ? '(with token)' : '(WARNING: no token)');
+      console.log('Querying Shade for user account');
       
       try {
         const shadePayload: Record<string, string> = { email };
@@ -146,15 +126,9 @@ export async function POST(req: NextRequest) {
           
           if (shadeData.exists && shadeData.account_id) {
             accountIdToCheck = shadeData.account_id;
-            console.log('✅ Found account in Shade TEE:', {
-              accountId: accountIdToCheck,
-              network: shadeData.network,
-              publicKey: shadeData.public_key?.substring(0, 20) + '...',
-              createdAt: shadeData.created_at,
-              authMethod: authToken ? 'token' : 'email-only',
-            });
+            console.log('Found account in Shade TEE');
           } else {
-            console.log('ℹ️ No account found in Shade for:', email);
+            console.log('No account found in Shade');
             return NextResponse.json({ 
               exists: false, 
               accountId: null,
@@ -163,7 +137,7 @@ export async function POST(req: NextRequest) {
           }
         } else if (shadeResponse.status === 404) {
           // 404 means user not found - expected for new users
-          console.log('ℹ️ User not found in Shade (new user):', email);
+          console.log('User not found in Shade (new user)');
           return NextResponse.json({ 
             exists: false, 
             accountId: null,
@@ -172,7 +146,7 @@ export async function POST(req: NextRequest) {
         } else if (shadeResponse.status === 401 || shadeResponse.status === 403) {
           // Auth error - likely missing or invalid token
           const errorText = await shadeResponse.text();
-          console.error('🔐 Shade authentication failed:', {
+          console.error('Shade authentication failed', {
             status: shadeResponse.status,
             error: errorText.substring(0, 200),
             hadToken: !!authToken,
@@ -188,7 +162,7 @@ export async function POST(req: NextRequest) {
           }
           
           // If no token, assume new user
-          console.log('⚠️ No token available, assuming new user');
+          console.log('No token available, assuming new user');
           return NextResponse.json({ 
             exists: false, 
             accountId: null,
@@ -197,7 +171,7 @@ export async function POST(req: NextRequest) {
           });
         } else {
           const errorText = await shadeResponse.text();
-          console.error('⚠️ Shade API error:', {
+          console.error('Shade API error:', {
             status: shadeResponse.status,
             statusText: shadeResponse.statusText,
             error: errorText.substring(0, 200),
@@ -241,7 +215,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.log('🔍 Verifying account on NEAR blockchain:', accountIdToCheck);
+    console.log('Verifying account on NEAR blockchain');
 
     const provider = new JsonRpcProvider({ 
       url: process.env.NEXT_PUBLIC_RPC_URL! 
@@ -255,7 +229,7 @@ export async function POST(req: NextRequest) {
         account_id: accountIdToCheck,
       });
 
-      console.log('✅ Account verified on blockchain:', accountIdToCheck);
+      console.log('Account verified on blockchain');
 
       return NextResponse.json({ 
         exists: true, 
@@ -265,7 +239,7 @@ export async function POST(req: NextRequest) {
       
     } catch (rpcError) {
       // Account doesn't exist on-chain
-      console.log(`ℹ️ Account ${accountIdToCheck} not found on NEAR blockchain`);
+      console.log('Account not found on NEAR blockchain');
       
       if (rpcError instanceof Error) {
         console.log('RPC error details:', {
@@ -276,9 +250,9 @@ export async function POST(req: NextRequest) {
         if (rpcError.message.includes('does not exist') || 
             rpcError.message.includes('UNKNOWN_ACCOUNT') ||
             rpcError.message.includes("doesn't exist")) {
-          console.log('→ Account does not exist (available for registration)');
+          console.log('Account does not exist (available for registration)');
         } else {
-          console.error('→ Unexpected RPC error:', rpcError.message);
+          console.error('Unexpected RPC error:', rpcError.message);
         }
       }
       

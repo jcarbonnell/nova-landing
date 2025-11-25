@@ -1,4 +1,4 @@
-# NOVA – Secure File Sharing Primitive for User-Owned AI
+# NOVA - Multi-User Interface
 **https://nova-sdk.com**
 
 This app is the official multi-user interface for NOVA, a privacy-first, decentralized file-sharing system built on NEAR Protocol, IPFS, and Phala/TEEs. It provides encrypted group-based storage with on-chain access control and off-chain key management that never exposes private keys.

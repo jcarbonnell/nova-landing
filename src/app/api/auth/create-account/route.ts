@@ -1,7 +1,6 @@
 // src/app/api/auth/create-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth0, getAuthToken } from '@/lib/auth0';
-
 import { Account } from '@near-js/accounts';
 import { KeyPair, type KeyPairString } from '@near-js/crypto';
 import { JsonRpcProvider } from '@near-js/providers';
@@ -22,10 +21,12 @@ export async function POST(req: NextRequest) {
     const { username, email } = await req.json();
     const session = await auth0.getSession();
 
+    // Verify Auth0 session and email match
     if (!session?.user?.email || session.user.email !== email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Sanitize and validate username
     const cleanUsername = username.replace(/[^a-z0-9_-]/gi, '').toLowerCase();
     if (cleanUsername.length < 2 || cleanUsername.length > 64) {
       return NextResponse.json({ error: 'Username must be 2–64 characters' }, { status: 400 });
@@ -49,7 +50,6 @@ export async function POST(req: NextRequest) {
 
     // 4. Create provider and creator account 
     const provider = new JsonRpcProvider({ url: RPC_URL });
-
     const creatorAccount = new Account(PARENT_DOMAIN, provider, signer);
     
     // 5. Create account
@@ -59,46 +59,12 @@ export async function POST(req: NextRequest) {
       '100000000000000000000000' // 0.1 NEAR in yoctoNEAR
     );
 
+    // Handle transaction failure
     if (typeof result.status !== 'string' && 'Failure' in result.status) {
       throw new Error(`TX failed: ${JSON.stringify(result.status.Failure)}`);
     }
 
-    console.log('Account created:', fullId);
-
-    // 6. Store key in Shade TEE
-    const token = await getAuthToken();
-    
-    if (token) {
-      try {
-        const res = await fetch(`${SHADE_API_URL}/api/user-keys/store`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email,
-            account_id: fullId,
-            private_key: privateKey,
-            public_key: publicKey.toString(),
-            network: NETWORK_ID,
-            auth_token: token,
-          }),
-        });
-
-        if (res.ok) {
-          console.log('✅ Key backed up to Shade TEE');
-        } else {
-          const errorText = await res.text();
-          console.error('⚠️ Shade backup failed:', {
-            status: res.status,
-            error: errorText.substring(0, 200),
-          });
-        }
-      } catch (e) {
-        console.error('❌ Shade backup error:', e);
-      }
-    } else {
-      console.warn('⚠️ No auth token available - key NOT backed up to Shade TEE');
-    }
-
+    // Success! Return everything the frontend needs
     const explorerUrl = NETWORK_ID === 'testnet'
       ? `https://testnet.nearblocks.io/txns/${result.transaction.hash}`
       : `https://nearblocks.io/txns/${result.transaction.hash}`;
@@ -106,21 +72,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       accountId: fullId,
       publicKey: publicKey.toString(),
+      privateKey: privateKey,
       network: NETWORK_ID,
       transaction: result.transaction.hash,
       explorerUrl,
-      message: 'Success!',
-      keyBackedUp: !!token,
+      message: 'Account created successfully!',
     });
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Creation failed:', errorMessage);
+    
     if (errorMessage.includes('already exists')) {
       return NextResponse.json({ error: 'Username taken' }, { status: 400 });
     }
+
     return NextResponse.json(
-      { error: 'Failed', details: errorMessage },
+      { error: 'Account creation failed', details: errorMessage },
       { status: 500 }
     );
   }
