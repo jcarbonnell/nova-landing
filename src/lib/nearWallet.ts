@@ -8,11 +8,10 @@ export async function connectWithPrivateKey(
   const networkId = process.env.NEXT_PUBLIC_NETWORK_ID || "testnet";
 
   const keyPair = KeyPair.fromString(privateKey as KeyPairString);
-  
-  // ✅ FIX: Store key in the EXACT format my-near-wallet expects
+
+  // Store key in the EXACT format my-near-wallet expects
   const keyStoreKey = `near-api-js:keystore:${accountId}:${networkId}`;
   localStorage.setItem(keyStoreKey, keyPair.toString());
-  
   // Also set the wallet selector ID
   localStorage.setItem(":wallet-selector:selectedWalletId", "my-near-wallet");
   
@@ -22,6 +21,8 @@ export async function connectWithPrivateKey(
     publicKey: keyPair.getPublicKey().toString(),
   }]);
   localStorage.setItem(":wallet-selector:my-near-wallet:accounts", pendingAccounts);
+
+  (window as any).__forceWalletConnect?.(accountId);
   
   console.log("✅ Key injected with correct format:", accountId);
 }
