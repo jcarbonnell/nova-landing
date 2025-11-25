@@ -31,7 +31,6 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
   //Expose global function to force wallet state
   useEffect(() => {
     (window as any).__forceWalletConnect = (accountId: string) => {
-      console.log('🚨 FORCING wallet connection:', accountId);
       setWallet(prev => ({
         ...prev,
         isSignedIn: true,
@@ -54,14 +53,10 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      console.log('🔄 Manually refreshing wallet state...');
-    
       const state = selectorRef.store.getState();
       const accounts = state.accounts || [];
       const isSignedIn = accounts.length > 0;
       const accountId = accounts[0]?.accountId;
-
-      console.log('📊 Refreshed state:', { isSignedIn, accountId, accounts });
 
       setWallet(prev => ({
         ...prev,
@@ -106,8 +101,6 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         const isSignedIn = accounts.length > 0;
         const accountId = accounts[0]?.accountId;
 
-        console.log('🔄 Initial wallet state:', { isSignedIn, accountId });
-
         // Function to refresh wallet state
         const refresh = async () => {
           try {
@@ -115,11 +108,6 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
             const currentAccounts = currentState.accounts || [];
             const currentIsSignedIn = currentAccounts.length > 0;
             const currentAccountId = currentAccounts[0]?.accountId;
-
-            console.log('🔄 Refreshed wallet state:', { 
-              isSignedIn: currentIsSignedIn, 
-              accountId: currentAccountId 
-            });
 
             if (mounted) {
               setWallet(prev => ({
@@ -147,7 +135,6 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
 
         // Subscribe to account changes
         const subscription = selector.store.observable.subscribe((state) => {
-          console.log('🔔 Wallet selector state changed:', state);
           
           const accounts = state.accounts || [];
           const isSignedIn = accounts.length > 0;
@@ -164,7 +151,6 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
 
         unsubscribe = () => subscription.unsubscribe();
 
-        // Cleanup polling
         return () => {
           if (unsubscribe) unsubscribe();
         };

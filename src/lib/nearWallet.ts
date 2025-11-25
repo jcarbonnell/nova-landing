@@ -8,7 +8,7 @@ export async function connectWithPrivateKey(privateKey: string, accountId: strin
 
   const keyStoreKey = `near-api-js:keystore:${accountId}:${networkId}`;
   localStorage.setItem(keyStoreKey, keyPair.toString());
-  
+
   // Also set the wallet selector ID
   localStorage.setItem(":wallet-selector:selectedWalletId", "my-near-wallet");
   
@@ -20,6 +20,4 @@ export async function connectWithPrivateKey(privateKey: string, accountId: strin
       publicKey: keyPair.getPublicKey().toString(),
     }])
   );
-  
-  console.log("✅ Key injected with correct format:", accountId);
 }
