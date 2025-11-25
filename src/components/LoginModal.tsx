@@ -108,6 +108,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, onOpenWall
                   <Image src="/google-icon.svg" alt="Google" width={20} height={20} />
                   Google
                 </Button>
+                {/*
                 <Button 
                   onClick={() => handleSocialLogin('apple-auth0')} 
                   className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 rounded-lg transition-all hover:scale-105 flex items-center justify-center gap-2"
@@ -122,6 +123,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess, onOpenWall
                   <Image src="/x-icon.svg" alt="X (Twitter)" width={20} height={20} />
                   X
                 </Button>
+                */}
                 <Button 
                   onClick={() => handleSocialLogin('github')} 
                   className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 rounded-lg transition-all hover:scale-105 flex items-center justify-center gap-2"
