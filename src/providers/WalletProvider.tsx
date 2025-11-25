@@ -29,16 +29,18 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
   });
 
   // manually refresh wallet state
+  const [selectorRef, setSelectorRef] = useState<WalletSelector | null>(null);
+
   const refreshWalletState = useCallback(async () => {
-    if (!wallet.selector) {
+    if (!selectorRef) {
       console.warn('⚠️ No selector available to refresh');
       return;
     }
 
     try {
       console.log('🔄 Manually refreshing wallet state...');
-      
-      const state = wallet.selector.store.getState();
+    
+      const state = selectorRef.store.getState();
       const accounts = state.accounts || [];
       const isSignedIn = accounts.length > 0;
       const accountId = accounts[0]?.accountId;
@@ -53,7 +55,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('❌ Refresh wallet state error:', err);
     }
-  }, [wallet.selector]);
+  }, [selectorRef]);
 
   useEffect(() => {
     let mounted = true;
@@ -104,11 +106,15 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
             });
 
             if (mounted) {
-              setWallet(prev => ({
-                ...prev,
-                isSignedIn: currentIsSignedIn,
-                accountId: currentAccountId,
-              }));
+              setSelectorRef(selector);
+              setWallet({
+                selector,
+                modal,
+                isSignedIn,
+                accountId,
+                loading: false,
+                refreshWalletState: refresh,
+              });
             }
           } catch (err) {
             console.error('❌ Refresh error:', err);
