@@ -36,12 +36,7 @@ export async function POST(req: NextRequest) {
     let accountIdToCheck: string | null = null;
     
     if (username) {
-      // ==========================================
-      // MODE 1: Check specific username availability
-      // (Called from CreateAccountModal when user types username)
-      // ==========================================
-      
-      // Construct full account ID from username
+      // 1. Check username availability      
       const fullId = username.includes('.') ? username : `${username}.${parentDomain}`;
       
       // Validate format (e.g., jcarbonnell.nova-sdk-5.testnet)
@@ -60,17 +55,13 @@ export async function POST(req: NextRequest) {
       console.log('Mode 1: Checking username availability:', accountIdToCheck);
       
     } else {
-      // ==========================================
-      // MODE 2: Check if user has account stored in Shade
-      // (Called from HomeClient after Auth0 login to see if account exists)
-      // ==========================================
-      
+      // 2. Check if user has account stored in Shade      
       const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL!;
       
-      // CRITICAL FIX: Use helper with fallback strategies
+      // Use helper with fallback strategies
       const authToken = await getAuthToken();
       
-      // DEBUG: Inspect token claims
+      // Inspect token claims
       if (authToken) {
         try {
           interface JwtPayload {
@@ -94,7 +85,7 @@ export async function POST(req: NextRequest) {
             email: decoded?.payload?.email,
           });
           
-          // CRITICAL: Log ALL claims to see if namespaced claims are present
+          // Log ALL claims to see if namespaced claims are present
           console.log('🔍 ALL TOKEN CLAIMS:', JSON.stringify(decoded?.payload, null, 2));
           
           // Check if audience matches Shade expectation
@@ -241,12 +232,6 @@ export async function POST(req: NextRequest) {
         });
       }
     }
-
-    // ==========================================
-    // Verify account exists on NEAR blockchain
-    // (Both modes end up here with accountIdToCheck)
-    // ==========================================
-    
     if (!accountIdToCheck) {
       console.error('❌ No account ID to check (should not reach here)');
       return NextResponse.json({ 
