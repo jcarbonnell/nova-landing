@@ -2,7 +2,7 @@
 'use client';
 import { useUser } from '@auth0/nextjs-auth0/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { MessageSquare } from 'lucide-react';
@@ -39,6 +39,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const [error, setError] = useState('');
   const [hasCheckedAccount, setHasCheckedAccount] = useState(false);
   const [sessionTokenVerified, setSessionTokenVerified] = useState(false);
+  const autoSignInAttemptedRef = useRef(false);
 
   // MCP health query
   const { data: mcpStatus, error: mcpError } = useQuery({
@@ -260,12 +261,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       // Step 2: Then check for account
       console.log('🔍 Session verified, checking account...');
       checkExistingAccount();
-    } else if (hasCheckedAccount && sessionTokenVerified) {
-      // Step 3: Finally attempt auto-sign-in (runs ONCE)
+    } else if (hasCheckedAccount && sessionTokenVerified && !autoSignInAttemptedRef.current) {
+      // ✅ CRITICAL: Only attempt ONCE using ref
       console.log('🔄 Account exists, attempting auto-sign-in...');
+      autoSignInAttemptedRef.current = true;  // Mark as attempted
       autoSignInFromShade();
     }
-  }, [user, loading, isSignedIn, hasCheckedAccount, sessionTokenVerified, accountId, verifySessionToken, checkExistingAccount, autoSignInFromShade]);
+  }, [user, loading, isSignedIn, sessionTokenVerified, hasCheckedAccount, accountId, verifySessionToken, checkExistingAccount, autoSignInFromShade]);
 
   // logout message
   useEffect(() => {
