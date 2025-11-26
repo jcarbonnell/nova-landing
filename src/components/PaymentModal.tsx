@@ -14,12 +14,7 @@ interface PaymentModalProps {
 }
 
 interface OnrampSessionEvent {
-  payload: {
-    session: {
-      status: string;
-      [key: string]: unknown;
-    };
-  };
+  payload: { session: { status: string; [key: string]: unknown } };
 }
 
 interface OnrampSession {
@@ -56,7 +51,7 @@ export default function PaymentModal({
   // Detect testnet
   const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK !== 'mainnet';
 
-  // Load Stripe Crypto script
+  // Load Stripe script
   useEffect(() => {
     if (scriptLoaded || !isOpen || isTestnet) return;
 
@@ -74,9 +69,7 @@ export default function PaymentModal({
     document.head.appendChild(script);
 
     return () => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
+      if (script.parentNode) script.parentNode.removeChild(script);
     };
   }, [scriptLoaded, isOpen, isTestnet]);
 
@@ -89,7 +82,7 @@ export default function PaymentModal({
       setError('');
       
       try {
-        console.log('Creating onramp session...', { accountId, email, amount });
+        console.log('Creating Stripe onramp session...');
         
         const response = await fetch('/api/payments/create-onramp-session', {
           method: 'POST',
@@ -103,6 +96,7 @@ export default function PaymentModal({
         }
 
         const data = await response.json();
+        // SAFE: Only log session ID, never clientSecret
         console.log('Session created:', data.sessionId);
         
         setClientSecret(data.clientSecret);
@@ -113,7 +107,7 @@ export default function PaymentModal({
         
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : 'Unknown error';
-        console.error('Session creation error:', errMsg);
+        console.error('Stripe session creation failed');
         setError(`Failed to initialize: ${errMsg}`);
       } finally {
         setIsLoading(false);
@@ -142,7 +136,7 @@ export default function PaymentModal({
       if (e.payload.session.status === 'fulfillment_complete') {
         const { sessionId, amount: sessionAmount } = sessionRef.current;
         if (sessionId && sessionAmount) {
-          console.log('Payment complete, submitting...');
+          console.log('Payment completed, submitting...');
           onSubmit(sessionId, sessionAmount.toString());
           onClose();
         }
@@ -150,7 +144,7 @@ export default function PaymentModal({
     };
 
     try {
-      console.log('Mounting Stripe Onramp...');
+      console.log('Mounting Stripe Onramp widget...');
       
       const session = window.StripeOnramp.createSession({
         clientSecret,
@@ -166,11 +160,11 @@ export default function PaymentModal({
         mounted: true,
       };
 
-      console.log('Stripe Onramp mounted successfully');
+      console.log('Stripe Onramp mounted');
       
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
-      console.error('Mount error:', errMsg);
+      console.error('Stripe Onramp mount failed');
       setError(`Failed to load payment: ${errMsg}`);
     }
 

@@ -49,7 +49,6 @@ export async function POST(req: NextRequest) {
 
     // 4. Create provider and creator account 
     const provider = new JsonRpcProvider({ url: RPC_URL });
-
     const creatorAccount = new Account(PARENT_DOMAIN, provider, signer);
     
     // 5. Create account
@@ -63,7 +62,7 @@ export async function POST(req: NextRequest) {
       throw new Error(`TX failed: ${JSON.stringify(result.status.Failure)}`);
     }
 
-    console.log('Account created');
+    console.log('Account created:', fullId);
 
     // 6. Store key in Shade TEE
     const token = await getAuthToken();
@@ -84,16 +83,13 @@ export async function POST(req: NextRequest) {
         });
 
         if (res.ok) {
-          console.log('Key backed up to Shade TEE');
+          console.log('Key securely stored in Shade TEE');
         } else {
           const errorText = await res.text();
-          console.error('⚠️ Shade backup failed:', {
-            status: res.status,
-            error: errorText.substring(0, 200),
-          });
+          console.error('⚠️ Shade backup failed:', res.status );
         }
       } catch (e) {
-        console.error('❌ Shade backup error:', e);
+        console.error('❌ Shade backup error (network/timeout)');
       }
     } else {
       console.warn('⚠️ No auth token available - key NOT backed up to Shade TEE');
@@ -115,7 +111,7 @@ export async function POST(req: NextRequest) {
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Creation failed:', errorMessage);
+    console.error('Account creation failed');
     if (errorMessage.includes('already exists')) {
       return NextResponse.json({ error: 'Username taken' }, { status: 400 });
     }
