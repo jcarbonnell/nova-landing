@@ -1,6 +1,7 @@
 // src/app/api/chat/route.ts
-import { streamText, convertToModelMessages, UIMessage, stepCountIs} from 'ai';
+import { streamText, convertToModelMessages, UIMessage, stepCountIs } from 'ai';
 import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { anthropic } from '@ai-sdk/anthropic';
 import { auth0 } from '@/lib/auth0';
 import { NextRequest } from 'next/server';
@@ -11,7 +12,6 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const MCP_URL = process.env.MCP_URL || 'https://nova-mcp.fastmcp.app';
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 export async function POST(req: NextRequest) {
   let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
@@ -40,23 +40,26 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 3. Connect to NOVA MCP server via HTTP
-    const mcpEndpoint = `${MCP_URL}/mcp`;
-    console.log('Connecting to NOVA MCP server:', MCP_URL);
+    // 3. Connect to NOVA MCP server using StreamableHTTPClientTransport
+    // FastMCP Cloud exposes the MCP endpoint at /mcp
+    const mcpEndpoint = new URL(`${MCP_URL}/mcp`);
+    console.log('Connecting to NOVA MCP server:', mcpEndpoint.toString());
     
-    mcpClient = await createMCPClient({
-      transport: {
-        type: 'http',
-        url: mcpEndpoint,
-        headers: accessToken ? {
-          'Authorization': `Bearer ${accessToken}`,
-          'X-User-Email': userEmail,
-          'X-Account-Id': accountId || '',
-        } : {
+    // Create the transport with authentication headers
+    const transport = new StreamableHTTPClientTransport(mcpEndpoint, {
+      // requestInit allows us to pass custom headers for authentication
+      requestInit: {
+        headers: {
+          ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
           'X-User-Email': userEmail,
           'X-Account-Id': accountId || '',
         },
       },
+    });
+
+    // Create the MCP client with the transport
+    mcpClient = await createMCPClient({
+      transport,
     });
 
     // 4. Get tools from MCP server
@@ -98,10 +101,23 @@ Be helpful, concise, and security-conscious.`,
           messageCount: response?.messages?.length || 0,
         });
       },
+      // Close MCP client when streaming finishes
+      onFinish: async () => {
+        if (mcpClient) {
+          try {
+            await mcpClient.close();
+            mcpClient = null;
+          } catch (closeError) {
+            console.warn('Error closing MCP client in onFinish:', closeError);
+          }
+        }
+      },
     });
 
     // 7. Return streaming response
     return result.toUIMessageStreamResponse({
+      sendSources: true,
+      sendReasoning: true,
       onError: (error) => {
         console.error('Stream error:', error);
         if (error instanceof Error) {
@@ -113,6 +129,15 @@ Be helpful, concise, and security-conscious.`,
 
   } catch (error) {
     console.error('Chat API error:', error);
+    
+    // Close MCP client on error
+    if (mcpClient) {
+      try {
+        await mcpClient.close();
+      } catch (closeError) {
+        console.warn('Error closing MCP client on error:', closeError);
+      }
+    }
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     
@@ -126,15 +151,8 @@ Be helpful, concise, and security-conscious.`,
         headers: { 'Content-Type': 'application/json' } 
       }
     );
-    
-  } finally {
-    // Always close MCP client to release resources
-    if (mcpClient) {
-      try {
-        await mcpClient.close();
-      } catch (closeError) {
-        console.warn('Error closing MCP client:', closeError);
-      }
-    }
   }
+  // Note: We don't need a finally block here because:
+  // - On success: onFinish callback closes the client
+  // - On error: catch block closes the client
 }

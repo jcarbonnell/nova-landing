@@ -14,6 +14,7 @@
     "@ai-sdk/openai": "^2.0.72",
     "@ai-sdk/react": "^2.0.102",
     "@auth0/nextjs-auth0": "^4.13.0",
+    "@modelcontextprotocol/sdk": "^1.23.0",
     "@near-js/accounts": "^2.5.1",
     "@near-js/crypto": "^2.5.1",
     "@near-js/keystores": "^2.5.1",
