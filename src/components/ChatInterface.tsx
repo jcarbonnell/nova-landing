@@ -263,7 +263,21 @@ export default function ChatInterface({ accountId, email }: ChatInterfaceProps) 
         default:
           // Handle other tool types generically
           if (part.type.startsWith('tool-')) {
-            const toolPart = part as any;
+            // Cast to access common tool properties
+            const toolPart = part as {
+              type: string;
+              state?: 'input-streaming' | 'input-available' | 'output-available' | 'output-error';
+              output?: string | number | boolean | object | null;
+              errorText?: string;
+            };
+
+            // Safely convert output to string for display
+            const outputDisplay = toolPart.output != null
+              ? (typeof toolPart.output === 'string' 
+                  ? toolPart.output 
+                  : JSON.stringify(toolPart.output, null, 2))
+              : null;
+
             return (
               <div key={index} className="mt-2 p-3 bg-purple-900/40 rounded-lg border border-purple-700/50">
                 <div className="flex items-center gap-2 text-sm font-medium text-purple-200">
@@ -276,12 +290,14 @@ export default function ChatInterface({ accountId, email }: ChatInterfaceProps) 
                   )}
                   <span>{part.type.replace('tool-', '')}</span>
                 </div>
-                {toolPart.state === 'output-available' && toolPart.output && (
+                {toolPart.state === 'output-available' && outputDisplay && (
                   <div className="mt-2 text-sm text-green-300">
-                    {typeof toolPart.output === 'string' 
-                      ? toolPart.output 
-                      : JSON.stringify(toolPart.output, null, 2)
-                    }
+                    {outputDisplay}
+                  </div>
+                )}
+                {toolPart.state === 'output-error' && toolPart.errorText && (
+                  <div className="mt-2 text-sm text-red-300">
+                    Error: {toolPart.errorText}
                   </div>
                 )}
               </div>
@@ -334,7 +350,7 @@ export default function ChatInterface({ accountId, email }: ChatInterfaceProps) 
               Welcome, {displayName}! 👋
             </h4>
             <p className="text-sm text-purple-400 mb-4">
-              I'm NOVA — your secure file-sharing assistant.
+              I&apos;m NOVA — your secure file-sharing assistant.
             </p>
             <div className="text-left max-w-md mx-auto text-sm text-purple-300 space-y-2">
               <p><strong>What I can do:</strong></p>
@@ -346,9 +362,9 @@ export default function ChatInterface({ accountId, email }: ChatInterfaceProps) 
               </ul>
               <p className="mt-4"><strong>Try:</strong></p>
               <ul className="list-disc list-inside space-y-1 text-purple-400">
-                <li>"Upload my document securely"</li>
-                <li>"Create a group called 'Team Files'"</li>
-                <li>"Share file X with user Y"</li>
+                <li>&quot;Upload my document securely&quot;</li>
+                <li>&quot;Create a group called &apos;Team Files&apos;&quot;</li>
+                <li>&quot;Share file X with user Y&quot;</li>
               </ul>
             </div>
           </div>
