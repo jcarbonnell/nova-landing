@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
+import ChatInterface from '@/components/ChatInterface';
 import { MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 import { useWalletState, useWalletSelector, useWalletSelectorModal } from '@/providers/WalletProvider';
@@ -434,14 +435,9 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           {/* Gated Chat - only render when connected */}
           <section className="chat-container flex-1 relative max-w-2xl h-64 md:h-80 lg:h-full sm:h-96 mobile:h-[500px] lg:max-w-4xl rounded-lg overflow-hidden shadow-lg">
             {isConnected && (
-              <iframe
-                key="mcp-frame"
-                src={`/api/mcp-proxy?near=${encodeURIComponent(accountId || '')}`}
-                className="w-full h-full border border-purple-600/50 bg-[#280449]/50 transition-all duration-300 p-4 connected"
-                title="NOVA - Secure File Sharing"
-                sandbox="allow-scripts allow-popups allow-forms allow-same-origin"
-                referrerPolicy="origin-when-cross-origin"
-              />
+              <section className="chat-container flex-1 relative max-w-2xl h-64 md:h-80 lg:h-full sm:h-96 mobile:h-[500px] lg:max-w-4xl">
+                <ChatInterface accountId={accountId!} email={user?.email || ''} />
+              </section>
             )}
 
             {/* MCP loading spinner (shows only while mcpStatus is undefined or loading) */}

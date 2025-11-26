@@ -9,6 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.49",
+    "@ai-sdk/mcp": "^0.0.10",
+    "@ai-sdk/openai": "^2.0.72",
+    "@ai-sdk/react": "^2.0.102",
     "@auth0/nextjs-auth0": "^4.13.0",
     "@near-js/accounts": "^2.5.1",
     "@near-js/crypto": "^2.5.1",
@@ -22,6 +26,7 @@
     "@stripe/stripe-js": "^8.4.0",
     "@tanstack/react-query": "^5.90.7",
     "@types/stripe": "^8.0.416",
+    "ai": "^5.0.102",
     "autoprefixer": "^10.4.22",
     "bn.js": "^5.2.2",
     "class-variance-authority": "^0.7.1",
@@ -37,13 +42,14 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^3.4.18",
     "uuid": "^13.0.0",
-    "vercel": "^48.9.0"
+    "vercel": "^48.9.0",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@types/bn.js": "^5.2.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.24",
-    "@types/react": "^19",
+    "@types/react": "^19.2.7",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
