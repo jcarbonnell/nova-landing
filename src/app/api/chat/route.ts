@@ -2,7 +2,7 @@
 import { streamText, convertToModelMessages, UIMessage, stepCountIs } from 'ai';
 import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { anthropic } from '@ai-sdk/anthropic';
+import { groq } from '@ai-sdk/groq';
 import { auth0 } from '@/lib/auth0';
 import { NextRequest } from 'next/server';
 
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
 
     // 6. Stream response with Claude + MCP tools
     const result = streamText({
-      model: anthropic('claude-sonnet-4-20250514'),
+      model: groq('llama-3.3-70b-versatile'),
       system: `You are NOVA, a secure file-sharing assistant powered by the NOVA SDK.
 
 Your capabilities include:
