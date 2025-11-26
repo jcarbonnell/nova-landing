@@ -41,12 +41,13 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Connect to NOVA MCP server via HTTP
+    const mcpEndpoint = `${MCP_URL}/mcp`;
     console.log('Connecting to NOVA MCP server:', MCP_URL);
     
     mcpClient = await createMCPClient({
       transport: {
-        type: 'sse',
-        url: `${MCP_URL}/sse`,
+        type: 'http',
+        url: mcpEndpoint,
         headers: accessToken ? {
           'Authorization': `Bearer ${accessToken}`,
           'X-User-Email': userEmail,
