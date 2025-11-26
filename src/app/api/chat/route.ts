@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Connect to NOVA MCP server using StreamableHTTPClientTransport
     // FastMCP Cloud exposes the MCP endpoint at /mcp
-    const mcpEndpoint = new URL(`${MCP_URL}/mcp`);
+    const mcpEndpoint = new URL(`${MCP_URL}`);
     console.log('Connecting to NOVA MCP server:', mcpEndpoint.toString());
     
     // Create the transport with authentication headers
