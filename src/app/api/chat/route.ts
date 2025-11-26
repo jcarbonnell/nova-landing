@@ -45,8 +45,8 @@ export async function POST(req: NextRequest) {
     
     mcpClient = await createMCPClient({
       transport: {
-        type: 'http',
-        url: `${MCP_URL}/mcp`,
+        type: 'sse',
+        url: `${MCP_URL}/sse`,
         headers: accessToken ? {
           'Authorization': `Bearer ${accessToken}`,
           'X-User-Email': userEmail,
