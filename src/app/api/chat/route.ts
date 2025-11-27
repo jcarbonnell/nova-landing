@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
   try {
     // 1. Verify Auth0 session
     const session = await auth0.getSession();
+    
     if (!session?.user?.email) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
         status: 401,
@@ -28,6 +29,24 @@ export async function POST(req: NextRequest) {
 
     const accessToken = session.tokenSet?.accessToken;
     const userEmail = session.user.email;
+
+    console.log('=== CHAT ROUTE DEBUG ===');
+    console.log('Has session:', !!session);
+    console.log('Has accessToken:', !!accessToken);
+    console.log('Token first 50 chars:', accessToken?.substring(0, 50));
+    console.log('MCP endpoint:', `${process.env.MCP_URL || 'https://nova-mcp.fastmcp.app'}/mcp`);
+
+    // Decode and log token claims
+    if (accessToken) {
+      try {
+        const parts = accessToken.split('.');
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+        console.log('Token exp:', payload.exp, 'Now:', Math.floor(Date.now() / 1000));
+        console.log('Token expired?:', payload.exp < Math.floor(Date.now() / 1000));
+      } catch (e) {
+        console.error('Token decode failed:', e);
+      }
+    }
 
     // 2. Parse request body
     const body = await req.json();
