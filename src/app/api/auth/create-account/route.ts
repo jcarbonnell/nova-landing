@@ -19,11 +19,14 @@ if (!PARENT_DOMAIN || !CREATOR_PRIVATE_KEY || !RPC_URL || !SHADE_API_URL) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { username, email } = await req.json();
-    const session = await auth0.getSession();
+    const { username, email, wallet_id } = await req.json();
 
-    if (!session?.user?.email || session.user.email !== email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // skip Auth0 session check for wallet users
+    if (!wallet_id) {
+      const session = await auth0.getSession();
+      if (!session?.user?.email || session.user.email !== email) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
     }
 
     const cleanUsername = username.replace(/[^a-z0-9_-]/gi, '').toLowerCase();
@@ -65,21 +68,30 @@ export async function POST(req: NextRequest) {
     console.log('Account created:', fullId);
 
     // 6. Store key in Shade TEE
-    const token = await getAuthToken();
+    const token = wallet_id ? null : await getAuthToken();
     
-    if (token) {
+    // No auth_token for wallet users, we use wallet_id
+    if (token || wallet_id) {
       try {
+        const storePayload: Record<string, string> = {
+          email: email || wallet_id,
+          account_id: fullId,
+          private_key: privateKey,
+          public_key: publicKey.toString(),
+          network: NETWORK_ID,
+        };
+        
+        if (token) {
+          storePayload.auth_token = token;
+        }
+        if (wallet_id) {
+          storePayload.wallet_id = wallet_id;
+        }
+
         const res = await fetch(`${SHADE_API_URL}/api/user-keys/store`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email,
-            account_id: fullId,
-            private_key: privateKey,
-            public_key: publicKey.toString(),
-            network: NETWORK_ID,
-            auth_token: token,
-          }),
+          body: JSON.stringify(storePayload),
         });
 
         if (res.ok) {
@@ -106,7 +118,8 @@ export async function POST(req: NextRequest) {
       transaction: result.transaction.hash,
       explorerUrl,
       message: 'Success!',
-      keyBackedUp: !!token,
+      keyBackedUp: !!(token || wallet_id),
+      wallet_id: wallet_id || null,
     });
 
   } catch (error: unknown) {

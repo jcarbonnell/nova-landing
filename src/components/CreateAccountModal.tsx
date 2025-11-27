@@ -4,13 +4,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from './ui/button';
 import { AlertCircle } from 'lucide-react';
-import styles from '@/styles/modal.module.css';  // Assumes copied from 1000fans
+import styles from '@/styles/modal.module.css';
 
 interface CreateAccountModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAccountCreated: (accountId: string) => void;
-  userData?: { email: string; publicKey?: string } | null;
+  userData?: { email: string; publicKey?: string; wallet_id?: string } | null;
   onPaymentOpen: (fullId: string) => void;  // Triggers payment modal
 }
 
@@ -29,8 +29,15 @@ export default function CreateAccountModal({
   const [existingAccount, setExistingAccount] = useState<string | null>(null);
   const router = useRouter();
 
+  const isWalletUser = !!userData?.wallet_id;
+
   // Wrap checkExistingAccount in useCallback to stabilize deps
   const checkExistingAccount = useCallback(async () => {
+    // Skip for wallet users (already checked in HomeClient)
+    if (isWalletUser) {
+      return;
+    }
+
     if (!userData?.email) {
       setError('Cannot check account: Missing user data.');
       return;
@@ -66,7 +73,7 @@ export default function CreateAccountModal({
     } finally {
       setCheckLoading(false);
     }
-  }, [userData?.email, onAccountCreated, onClose]);
+  }, [userData?.email, isWalletUser, onAccountCreated, onClose]);
 
   useEffect(() => {
     if (isOpen && userData) {
@@ -79,6 +86,12 @@ export default function CreateAccountModal({
   }, [isOpen, userData, checkExistingAccount]);
 
   const handleClose = () => {
+    // For wallet users, just close without logout redirect
+    if (isWalletUser) {
+      onClose();
+      return;
+    }
+
     if (!isAccountCreated && !username) {
       router.push('/api/auth/logout?returnTo=/');
     }
@@ -101,7 +114,7 @@ export default function CreateAccountModal({
     const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN || 'nova-sdk-5.testnet';
     const fullAccountId = `${username}.${parentDomain}`;
 
-    console.log('Checking account:', { username, fullAccountId });
+    console.log('Checking account:', { username, fullAccountId, isWalletUser });
 
     try {
       // Check if username is available
@@ -162,6 +175,11 @@ export default function CreateAccountModal({
                 </div>
               ) : !isAccountCreated ? (
                 <form onSubmit={handleSubmit} className={styles.fullWidthForm}>
+                  {isWalletUser && (
+                    <div className={styles.formText} style={{ marginBottom: '1rem' }}>
+                      Connected wallet: <strong>{userData.wallet_id}</strong>
+                    </div>
+                  )}
                   <div className={styles.formGroup}>
                     <label className={styles.formLabel}>Choose your username</label>
                     <input
@@ -175,7 +193,7 @@ export default function CreateAccountModal({
                       maxLength={64}
                     />
                     <div className={styles.formText}>
-                      Full account: <strong>
+                      NOVA account: <strong>
                         {username ? `${username}.${process.env.NEXT_PUBLIC_PARENT_DOMAIN || 'nova-sdk-5.testnet'}` : '<username>.nova-sdk-5.testnet'}
                       </strong>
                     </div>

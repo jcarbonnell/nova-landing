@@ -21,7 +21,7 @@ interface HomeClientProps {
 export default function HomeClient({ serverUser }: HomeClientProps) {
   const { user: clientUser, isLoading: authLoading } = useUser();
   const user = serverUser || clientUser;
-  const { isSignedIn, accountId, loading: walletLoading } = useWalletState();
+  const { isSignedIn, accountId, loading: walletLoading, setOnWalletConnect } = useWalletState();
   const { modal } = useWalletSelectorModal();
 
   const isConnected = isSignedIn && !!accountId;
@@ -32,12 +32,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [pendingId, setPendingId] = useState('');
-  const [userData, setUserData] = useState<{ email: string; publicKey?: string } | null>(null);
+  const [userData, setUserData] = useState<{ email: string; publicKey?: string; wallet_id?: string } | null>(null);
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [error, setError] = useState('');
   const [hasCheckedAccount, setHasCheckedAccount] = useState(false);
   const [sessionTokenVerified, setSessionTokenVerified] = useState(false);
   const autoSignInAttemptedRef = useRef(false);
+  const walletCheckInProgressRef = useRef(false);
 
   // Verify session token before checking account
   const verifySessionToken = useCallback(async () => {
@@ -52,7 +53,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         setSessionTokenVerified(true);
         return true;
       } else {
-        console.warn('⚠️ Session verification failed, status:', response.status);
+        console.warn('Session verification failed, status:', response.status);
         
         if (response.status === 401) {
           console.log('Session expired, redirecting to login...');
@@ -63,7 +64,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         return false;
       }
     } catch (err) {
-      console.error('❌ Session verification error:', err);
+      console.error('Session verification error:', err);
       return false;
     }
   }, [user?.email, sessionTokenVerified]);
@@ -135,37 +136,68 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   // AUTO-SIGN-IN FROM SHADE after account creation
   const selector = useWalletSelector();
 
-  const autoSignInFromShade = useCallback(async () => {
-    if (!user?.email || isSignedIn || !selector) {
+  const autoSignInFromShade = useCallback(async (accountIdToSignIn?: string, emailToUse?: string) => {
+    const targetEmail = emailToUse || user?.email;
+    
+    if (!targetEmail && !accountIdToSignIn) {
+      console.log('No email or accountId for auto-sign-in');
+      return;
+    }
+    
+    if (isSignedIn && !accountIdToSignIn) {
+      console.log('Already signed in');
+      return;
+    }
+    
+    if (!selector) {
+      console.log('Selector not ready');
       return;
     }
 
     console.log('Attempting auto-sign-in from Shade TEE...');
 
     try {
-      const checkRes = await fetch('/api/auth/check-for-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email }),
-      });
+      let existingAccountId = accountIdToSignIn;
+      
+      // If no accountId provided, check by email
+      if (!existingAccountId && targetEmail) {
+        const checkRes = await fetch('/api/auth/check-for-account', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: targetEmail }),
+        });
 
-      if (!checkRes.ok) {
-        console.warn('Account check failed during auto-sign-in');
-        return;
+        if (!checkRes.ok) {
+          console.warn('Account check failed during auto-sign-in');
+          return;
+        }
+      
+        const { exists, accountId: foundAccountId } = await checkRes.json();
+        if (!exists || !foundAccountId) {
+          console.log('No account in Shade, cannot auto-sign-in');
+          return;
+        }
+        
+        existingAccountId = foundAccountId;
       }
-    
-      const { exists, accountId: existingAccountId } = await checkRes.json();
-      if (!exists || !existingAccountId) {
-        console.log('No account in Shade, cannot auto-sign-in');
+
+      // ensure we have an accountId
+      if (!existingAccountId) {
+        console.warn('No account ID available for auto-sign-in');
         return;
       }
 
       console.log('Account found in Shade');
 
+      // Retrieve key - use account_id for wallet users, email for email users
+      const keyPayload = accountIdToSignIn 
+        ? { account_id: accountIdToSignIn }
+        : { email: targetEmail };
+
       const keyRes = await fetch('/api/auth/retrieve-key', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email }),
+        body: JSON.stringify(keyPayload),
       });
 
       if (!keyRes.ok) {
@@ -197,6 +229,73 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       console.error('Auto sign-in failed:', err);
     }
   }, [user?.email, isSignedIn, selector]);
+
+  // Handle wallet connection (for NEAR wallet users)
+  const handleWalletConnect = useCallback(async (walletAccountId: string) => {
+    // Prevent duplicate checks
+    if (walletCheckInProgressRef.current) {
+      console.log('Wallet check already in progress, skipping...');
+      return;
+    }
+    
+    console.log('🔗 Wallet connected:', walletAccountId);
+    walletCheckInProgressRef.current = true;
+
+    try {
+      // Check if this wallet has a NOVA account in Shade
+      const checkRes = await fetch('/api/auth/check-for-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet_id: walletAccountId }),
+      });
+
+      if (!checkRes.ok) {
+        console.error('Wallet check failed');
+        walletCheckInProgressRef.current = false;
+        return;
+      }
+
+      const { exists, accountId: novaAccountId } = await checkRes.json();
+
+      if (exists && novaAccountId) {
+        // Found existing NOVA account - auto sign in with it
+        console.log('Found NOVA account for wallet:', novaAccountId);
+        await autoSignInFromShade(novaAccountId);
+      } else {
+        // No NOVA account - need to create one
+        console.log('No NOVA account found for wallet, starting setup...');
+        
+        // Sign out of the external wallet first
+        if (selector) {
+          try {
+            const wallet = await selector.wallet();
+            await wallet.signOut();
+          } catch (e) {
+            console.warn('Could not sign out wallet:', e);
+          }
+        }
+        
+        // Open create account modal with wallet_id
+        setUserData({ 
+          email: `${walletAccountId}@wallet.nova`,
+          wallet_id: walletAccountId,
+        });
+        setIsCreateOpen(true);
+      }
+    } catch (err) {
+      console.error('Wallet connect flow error:', err);
+    } finally {
+      walletCheckInProgressRef.current = false;
+    }
+  }, [selector, autoSignInFromShade]);
+
+  // Register wallet connect callback
+  useEffect(() => {
+    if (setOnWalletConnect) {
+      setOnWalletConnect(handleWalletConnect);
+      return () => setOnWalletConnect(undefined);
+    }
+  }, [setOnWalletConnect, handleWalletConnect]);
 
   useEffect(() => {
     if (!user || loading) {
@@ -282,7 +381,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     // Trigger auto-sign-in after account creation
     setTimeout(() => {
       console.log('Triggering auto-sign-in after account creation...');
-      autoSignInFromShade();
+      autoSignInFromShade(newAccountId);
       setWelcomeMessage('');
     }, 3000);
   };
@@ -331,7 +430,8 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           username: fullId.split('.')[0], 
-          email: userData?.email 
+          email: userData?.email,
+          wallet_id: userData?.wallet_id,
         }),
       });
       

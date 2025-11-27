@@ -19,10 +19,62 @@ if (!process.env.NEXT_PUBLIC_SHADE_API_URL) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { username, email } = body;
+    const { username, email, wallet_id } = body;
+
+    const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN!;
+    const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL!;
+    let accountIdToCheck: string | null = null;
+
+    // Wallet users: Check by wallet_id
+    if (wallet_id) {
+      console.log('Checking for NOVA account linked to wallet:', wallet_id);
+
+      try {
+        const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/check`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ wallet_id }),
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (shadeResponse.ok) {
+          const shadeData = await shadeResponse.json();
+
+          if (shadeData.exists && shadeData.account_id) {
+            console.log('Found NOVA account for wallet:', shadeData.account_id);
+            return NextResponse.json({
+              exists: true,
+              accountId: shadeData.account_id,
+              wallet_id: wallet_id,
+              accountCheck: true,
+            });
+          }
+        }
+
+        // No NOVA account found for this wallet
+        console.log('No NOVA account found for wallet:', wallet_id);
+        return NextResponse.json({
+          exists: false,
+          accountId: null,
+          wallet_id: wallet_id,
+          accountCheck: true,
+        });
+
+      } catch (shadeError) {
+        console.error('Shade check error for wallet:', shadeError);
+        return NextResponse.json({
+          exists: false,
+          accountId: null,
+          wallet_id: wallet_id,
+          accountCheck: true,
+          warning: 'Shade service error',
+        });
+      }
+    }
     
+    // Email users: Check by email
     if (!email) {
-      return NextResponse.json({ error: 'Email required' }, { status: 400 });
+      return NextResponse.json({ error: 'Email or wallet_id required' }, { status: 400 });
     }
 
     // Validate Auth0 session
@@ -32,9 +84,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN!;
-    let accountIdToCheck: string | null = null;
-    
     if (username) {
       // 1. Check username availability      
       const fullId = username.includes('.') ? username : `${username}.${parentDomain}`;
@@ -82,7 +131,7 @@ export async function POST(req: NextRequest) {
           
           if (Array.isArray(actualAudience)) {
             if (!actualAudience.includes(expectedAudience)) {
-              console.error('❌ Token audience mismatch!', {
+              console.error('Token audience mismatch!', {
                 expected: expectedAudience,
                 actual: actualAudience,
               });
@@ -90,7 +139,7 @@ export async function POST(req: NextRequest) {
               console.log('Token audience matches Shade expectation');
             }
           } else if (actualAudience !== expectedAudience) {
-            console.error('❌ Token audience mismatch!', {
+            console.error('Token audience mismatch!', {
               expected: expectedAudience,
               actual: actualAudience,
             });
@@ -101,7 +150,7 @@ export async function POST(req: NextRequest) {
           console.error('JWT decode error:', decodeError);
         }
       } else {
-        console.warn('⚠️ No auth token available - Shade check will fail');
+        console.warn('No auth token available - Shade check will fail');
       }
       
       console.log('Querying Shade for user account');
@@ -187,7 +236,7 @@ export async function POST(req: NextRequest) {
           });
         }
       } catch (shadeError) {
-        console.error('❌ Shade check exception:', shadeError);
+        console.error('Shade check exception:', shadeError);
         
         if (shadeError instanceof Error) {
           console.error('Shade error details:', {
@@ -207,7 +256,7 @@ export async function POST(req: NextRequest) {
       }
     }
     if (!accountIdToCheck) {
-      console.error('❌ No account ID to check (should not reach here)');
+      console.error('No account ID to check (should not reach here)');
       return NextResponse.json({ 
         exists: false, 
         accountId: null,

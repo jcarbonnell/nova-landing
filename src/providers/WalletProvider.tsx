@@ -17,6 +17,8 @@ interface WalletContextType {
   loading: boolean;
   error?: string;
   refreshWalletState: () => Promise<void>;
+  onWalletConnect?: (accountId: string) => void;
+  setOnWalletConnect: (callback: ((accountId: string) => void) | undefined) => void;
 }
 
 const WalletContext = createContext<WalletContextType | null>(null);
@@ -26,7 +28,15 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     isSignedIn: false, 
     loading: true,
     refreshWalletState: async () => {},
+    setOnWalletConnect: () => {},
   });
+
+  // Callback for when wallet connects - HomeClient will set this
+  const [onWalletConnectCallback, setOnWalletConnectCallback] = useState<((accountId: string) => void) | undefined>();
+
+  const setOnWalletConnect = useCallback((callback: ((accountId: string) => void) | undefined) => {
+    setOnWalletConnectCallback(() => callback);
+  }, []);
 
   //Expose global function to force wallet state
   useEffect(() => {
@@ -48,7 +58,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
 
   const refreshWalletState = useCallback(async () => {
     if (!selectorRef) {
-      console.warn('⚠️ No selector available to refresh');
+      console.warn('No selector available to refresh');
       return;
     }
 
@@ -64,13 +74,14 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         accountId,
       }));
     } catch (err) {
-      console.error('❌ Refresh wallet state error:', err);
+      console.error('Refresh wallet state error:', err);
     }
   }, [selectorRef]);
 
   useEffect(() => {
     let mounted = true;
     let unsubscribe: (() => void) | undefined;
+    let previousAccountId: string | undefined = undefined;
 
     async function init() {
       try {
@@ -101,6 +112,9 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         const isSignedIn = accounts.length > 0;
         const accountId = accounts[0]?.accountId;
 
+        // Track initial account
+        previousAccountId = accountId;
+
         // Function to refresh wallet state
         const refresh = async () => {
           try {
@@ -117,20 +131,22 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
               }));
             }
           } catch (err) {
-            console.error('❌ Refresh error:', err);
+            console.error('Refresh error:', err);
           }
         };
 
         if (mounted) {
           setSelectorRef(selector);
-          setWallet({
+          setWallet(prev => ({
+            ...prev,
             selector,
             modal,
             isSignedIn,
             accountId,
             loading: false,
             refreshWalletState: refresh,
-          });
+            setOnWalletConnect,
+          }));
         }
 
         // Subscribe to account changes
@@ -141,11 +157,22 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
           const accountId = accounts[0]?.accountId;
           
           if (mounted) {
+            // Detect new sign-in (was not signed in or different account)
+            const isNewConnection = accountId && accountId !== previousAccountId;
+
             setWallet(prev => ({
               ...prev,
               isSignedIn,
               accountId,
             }));
+
+            // Trigger callback for new connections
+            if (isNewConnection && onWalletConnectCallback) {
+              console.log('🔗 New wallet connection detected:', accountId);
+              setTimeout(() => onWalletConnectCallback(accountId), 0);
+            }
+            
+            previousAccountId = accountId;
           }
         });
 
@@ -169,7 +196,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
       mounted = false;
       cleanup?.then(cleanupFn => cleanupFn?.());
     };
-  }, []);
+  }, [onWalletConnectCallback, setOnWalletConnect]);
 
   return <WalletContext.Provider value={wallet}>{children}</WalletContext.Provider>;
 }
@@ -195,5 +222,6 @@ export function useWalletState() {
     loading: context.loading,
     error: context.error,
     refreshWalletState: context.refreshWalletState,
+    setOnWalletConnect: context.setOnWalletConnect,
   };
 }
