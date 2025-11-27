@@ -10,9 +10,10 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 interface ChatInterfaceProps {
   accountId: string;
   email: string;
+  walletId?: string;
 }
 
-export default function ChatInterface({ accountId, email }: ChatInterfaceProps) {
+export default function ChatInterface({ accountId, email, walletId }: ChatInterfaceProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState('');
@@ -35,6 +36,7 @@ export default function ChatInterface({ accountId, email }: ChatInterfaceProps) 
       body: {
         accountId,
         email,
+        walletId,
       },
     }),
     

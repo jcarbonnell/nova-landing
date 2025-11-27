@@ -508,7 +508,11 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           <section className="chat-container flex-1 relative w-full max-w-2xl lg:max-w-3xl h-[500px] md:h-[550px] lg:h-[600px] rounded-lg overflow-hidden shadow-lg">
             {isConnected ? (
               /* Show ChatInterface when connected */
-              <ChatInterface accountId={accountId!} email={user?.email || ''} />
+              <ChatInterface 
+                accountId={accountId!} 
+                email={user?.email || ''} 
+                walletId={user?.wallet_id} 
+              />
             ) : (
               /* Blur overlay when not connected */
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#280449]/80 backdrop-blur-sm rounded-lg border border-purple-600/50">

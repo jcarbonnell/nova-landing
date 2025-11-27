@@ -17,24 +17,53 @@ export async function POST(req: NextRequest) {
   let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
   
   try {
-    // 1. Verify Auth0 session
-    const session = await auth0.getSession();
-    
-    if (!session?.user?.email) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
-        status: 401,
+    // 1. Parse request body first to check for wallet user
+    const body = await req.json();
+    const { messages, accountId, email, walletId }: { 
+      messages: UIMessage[]; 
+      accountId?: string;
+      email?: string;
+      walletId?: string;
+    } = body;
+
+    if (!messages || !Array.isArray(messages)) {
+      return new Response(JSON.stringify({ error: 'Messages required' }), { 
+        status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    const accessToken = session.tokenSet?.accessToken;
-    const userEmail = session.user.email;
+    // 2. Get auth - wallet users don't need Auth0 session
+    let accessToken: string | undefined;
+    let userEmail: string | undefined;
+
+    if (walletId) {
+      // Skip Auth0 session for wallet users
+      userEmail = email;
+      console.log('Wallet user detected:', walletId);
+    } else {
+      // Verify Auth0 session for email users
+      const session = await auth0.getSession();
+    
+      if (!session?.user?.email) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      accessToken = session.tokenSet?.accessToken;
+      userEmail = session.user.email;
+    }
 
     console.log('=== CHAT ROUTE DEBUG ===');
-    console.log('Has session:', !!session);
+    console.log('User type:', walletId ? 'wallet' : 'email');
+    console.log('User identifier:', walletId || userEmail);
     console.log('Has accessToken:', !!accessToken);
-    console.log('Token first 50 chars:', accessToken?.substring(0, 50));
-    console.log('MCP endpoint:', `${process.env.MCP_URL || 'https://nova-mcp.fastmcp.app'}/mcp`);
+    if (accessToken) {
+      console.log('Token first 50 chars:', accessToken.substring(0, 50));
+    }
+    console.log('MCP endpoint:', `${MCP_URL}/mcp`);
 
     // Decode and log token claims
     if (accessToken) {
@@ -48,31 +77,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Parse request body
-    const body = await req.json();
-    const { messages, accountId }: { messages: UIMessage[]; accountId?: string } = body;
-
-    if (!messages || !Array.isArray(messages)) {
-      return new Response(JSON.stringify({ error: 'Messages required' }), { 
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
     // 3. Connect to NOVA MCP server using StreamableHTTPClientTransport
-    // FastMCP Cloud exposes the MCP endpoint at /mcp
     const mcpEndpoint = new URL(`${MCP_URL}`);
     console.log('Connecting to NOVA MCP server:', mcpEndpoint.toString());
     
+    // Build headers based on user type
+    const mcpHeaders: Record<string, string> = {
+      'X-Account-Id': accountId || '',
+    };
+
+    if (accessToken) {
+      mcpHeaders['Authorization'] = `Bearer ${accessToken}`;
+    }
+    if (userEmail) {
+      mcpHeaders['X-User-Email'] = userEmail;
+    }
+    if (walletId) {
+      mcpHeaders['X-Wallet-Id'] = walletId;
+    }
+
     // Create the transport with authentication headers
     const transport = new StreamableHTTPClientTransport(mcpEndpoint, {
-      // requestInit allows us to pass custom headers for authentication
       requestInit: {
-        headers: {
-          ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
-          'X-User-Email': userEmail,
-          'X-Account-Id': accountId || '',
-        },
+        headers: mcpHeaders,
       },
     });
 
@@ -88,7 +115,9 @@ export async function POST(req: NextRequest) {
     // 5. Convert UI messages to model messages
     const modelMessages = convertToModelMessages(messages);
 
-    // 6. Stream response with Claude + MCP tools
+    // 6. Stream response with Groq + MCP tools
+    const userIdentifier = walletId || userEmail;
+
     const result = streamText({
       model: groq('llama-3.3-70b-versatile'),
       system: `You are NOVA, a secure file-sharing assistant powered by the NOVA SDK.
@@ -100,7 +129,7 @@ Your capabilities include:
 - Tracking file analytics
 - Retrieving shared files
 
-Current user: ${userEmail}
+Current user: ${userIdentifier}
 NEAR Account: ${accountId || 'Not connected'}
 
 When users want to upload files, use the composite_upload tool with their file data.
@@ -171,7 +200,4 @@ Be helpful, concise, and security-conscious.`,
       }
     );
   }
-  // Note: We don't need a finally block here because:
-  // - On success: onFinish callback closes the client
-  // - On error: catch block closes the client
 }
