@@ -81,25 +81,22 @@ export async function POST(req: NextRequest) {
     console.log('Connecting to NOVA MCP server:', mcpEndpoint.toString());
     
     // Build headers based on user type
-    const mcpHeaders: Record<string, string> = {};
+    const mcpHeaders: Record<string, string> = {
+      'x-account-id': accountId || '',
+    };
 
-    if (accountId) {
-      mcpHeaders['x-account-id'] = accountId;
-    }
-
-    // Email users (Auth0)
-    if (!walletId && accessToken) {
+    if (walletId) {
+      // For wallet users: use wallet_id as a valid "token"
+      mcpHeaders['Authorization'] = `Bearer wallet:${walletId}`;
+      mcpHeaders['x-wallet-id'] = walletId;
+    } else if (accessToken) {
+      // Email users: use real Auth0 token
       mcpHeaders['Authorization'] = `Bearer ${accessToken}`;
       if (userEmail) {
         mcpHeaders['x-user-email'] = userEmail;
       }
     }
-
-    // Wallet users
-    if (walletId) {
-      mcpHeaders['x-wallet-id'] = walletId;
-    }
-
+    
     console.log('Sending to MCP with headers:', {
       accountId,
       walletId: walletId || '(email user)',
