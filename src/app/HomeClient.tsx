@@ -238,14 +238,14 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       return;
     }
     
-    console.log('🔗 Wallet connected:', walletAccountId);
+    console.log('Wallet connected:', walletAccountId);
     walletCheckInProgressRef.current = true;
 
     try {
       // Check if this wallet has a NOVA account in Shade
       const checkRes = await fetch('/api/auth/check-for-account', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-wallet-id': walletAccountId },
         body: JSON.stringify({ wallet_id: walletAccountId }),
       });
 
