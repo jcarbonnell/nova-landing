@@ -51,17 +51,27 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        // set accountIdToCheck when username is provided
+        if (username) {
+          const fullId = username.includes('.') ? username : `${username}.${parentDomain}`;
+          const domainEscaped = parentDomain.replace(/\./g, '\\.');
+          const regex = new RegExp(`^[a-z0-9_-]{2,64}\\.${domainEscaped}$`);
+      
+          if (!regex.test(fullId)) {
+            return NextResponse.json(
+              { error: `Invalid account ID format (must end with .${parentDomain})` },
+              { status: 400 }
+            );
+          }
+          accountIdToCheck = fullId;
+          console.log('Wallet user wants to create/check:', accountIdToCheck);
+        }
+
         // No NOVA account found for this wallet
         console.log('No NOVA account found for wallet:', wallet_id);
-        return NextResponse.json({
-          exists: false,
-          accountId: null,
-          wallet_id: wallet_id,
-          accountCheck: true,
-        });
-
       } catch (shadeError) {
         console.error('Shade check error for wallet:', shadeError);
+        
         return NextResponse.json({
           exists: false,
           accountId: null,
@@ -254,7 +264,7 @@ export async function POST(req: NextRequest) {
         });
       }
     }
-    
+
     if (!accountIdToCheck) {
       console.error('No account ID to check (should not reach here)');
       return NextResponse.json({ 
