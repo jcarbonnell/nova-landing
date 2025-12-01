@@ -117,14 +117,23 @@ export default function CreateAccountModal({
     console.log('Checking account:', { username, fullAccountId, isWalletUser });
 
     try {
+      // Build payload with wallet_id if this is a wallet user
+      const payload: any = {
+        username,
+        email: userData?.email,
+      };
+
+      // Include wallet_id for wallet users
+      if (isWalletUser && userData?.wallet_id) {
+        payload.wallet_id = userData.wallet_id;
+      }
+
       // Check if username is available
       const checkRes = await fetch('/api/auth/check-for-account', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          username: username,
-          email: userData?.email 
-        }),
+        body: JSON.stringify(payload),
+
       });
 
       if (!checkRes.ok) {
