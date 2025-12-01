@@ -46,13 +46,11 @@ export async function POST(req: NextRequest) {
   }
 
   // Email users: Retrieve by email
-  const session = await auth0.getSession();
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  if (!email || session.user.email !== email) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!account_id) {
+    const session = await auth0.getSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   const token = await getAuthToken();

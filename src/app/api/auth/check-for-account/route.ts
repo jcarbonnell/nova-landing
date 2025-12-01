@@ -254,6 +254,7 @@ export async function POST(req: NextRequest) {
         });
       }
     }
+    
     if (!accountIdToCheck) {
       console.error('No account ID to check (should not reach here)');
       return NextResponse.json({ 
@@ -263,54 +264,35 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.log('Verifying account on NEAR blockchain');
+    if (accountIdToCheck) {
+      console.log('Verifying account on NEAR blockchain');
 
-    const provider = new JsonRpcProvider({ 
-      url: process.env.NEXT_PUBLIC_RPC_URL! 
-    });
+      const provider = new JsonRpcProvider({ url: process.env.NEXT_PUBLIC_RPC_URL! });
 
-    try {
-      // Query NEAR RPC to check if account exists
-      await provider.query({
-        request_type: 'view_account',
-        finality: 'final',
-        account_id: accountIdToCheck,
-      });
-
-      console.log('Account verified on blockchain');
-
-      return NextResponse.json({ 
-        exists: true, 
-        accountId: accountIdToCheck,
-        accountCheck: true,
-      });
-      
-    } catch (rpcError) {
-      // Account doesn't exist on-chain
-      console.log('Account not found on NEAR blockchain');
-      
-      if (rpcError instanceof Error) {
-        console.log('RPC error details:', {
-          message: rpcError.message,
-          accountId: accountIdToCheck,
+      try {
+        await provider.query({
+          request_type: 'view_account',
+          finality: 'final',
+          account_id: accountIdToCheck,
         });
-        
-        if (rpcError.message.includes('does not exist') || 
-            rpcError.message.includes('UNKNOWN_ACCOUNT') ||
-            rpcError.message.includes("doesn't exist")) {
-          console.log('Account does not exist (available for registration)');
-        } else {
-          console.error('Unexpected RPC error:', rpcError.message);
-        }
+
+        console.log('Account verified on blockchain');
+        return NextResponse.json({ 
+          exists: true, 
+          accountId: accountIdToCheck,
+          accountCheck: true,
+        });
+      } catch (rpcError) {
+        // Account doesn't exist on-chain
+        console.log('Account not found on NEAR blockchain');      
+        return NextResponse.json({ 
+          exists: false, 
+          accountId: null,
+          accountCheck: true,
+        });
       }
-      
-      return NextResponse.json({ 
-        exists: false, 
-        accountId: null,
-        accountCheck: true,
-      });
     }
-    
+
   } catch (error) {
     console.error('❌ Check account error:', error);
     
