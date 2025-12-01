@@ -40,11 +40,10 @@ export async function POST(req: NextRequest) {
     if (walletId) {
       // Skip Auth0 session for wallet users
       userEmail = email;
-      console.log('Wallet user detected:', walletId);
+      console.log('Wallet user detected');
     } else {
       // Verify Auth0 session for email users
       const session = await auth0.getSession();
-    
       if (!session?.user?.email) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
           status: 401,
@@ -85,20 +84,20 @@ export async function POST(req: NextRequest) {
     const mcpHeaders: Record<string, string> = {};
 
     if (accountId) {
-      mcpHeaders['X-Account-Id'] = accountId;
+      mcpHeaders['x-account-id'] = accountId;
     }
 
     // Email users (Auth0)
     if (!walletId && accessToken) {
       mcpHeaders['Authorization'] = `Bearer ${accessToken}`;
       if (userEmail) {
-        mcpHeaders['X-User-Email'] = userEmail;
+        mcpHeaders['x-user-email'] = userEmail;
       }
     }
 
     // Wallet users
     if (walletId) {
-      mcpHeaders['X-Wallet-Id'] = walletId;
+      mcpHeaders['x-wallet-id'] = walletId;
     }
 
     console.log('Sending to MCP with headers:', {
