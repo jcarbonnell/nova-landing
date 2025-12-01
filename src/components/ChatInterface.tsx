@@ -33,10 +33,19 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     
     transport: new DefaultChatTransport({
       api: '/api/chat',
-      body: {
-        accountId,
-        email,
-        walletId,
+      // Custom fetch to inject headers
+      fetch: async (url, options = {}) => {
+        const headers = new Headers(options.headers);
+
+        // These three headers cover email users AND wallet users
+        if (accountId) headers.set('x-account-id', accountId);
+        if (email) headers.set('x-user-email', email || '');
+        if (walletId) headers.set('x-wallet-id', walletId || '');
+
+        return fetch(url, {
+          ...options,
+          headers,
+        });
       },
     }),
     
