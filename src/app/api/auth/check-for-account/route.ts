@@ -18,18 +18,12 @@ if (!process.env.NEXT_PUBLIC_SHADE_API_URL) {
 
 export async function POST(req: NextRequest) {
   try {
-    // SKIP Auth0 session check for wallet users
-    if (!isWalletOnlyUser(req)) {
-      const session = await auth0.getSession();
-      if (!session?.user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-    }
     const body = await req.json();
     const { username, email, wallet_id } = body;
 
     const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN!;
     const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL!;
+    
     let accountIdToCheck: string | null = null;
 
     // Wallet users: Check by wallet_id
@@ -46,7 +40,6 @@ export async function POST(req: NextRequest) {
 
         if (shadeResponse.ok) {
           const shadeData = await shadeResponse.json();
-
           if (shadeData.exists && shadeData.account_id) {
             console.log('Found NOVA account for wallet:', shadeData.account_id);
             return NextResponse.json({
@@ -86,7 +79,6 @@ export async function POST(req: NextRequest) {
 
     // Validate Auth0 session
     const session = await auth0.getSession();
-
     if (!session?.user?.email || session.user.email !== email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

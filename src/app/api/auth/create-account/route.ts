@@ -18,13 +18,6 @@ if (!PARENT_DOMAIN || !CREATOR_PRIVATE_KEY || !RPC_URL || !SHADE_API_URL) {
 
 export async function POST(req: NextRequest) {
   try {
-    // SKIP Auth0 session check for wallet users
-    if (!isWalletOnlyUser(req)) {
-      const session = await auth0.getSession();
-      if (!session?.user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-    }
     const { username, email, wallet_id } = await req.json();
 
     // skip Auth0 session check for wallet users
