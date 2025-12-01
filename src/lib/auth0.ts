@@ -1,5 +1,6 @@
 // src/lib/auth0.ts
 import { Auth0Client } from '@auth0/nextjs-auth0/server';
+import { NextRequest } from 'next/dist/server/web/spec-extension/request';
 
 // Minimal User interface
 export interface User {
@@ -19,7 +20,7 @@ export interface User {
 
 const SHADE_AUDIENCE = 'https://nova-mcp.fastmcp.app';
 
-// v4: Instantiate client with explicit config to ensure all vars are read
+// auth0 v4: Instantiate client with explicit config to ensure all vars are read
 export const auth0 = new Auth0Client({
   appBaseUrl: process.env.APP_BASE_URL!,
   secret: process.env.AUTH0_SECRET!,
@@ -60,47 +61,45 @@ export async function getServerSession() {
   }
 }
 
-// Get access token with correct audience for Shade TEE
-// The access token has the right audience (https://nova-mcp.fastmcp.app)
-// We need to ensure it ALSO contains user claims (email/sub) via Auth0 API settings
+// Get access token for Shade TEE with user claims (email/sub) via Auth0 API settings
 export async function getAuthToken(): Promise<string | null> {
   try {
     const session = await auth0.getSession();
     
     if (!session) {
-      console.warn('❌ No session found');
+      console.warn('No session found');
       return null;
     }
     
     // STRATEGY 1: Use accessToken (has correct audience for Shade)
     if (session.tokenSet?.accessToken) {
-      console.log('✅ Using accessToken with audience: https://nova-mcp.fastmcp.app');
+      console.log('Using accessToken with audience: https://nova-mcp.fastmcp.app');
       return session.tokenSet.accessToken;
     }
     
     // STRATEGY 2: Try to get fresh access token using getAccessToken helper
-    console.log('🔄 Attempting to get fresh access token...');
+    console.log('Attempting to get fresh access token...');
     try {
       const { token } = await auth0.getAccessToken();
       if (token) {
-        console.log('✅ Got fresh accessToken');
+        console.log('Got fresh accessToken');
         return token;
       }
     } catch (refreshError) {
-      console.error('❌ getAccessToken failed:', refreshError);
+      console.error('getAccessToken failed:', refreshError);
     }
     
     // STRATEGY 3: Fallback to idToken (wrong audience but has user claims)
     if (session.tokenSet?.idToken) {
-      console.warn('⚠️ Falling back to idToken (may have wrong audience)');
+      console.warn('Falling back to idToken (may have wrong audience)');
       return session.tokenSet.idToken;
     }
     
-    console.error('❌ No valid tokens available in session');
+    console.error('No valid tokens available in session');
     return null;
     
   } catch (error: unknown) {
-    console.error('❌ getAuthToken error:', error);
+    console.error('getAuthToken error:', error);
     return null;
   }
 }
@@ -111,14 +110,14 @@ export async function getIdToken(): Promise<string | null> {
     const session = await auth0.getSession();
     
     if (!session?.tokenSet?.idToken) {
-      console.warn('❌ No idToken in session');
+      console.warn('No idToken in session');
       return null;
     }
     
-    console.log('✅ Retrieved idToken');
+    console.log('Retrieved idToken');
     return session.tokenSet.idToken;
   } catch (error: unknown) {
-    console.error('❌ getIdToken error:', error);
+    console.error('getIdToken error:', error);
     return null;
   }
 }
@@ -129,14 +128,23 @@ export async function getAccessToken(): Promise<string | null> {
     const { token } = await auth0.getAccessToken();
     
     if (!token) {
-      console.warn('❌ No accessToken available');
+      console.warn('No accessToken available');
       return null;
     }
     
-    console.log('✅ Retrieved accessToken');
+    console.log('Retrieved accessToken');
     return token;
   } catch (error: unknown) {
-    console.error('❌ getAccessToken error:', error);
+    console.error('getAccessToken error:', error);
     return null;
   }
+}
+
+// Detect wallet-only users based on custom headers
+export function isWalletOnlyUser(request?: NextRequest): boolean {
+  if (!request) return false;
+  const walletId = request.headers.get('x-wallet-id');
+  const accountId = request.headers.get('x-account-id');
+  // If we have wallet context but no Auth0 cookie → wallet-only
+  return !!(walletId || accountId);
 }

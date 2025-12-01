@@ -1,6 +1,6 @@
 // src/app/api/auth/check-for-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth0, getAuthToken } from '@/lib/auth0';
+import { auth0, getAuthToken,isWalletOnlyUser } from '@/lib/auth0';
 import { JsonRpcProvider } from '@near-js/providers';
 import jwt from 'jsonwebtoken';
 
@@ -18,6 +18,13 @@ if (!process.env.NEXT_PUBLIC_SHADE_API_URL) {
 
 export async function POST(req: NextRequest) {
   try {
+    // SKIP Auth0 session check for wallet users
+    if (!isWalletOnlyUser(req)) {
+      const session = await auth0.getSession();
+      if (!session?.user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    }
     const body = await req.json();
     const { username, email, wallet_id } = body;
 

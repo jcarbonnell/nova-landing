@@ -1,9 +1,16 @@
 // src/app/api/auth/fund-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth0 } from '@/lib/auth0';
+import { auth0, isWalletOnlyUser } from '@/lib/auth0';
 
 export async function POST(req: NextRequest) {
   try {
+    // SKIP Auth0 session check for wallet users
+    if (!isWalletOnlyUser(req)) {
+      const session = await auth0.getSession();
+      if (!session?.user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    }
     const { sessionId, amount, accountId } = await req.json();
     const session = await auth0.getSession();
     

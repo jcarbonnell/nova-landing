@@ -1,7 +1,6 @@
 // src/app/api/auth/create-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth0, getAuthToken } from '@/lib/auth0';
-
+import { auth0, getAuthToken, isWalletOnlyUser } from '@/lib/auth0';
 import { Account } from '@near-js/accounts';
 import { KeyPair, type KeyPairString } from '@near-js/crypto';
 import { JsonRpcProvider } from '@near-js/providers';
@@ -19,6 +18,13 @@ if (!PARENT_DOMAIN || !CREATOR_PRIVATE_KEY || !RPC_URL || !SHADE_API_URL) {
 
 export async function POST(req: NextRequest) {
   try {
+    // SKIP Auth0 session check for wallet users
+    if (!isWalletOnlyUser(req)) {
+      const session = await auth0.getSession();
+      if (!session?.user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    }
     const { username, email, wallet_id } = await req.json();
 
     // skip Auth0 session check for wallet users
