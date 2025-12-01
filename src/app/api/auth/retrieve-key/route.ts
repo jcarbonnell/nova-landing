@@ -3,13 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth0, getAuthToken, isWalletOnlyUser } from '@/lib/auth0';
 
 export async function POST(req: NextRequest) {
-  // SKIP Auth0 session check for wallet users
-  if (!isWalletOnlyUser(req)) {
-    const session = await auth0.getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-  }
   const { email, account_id } = await req.json();
 
   // Wallet users Retrieve by account_id
