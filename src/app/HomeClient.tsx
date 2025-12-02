@@ -37,6 +37,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const [error, setError] = useState('');
   const [hasCheckedAccount, setHasCheckedAccount] = useState(false);
   const [sessionTokenVerified, setSessionTokenVerified] = useState(false);
+  const [connectedWalletId, setConnectedWalletId] = useState<string | undefined>();
   const autoSignInAttemptedRef = useRef(false);
   const walletCheckInProgressRef = useRef(false);
 
@@ -239,7 +240,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   // Handle wallet connection (for NEAR wallet users)
   const handleWalletConnect = useCallback(async (walletAccountId: string) => {
-    // Prevent duplicate checks
     if (walletCheckInProgressRef.current) {
       console.log('Wallet check already in progress, skipping...');
       return;
@@ -247,6 +247,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     
     console.log('Wallet connected:', walletAccountId);
     walletCheckInProgressRef.current = true;
+    setConnectedWalletId(walletAccountId);
 
     try {
       // Check if this wallet has a NOVA account in Shade
@@ -518,7 +519,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               <ChatInterface 
                 accountId={accountId!} 
                 email={user?.email || ''} 
-                walletId={user?.wallet_id} 
+                walletId={connectedWalletId || user?.wallet_id} 
               />
             ) : (
               /* Blur overlay when not connected */
