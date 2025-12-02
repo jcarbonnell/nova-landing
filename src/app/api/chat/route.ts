@@ -19,12 +19,12 @@ export async function POST(req: NextRequest) {
   try {
     // 1. Parse request body first to check for wallet user
     const body = await req.json();
-    const { messages, accountId, email, walletId }: { 
+    const { messages, accountId, email }: { 
       messages: UIMessage[]; 
       accountId?: string;
       email?: string;
-      walletId?: string;
     } = body;
+    const walletId = req.headers.get('x-wallet-id');
 
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: 'Messages required' }), { 
