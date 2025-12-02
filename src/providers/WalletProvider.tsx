@@ -155,6 +155,8 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
           const accounts = state.accounts || [];
           const isSignedIn = accounts.length > 0;
           const accountId = accounts[0]?.accountId;
+
+          console.log('🟡 Wallet subscription fired:', { isSignedIn, accountId, accounts });
           
           if (mounted) {
             // Detect new sign-in (was not signed in or different account)
