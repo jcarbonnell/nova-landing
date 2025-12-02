@@ -161,6 +161,16 @@ export async function POST(req: NextRequest) {
       
       // Inspect token claims
       if (authToken) {
+        console.log('Token preview:', authToken.substring(0, 50) + '...');
+        try {
+          const decoded = jwt.decode(authToken, { complete: true });
+          console.log('Token header:', decoded?.header);
+          console.log('Token payload keys:', Object.keys(decoded?.payload || {}));
+          console.log('Token aud:', (decoded?.payload as any)?.aud);
+          console.log('Token iss:', (decoded?.payload as any)?.iss);
+        } catch (e) {
+          console.log('Token is not a valid JWT');
+        }
         try {
           interface JwtPayload {
             aud?: string | string[];
@@ -344,7 +354,7 @@ export async function POST(req: NextRequest) {
     }
 
   } catch (error) {
-    console.error('❌ Check account error:', error);
+    console.error('Check account error:', error);
     
     if (error instanceof Error) {
       console.error('Error details:', {
