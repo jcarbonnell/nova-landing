@@ -42,32 +42,11 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   // Verify session token before checking account
   const verifySessionToken = useCallback(async () => {
-    if (!user?.email || sessionTokenVerified) return true;
-
-    console.log('Verifying Auth0 session token...');
-    
-    try {
-      const response = await fetch('/auth/profile');
-      
-      if (response.ok) {
-        setSessionTokenVerified(true);
-        return true;
-      } else {
-        console.warn('Session verification failed, status:', response.status);
-        
-        if (response.status === 401) {
-          console.log('Session expired, redirecting to login...');
-          setIsLoginOpen(true);
-          return false;
-        }
-        
-        return false;
-      }
-    } catch (err) {
-      console.error('Session verification error:', err);
-      return false;
+    if (user?.email) {
+      setSessionTokenVerified(true);
     }
-  }, [user?.email, sessionTokenVerified]);
+    return true;
+  }, [user?.email]);
 
   const checkExistingAccount = useCallback(async () => {
     if (!user?.email) {
