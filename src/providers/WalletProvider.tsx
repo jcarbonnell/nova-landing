@@ -151,12 +151,9 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
 
         // Subscribe to account changes
         const subscription = selector.store.observable.subscribe((state) => {
-          
           const accounts = state.accounts || [];
           const isSignedIn = accounts.length > 0;
           const accountId = accounts[0]?.accountId;
-
-          console.log('🟡 Wallet subscription fired:', { isSignedIn, accountId, accounts });
           
           if (mounted) {
             // Detect new sign-in (was not signed in or different account)
@@ -169,9 +166,9 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
             }));
 
             // Trigger callback for new connections
-            if (isNewConnection && onWalletConnectCallback) {
+            if (isNewConnection && (window as any).__onWalletConnectCallback) {
               console.log('🔗 New wallet connection detected:', accountId);
-              setTimeout(() => onWalletConnectCallback(accountId), 0);
+              setTimeout(() => (window as any).__onWalletConnectCallback(accountId), 0);
             }
             
             previousAccountId = accountId;
@@ -198,7 +195,15 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
       mounted = false;
       cleanup?.then(cleanupFn => cleanupFn?.());
     };
-  }, [onWalletConnectCallback, setOnWalletConnect]);
+  }, []);
+
+  // Separate effect to register callback (doesn't re-init selector)
+  useEffect(() => {
+    (window as any).__onWalletConnectCallback = onWalletConnectCallback;
+    return () => {
+      delete (window as any).__onWalletConnectCallback;
+    };
+  }, [onWalletConnectCallback]);
 
   return <WalletContext.Provider value={wallet}>{children}</WalletContext.Provider>;
 }
