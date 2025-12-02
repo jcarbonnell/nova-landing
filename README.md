@@ -6,7 +6,7 @@ This app is the official multi-user interface for NOVA, a privacy-first, decentr
 ### Key Features
 
 - **Email-only onboarding** – Log in with Google, GitHub, or email. A real NEAR account (`username.nova-sdk.near` on mainnet) is created automatically in the background via FastAuth-style subaccount flow.
-- **Zero seed phrases** – Private keys are generated client-side and immediately backed up encrypted inside a verified TEE (Shade Agent). On every future login the key is securely retrieved and injected – users never see or manage keys.
+- **Zero seed phrases** – Private keys are generated client-side and immediately backed up encrypted inside a verified TEE (Shade Agent). On every future login the key is securely retrieved and injected –users never see or manage keys.
 - **Full multi-user MCP interface** – Powered by FastMCP with Remote OAuth (Auth0). No shared secrets, no env-leaked keys.
 - **Pay-per-action funding** – Small on-chain fees are paid automatically from your account (testnet free, mainnet via Stripe Onramp).
 - **GDPR-ready** – Consent management, data export, and account deletion built in.
