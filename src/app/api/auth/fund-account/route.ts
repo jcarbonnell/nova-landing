@@ -4,7 +4,7 @@ import { auth0, isWalletOnlyUser } from '@/lib/auth0';
 
 export async function POST(req: NextRequest) {
   try {
-    // SKIP Auth0 session check for wallet users
+    // Skip Auth0 session check for wallet users
     if (!isWalletOnlyUser(req)) {
       const session = await auth0.getSession();
       if (!session?.user) {

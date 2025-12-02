@@ -42,6 +42,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   // Verify session token before checking account
   const verifySessionToken = useCallback(async () => {
+    // Skip Auth0 verification for wallet users
+    if (accountId || userData?.wallet_id) {
+      console.log('Wallet user - skipping Auth0 session verification');
+      setSessionTokenVerified(true);
+      return true;
+    }
+
     if (!user?.email || sessionTokenVerified) return true;
 
     console.log('Verifying Auth0 session token...');
@@ -67,7 +74,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       console.error('Session verification error:', err);
       return false;
     }
-  }, [user?.email, sessionTokenVerified]);
+  }, [user?.email, sessionTokenVerified, accountId, userData?.wallet_id]);
 
   const checkExistingAccount = useCallback(async () => {
     if (!user?.email) {
