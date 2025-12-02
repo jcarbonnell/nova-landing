@@ -80,10 +80,24 @@ export async function POST(req: NextRequest) {
           warning: 'Shade service error',
         });
       }
+
+      // If wallet user has username to check, skip to blockchain verification
+      if (accountIdToCheck) {
+        console.log('Wallet user: checking username on blockchain:', accountIdToCheck);
+        // Fall through to blockchain check at bottom
+      } else {
+        // No username provided, just return wallet check result
+        return NextResponse.json({
+          exists: false,
+          accountId: null,
+          wallet_id: wallet_id,
+          accountCheck: true,
+        });
+      }
     }
     
     // Email users: Check by email
-    if (!email) {
+    if (!wallet_id && !email) {
       return NextResponse.json({ error: 'Email or wallet_id required' }, { status: 400 });
     }
 
