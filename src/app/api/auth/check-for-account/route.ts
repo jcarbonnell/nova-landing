@@ -84,20 +84,46 @@ export async function POST(req: NextRequest) {
       // If wallet user has username to check, skip to blockchain verification
       if (accountIdToCheck) {
         console.log('Wallet user: checking username on blockchain:', accountIdToCheck);
-        // Fall through to blockchain check at bottom
-      } else {
-        // No username provided, just return wallet check result
-        return NextResponse.json({
-          exists: false,
-          accountId: null,
-          wallet_id: wallet_id,
-          accountCheck: true,
-        });
+        const provider = new JsonRpcProvider({ url: process.env.NEXT_PUBLIC_RPC_URL! });
+
+        try {
+          await provider.query({
+            request_type: 'view_account',
+            finality: 'final',
+            account_id: accountIdToCheck,
+          });
+
+          // Account EXISTS on-chain = username taken
+          console.log('Username already exists on blockchain');
+          return NextResponse.json({ 
+            exists: true, 
+            accountId: accountIdToCheck,
+            wallet_id: wallet_id,
+            accountCheck: true,
+          });
+        } catch (rpcError) {
+          // Account doesn't exist on-chain = username available
+          console.log('Username available on blockchain');
+          return NextResponse.json({ 
+            exists: false, 
+            accountId: null,
+            wallet_id: wallet_id,
+            accountCheck: true,
+          });
+        }
       }
+
+      // Wallet user without username: return no account found
+      return NextResponse.json({
+        exists: false,
+        accountId: null,
+        wallet_id: wallet_id,
+        accountCheck: true,
+      });
     }
     
     // Email users: Check by email
-    if (!wallet_id && !email) {
+    if (!email) {
       return NextResponse.json({ error: 'Email or wallet_id required' }, { status: 400 });
     }
 
