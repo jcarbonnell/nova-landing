@@ -17,17 +17,23 @@ export async function POST(req: NextRequest) {
   let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
   
   try {
-    // 1. Parse request body first to check for wallet user
+    // 1. Parse request body first to check for messages
     const body = await req.json();
-    const { messages, accountId, email }: { 
-      messages: UIMessage[]; 
-      accountId?: string;
-      email?: string;
-    } = body;
+    const { messages, email }: { messages: UIMessage[]; email?: string } = body;
+
+    // Auth from headers
+    const accountId = req.headers.get('x-account-id');
     const walletId = req.headers.get('x-wallet-id');
 
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: 'Messages required' }), { 
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!accountId) {
+      return new Response(JSON.stringify({ error: 'Missing account ID' }), { 
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
