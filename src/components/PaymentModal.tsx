@@ -45,11 +45,48 @@ export default function PaymentModal({
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [scriptLoaded, setScriptLoaded] = useState(false);
+  const [faucetLoading, setFaucetLoading] = useState(false);
+  const [faucetSuccess, setFaucetSuccess] = useState('');
   const onrampRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<OnrampSessionRef>({});
 
   // Detect testnet
   const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK !== 'mainnet';
+
+  // Request tokens from faucet
+  const requestFaucetTokens = async () => {
+    if (!accountId) {
+      setError('No account connected. Please connect your wallet first.');
+      return;
+    }
+
+    setFaucetLoading(true);
+    setError('');
+    setFaucetSuccess('');
+
+    try {
+      const response = await fetch('https://near-faucet.io/api/faucet/tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Faucet error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Faucet response:', data);
+      setFaucetSuccess(`Successfully received testnet tokens! Your account has been funded.`);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Faucet request failed:', errMsg);
+      setError(`Failed to request tokens: ${errMsg}`);
+    } finally {
+      setFaucetLoading(false);
+    }
+  };
 
   // Load Stripe script
   useEffect(() => {
@@ -183,6 +220,14 @@ export default function PaymentModal({
     };
   }, [clientSecret, scriptLoaded, isTestnet, onSubmit, onClose]);
 
+  // Reset faucet states when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setFaucetSuccess('');
+      setError('');
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
@@ -196,18 +241,77 @@ export default function PaymentModal({
             </button>
           </div>
           <div className={styles.modalBody}>
-            {/* ADD TESTNET WARNING */}
+            {/* TESTNET: Faucet section */}
             {isTestnet && (
-              <div className="mb-4 p-4 bg-yellow-500/20 border border-yellow-500/50 rounded-lg">
-                <p className="text-yellow-200 text-sm">
-                  <strong>🧪 Testnet Mode:</strong> You&apos;re on testnet. 
-                  Real payments don&apos;t work here. Click &quot;Skip Funding&quot; below to create 
-                  your account with free testnet tokens.
-                </p>
+              <div className="text-center py-4">
+                <div className="mb-4 p-4 bg-purple-500/20 border border-purple-500/50 rounded-lg">
+                  <p className="text-purple-200 text-sm mb-2">
+                    <strong>🧪 Testnet Mode</strong>
+                  </p>
+                  <p className="text-gray-300 text-sm">
+                    Testnet accounts are free and can be funded automatically by clicking the &quot;Request Tokens&quot; button below.
+                  </p>
+                </div>
+
+                {accountId && (
+                  <div className="mb-4 p-3 bg-gray-800/50 rounded-lg">
+                    <p className="text-gray-400 text-xs mb-1">Connected Account</p>
+                    <p className="text-purple-200 text-sm font-mono truncate">{accountId}</p>
+                  </div>
+                )}
+
+                {faucetSuccess && (
+                  <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
+                    <p className="text-green-200 text-sm">✅ {faucetSuccess}</p>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+                    <p className="text-red-200 text-sm">❌ {error}</p>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <Button
+                    type="button"
+                    onClick={requestFaucetTokens}
+                    disabled={faucetLoading || !accountId}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                    style={{ 
+                      maxWidth: '540px',
+                      fontSize: '16px',
+                      padding: '12px 24px'
+                    }}
+                  >
+                    {faucetLoading ? (
+                      <span className="flex items-center justify-center">
+                        <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                        Requesting Tokens...
+                      </span>
+                    ) : (
+                      '🚰 Request Testnet Tokens'
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    onClick={onClose}
+                    variant="outline"
+                    className="w-full border-purple-500/50 text-purple-200 hover:bg-purple-900/30"
+                    style={{ 
+                      maxWidth: '540px',
+                      fontSize: '14px',
+                      padding: '10px 20px'
+                    }}
+                  >
+                    Close
+                  </Button>
+                </div>
               </div>
             )}
 
-            {/* AMOUNT SELECTOR - Hidden on testnet since payment not available */}
+            {/* MAINNET: Amount selector */}
             {!isTestnet && (
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Amount (USD)</label>
@@ -224,7 +328,7 @@ export default function PaymentModal({
               </div>
             )}
             
-            {/* ERROR MESSAGE - Only show non-testnet errors */}
+            {/* MAINNET: Error message */}
             {error && !isTestnet && (
               <div className={styles.alertDanger}>
                 {error}
@@ -274,32 +378,6 @@ export default function PaymentModal({
             {!isTestnet && !clientSecret && !isLoading && !error && (
               <div className="text-center py-4">
                 Preparing secure payment...
-              </div>
-            )}
-            
-            {/* TESTNET: Skip button prominently displayed */}
-            {isTestnet && (
-              <div className="text-center py-8">
-                <p className="text-gray-400 mb-6 text-sm">
-                  Testnet accounts are free and will be funded automatically with test tokens.
-                </p>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    onSkip();
-                    onClose();
-                  }}
-                  className={styles.buttonPrimary}
-                  style={{ 
-                    width: '100%', 
-                    maxWidth: '540px',
-                    margin: '0 auto',
-                    fontSize: '16px',
-                    padding: '12px 24px'
-                  }}
-                >
-                  Skip Funding & Create Account
-                </Button>
               </div>
             )}
           </div>
