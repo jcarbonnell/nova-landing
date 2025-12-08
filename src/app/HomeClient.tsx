@@ -474,8 +474,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#280449]">
-      <Header onOpenLogin={() => setIsLoginOpen(true)} /> 
-      
+      <Header 
+        onOpenLogin={() => setIsLoginOpen(true)} 
+        onOpenPayment={() => {
+          setPendingId(accountId || '');
+          setIsPaymentOpen(true);
+        }}
+      /> 
       {welcomeMessage && (
         <div className="p-4 text-center text-green-400 bg-green-500/20 border-b border-green-400/30">
           {welcomeMessage}

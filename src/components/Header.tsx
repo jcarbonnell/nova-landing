@@ -7,9 +7,10 @@ import { LogIn, User, Wallet } from 'lucide-react';
 
 interface HeaderProps {
   onOpenLogin?: () => void;
+  onOpenPayment?: () => void;
 }
 
-export default function Header({ onOpenLogin }: HeaderProps) {  
+export default function Header({ onOpenLogin, onOpenPayment }: HeaderProps) {  
   const { user, isLoading: authLoading } = useUser();
   const { isSignedIn, accountId, loading: walletLoading } = useWalletState();
   const { modal } = useWalletSelectorModal();
@@ -59,7 +60,10 @@ export default function Header({ onOpenLogin }: HeaderProps) {
           </div>
         ) : isConnected ? (
           <div className="flex items-center space-x-2">
-            <div className="flex items-center space-x-2 px-3 py-2 rounded-md bg-purple-900/50 border border-purple-500/30">
+            <div 
+              onClick={onOpenPayment}
+              className="flex items-center space-x-2 px-3 py-2 rounded-md bg-purple-900/50 border border-purple-500/30 cursor-pointer hover:bg-purple-800/50"
+            >
                <User size={16} className="text-purple-300" />
                <span className="text-sm max-w-32 truncate text-purple-100" title={user?.email || accountId || ''}>
                  {user?.email || accountId}
