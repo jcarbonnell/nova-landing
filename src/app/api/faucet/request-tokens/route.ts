@@ -12,7 +12,12 @@ const FAUCET_REQUEST_AMOUNT = '2000000000000000000000000';
 
 export async function POST(req: NextRequest) {
   try {
-    const { accountId } = await req.json();
+    const body = await req.json();
+    console.log('Raw request body:', JSON.stringify(body));
+    
+    const { accountId } = body;
+    console.log('Extracted accountId:', accountId);
+    console.log('accountId type:', typeof accountId);
 
     if (!accountId) {
       return NextResponse.json(
@@ -23,11 +28,14 @@ export async function POST(req: NextRequest) {
 
     // Verify this is a NOVA subaccount
     if (!accountId.endsWith(`.${NOVA_MASTER_ACCOUNT}`)) {
+      console.log('Validation failed - accountId does not end with:', `.${NOVA_MASTER_ACCOUNT}`);
       return NextResponse.json(
         { success: false, error: 'Can only fund NOVA subaccounts' },
         { status: 400 }
       );
     }
+
+    console.log('Validation passed, proceeding with funding for:', accountId);
 
     // Get master account private key from environment variable
     const privateKey = process.env.NEAR_CREATOR_PRIVATE_KEY;
@@ -74,11 +82,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 2: Transfer 2 NEAR to the user's NOVA subaccount
+    console.log('About to transfer to receiverId:', accountId);
+    
     const result = await masterAccount.transfer({
       receiverId: accountId, 
       amount: BigInt('2000000000000000000000000'), // 2 NEAR in yoctoNEAR
     });
 
+    console.log('Transfer result receiver:', result.transaction?.receiver_id);
     console.log('Transfer successful:', JSON.stringify(result, null, 2));
 
     // Extract transaction hash - result is FinalExecutionOutcome
