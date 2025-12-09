@@ -64,7 +64,6 @@ export async function POST(req: NextRequest) {
         actionCreators.functionCall(
           'request_near',
           {
-            receiver_id: accountId,
             request_amount: '2000000000000000000000000', // max 2 NEAR in yoctoNEAR
           },
           BigInt('30000000000000'), // 30 TGas
