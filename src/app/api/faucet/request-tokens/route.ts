@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
           'request_near',
           {
             receiver_id: accountId,
-            amount: '10000000000000000000000000', // 10 NEAR in yoctoNEAR
+            request_amount: '10000000000000000000000000', // 10 NEAR in yoctoNEAR
           },
           BigInt('30000000000000'), // 30 TGas
           BigInt('0') // 0 deposit
