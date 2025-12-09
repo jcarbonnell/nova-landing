@@ -53,7 +53,7 @@ export default function PaymentModal({
   // Detect testnet
   const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK !== 'mainnet';
 
-  // Request tokens from faucet
+  // Request tokens from faucet via smart contract call
   const requestFaucetTokens = async () => {
     if (!accountId) {
       setError('No account connected. Please connect your wallet first.');
@@ -65,24 +65,24 @@ export default function PaymentModal({
     setFaucetSuccess('');
 
     try {
-      const response = await fetch('https://near-faucet.io/api/faucet/tokens', {
+      const response = await fetch('/api/faucet/request-tokens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accountId }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Faucet error: ${response.status}`);
+        throw new Error(data.error || 'Faucet request failed');
       }
 
-      const data = await response.json();
       console.log('Faucet response:', data);
-      setFaucetSuccess(`Successfully received testnet tokens! Your account has been funded.`);
+      setFaucetSuccess('Successfully received testnet tokens! Your account has been funded.');
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
       console.error('Faucet request failed:', errMsg);
-      setError(`Failed to request tokens: ${errMsg}`);
+      setError(errMsg);
     } finally {
       setFaucetLoading(false);
     }
@@ -133,7 +133,6 @@ export default function PaymentModal({
         }
 
         const data = await response.json();
-        // SAFE: Only log session ID, never clientSecret
         console.log('Session created:', data.sessionId);
         
         setClientSecret(data.clientSecret);
