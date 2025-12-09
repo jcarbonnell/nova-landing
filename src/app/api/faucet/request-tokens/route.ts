@@ -8,6 +8,9 @@ import { actionCreators } from '@near-js/transactions';
 
 const SHADE_API_URL = process.env.SHADE_API_URL || 'https://nova-shade-agent-quiet-frost-9545.fly.dev';
 const FAUCET_CONTRACT = 'v2.faucet.nonofficial.testnet';
+const NOVA_MASTER_ACCOUNT = 'nova-sdk-5.testnet';
+const TRANSFER_AMOUNT = '2000000000000000000000000';
+const FAUCET_REQUEST_AMOUNT = '2000000000000000000000000';
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,20 +23,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`Requesting faucet tokens for account: ${accountId}`);
+    // Verify this is a NOVA subaccount
+    if (!accountId.endsWith(`.${NOVA_MASTER_ACCOUNT}`)) {
+      return NextResponse.json(
+        { success: false, error: 'Can only fund NOVA subaccounts' },
+        { status: 400 }
+      );
+    }
 
-    // Retrieve private key from Shade TEE
+    console.log(`Funding NOVA account: ${accountId}`);
+
+    // Retrieve master account private key from Shade TEE
     const shadeResponse = await fetch(`${SHADE_API_URL}/api/user-keys/retrieve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ account_id: accountId }),
+      body: JSON.stringify({ account_id: NOVA_MASTER_ACCOUNT }),
     });
 
     if (!shadeResponse.ok) {
       const errorText = await shadeResponse.text();
       console.error('Shade key retrieval failed:', errorText);
       return NextResponse.json(
-        { success: false, error: 'Failed to retrieve account key from Shade TEE' },
+        { success: false, error: 'Failed to retrieve master account key from Shade TEE' },
         { status: 500 }
       );
     }
@@ -42,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     if (!private_key) {
       return NextResponse.json(
-        { success: false, error: 'No private key found for account' },
+        { success: false, error: 'No private key found for master account' },
         { status: 404 }
       );
     }
@@ -55,24 +66,36 @@ export async function POST(req: NextRequest) {
     const signer = new KeyPairSigner(keyPair);
     
     // Create Account with provider and signer
-    const account = new Account(accountId, provider, signer);
+    const masterAccount = new Account(NOVA_MASTER_ACCOUNT, provider, signer);
 
-    // Use signAndSendTransaction for proper FinalExecutionOutcome return type
-    const result = await account.signAndSendTransaction({
-      receiverId: FAUCET_CONTRACT,
-      actions: [
-        actionCreators.functionCall(
-          'request_near',
-          {
-            request_amount: '2000000000000000000000000', // max 2 NEAR in yoctoNEAR
-          },
-          BigInt('30000000000000'), // 30 TGas
-          BigInt('0') // 0 deposit
-        ),
-      ],
+    // Step 1: Request tokens from faucet to refill master account
+    try {
+      await masterAccount.signAndSendTransaction({
+        receiverId: FAUCET_CONTRACT,
+        actions: [
+          actionCreators.functionCall(
+            'request_near',
+            {
+              receiver_id: NOVA_MASTER_ACCOUNT,
+              request_amount: FAUCET_REQUEST_AMOUNT, // max 2 NEAR in yoctoNEAR
+            },
+            BigInt('30000000000000'), // 30 TGas
+            BigInt('0') // 0 deposit
+          ),
+        ],
+      });
+      console.log('Faucet refill successful');
+    } catch (error) {
+      console.log('Faucet request error:', error);
+    }
+
+    // Step 2: Transfer 2 NEAR to the user's NOVA subaccount
+    const result = await masterAccount.transfer({
+      receiverId: accountId, 
+      amount: BigInt(TRANSFER_AMOUNT)
     });
 
-    console.log('Faucet request successful:', JSON.stringify(result, null, 2));
+    console.log('Transfer successful:', JSON.stringify(result, null, 2));
 
     // Extract transaction hash - result is FinalExecutionOutcome
     const txHash = result.transaction?.hash || result.transaction_outcome?.id || 'unknown';
@@ -81,27 +104,21 @@ export async function POST(req: NextRequest) {
       success: true,
       accountId,
       txHash,
+      amount: '2 NEAR',
       message: 'Successfully requested testnet tokens',
     });
 
   } catch (error) {
-    console.error('Faucet request error:', error);
+    console.error('Funding error:', error);
 
     // Parse common faucet errors
     const errorMessage = error instanceof Error ? error.message : 'Failed to request tokens';
     
-    // Check for rate limiting or blacklist errors
-    if (errorMessage.includes('recently')) {
+    // Check if master account is out of funds
+    if (errorMessage.includes('NotEnoughBalance') || errorMessage.includes('LackBalanceForState')) {
       return NextResponse.json(
-        { success: false, error: 'Please wait before requesting tokens again (rate limited)' },
-        { status: 429 }
-      );
-    }
-    
-    if (errorMessage.includes('blacklist')) {
-      return NextResponse.json(
-        { success: false, error: 'Account is blacklisted from the faucet' },
-        { status: 403 }
+        { success: false, error: 'Faucet temporarily unavailable. Please try again later.' },
+        { status: 503 }
       );
     }
 
