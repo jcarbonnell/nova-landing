@@ -3,13 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Account } from '@near-js/accounts';
 import { JsonRpcProvider } from '@near-js/providers';
 import { KeyPairSigner } from '@near-js/signers';
-import { KeyPair } from '@near-js/crypto';
+import { KeyPair, KeyPairString } from '@near-js/crypto';
 import { actionCreators } from '@near-js/transactions';
 
-const SHADE_API_URL = process.env.SHADE_API_URL || 'https://nova-shade-agent-quiet-frost-9545.fly.dev';
-const FAUCET_CONTRACT = 'v2.faucet.nonofficial.testnet';
 const NOVA_MASTER_ACCOUNT = 'nova-sdk-5.testnet';
-const TRANSFER_AMOUNT = '2000000000000000000000000';
+const FAUCET_CONTRACT = 'v2.faucet.nonofficial.testnet';
 const FAUCET_REQUEST_AMOUNT = '2000000000000000000000000';
 
 export async function POST(req: NextRequest) {
@@ -31,38 +29,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`Funding NOVA account: ${accountId}`);
+    // Get master account private key from environment variable
+    const privateKey = process.env.NEAR_CREATOR_PRIVATE_KEY;
 
-    // Retrieve master account private key from Shade TEE
-    const shadeResponse = await fetch(`${SHADE_API_URL}/api/user-keys/retrieve`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ account_id: NOVA_MASTER_ACCOUNT }),
-    });
-
-    if (!shadeResponse.ok) {
-      const errorText = await shadeResponse.text();
-      console.error('Shade key retrieval failed:', errorText);
+    if (!privateKey) {
+      console.error('NEAR_CREATOR_PRIVATE_KEY not set');
       return NextResponse.json(
-        { success: false, error: 'Failed to retrieve master account key from Shade TEE' },
+        { success: false, error: 'Server configuration error' },
         { status: 500 }
       );
     }
 
-    const { private_key } = await shadeResponse.json();
-
-    if (!private_key) {
-      return NextResponse.json(
-        { success: false, error: 'No private key found for master account' },
-        { status: 404 }
-      );
-    }
+    console.log(`Funding NOVA account: ${accountId}`);
 
     // Setup using new @near-js/* packages
     const provider = new JsonRpcProvider({ url: 'https://rpc.testnet.near.org' });
     
     // Create KeyPairSigner from the private key
-    const keyPair = KeyPair.fromString(private_key);
+    const keyPair = KeyPair.fromString(privateKey as KeyPairString);
     const signer = new KeyPairSigner(keyPair);
     
     // Create Account with provider and signer
@@ -85,14 +69,14 @@ export async function POST(req: NextRequest) {
         ],
       });
       console.log('Faucet refill successful');
-    } catch (error) {
-      console.log('Faucet request error:', error);
+    } catch (faucetError) {
+      console.log('Faucet request error:', faucetError);
     }
 
     // Step 2: Transfer 2 NEAR to the user's NOVA subaccount
     const result = await masterAccount.transfer({
       receiverId: accountId, 
-      amount: BigInt(TRANSFER_AMOUNT)
+      amount: BigInt('2000000000000000000000000'), // 2 NEAR in yoctoNEAR
     });
 
     console.log('Transfer successful:', JSON.stringify(result, null, 2));
