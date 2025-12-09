@@ -7,6 +7,7 @@ import { KeyPair } from '@near-js/crypto';
 import { actionCreators } from '@near-js/transactions';
 
 const SHADE_API_URL = process.env.SHADE_API_URL || 'https://nova-shade-agent-quiet-frost-9545.fly.dev';
+const FAUCET_CONTRACT = 'v2.faucet.nonofficial.testnet';
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,10 +59,10 @@ export async function POST(req: NextRequest) {
 
     // Use signAndSendTransaction for proper FinalExecutionOutcome return type
     const result = await account.signAndSendTransaction({
-      receiverId: 'faucet.nonofficial.testnet',
+      receiverId: FAUCET_CONTRACT,
       actions: [
         actionCreators.functionCall(
-          'request_funds',
+          'request_near',
           {
             receiver_id: accountId,
             amount: '10000000000000000000000000', // 10 NEAR in yoctoNEAR
@@ -86,11 +87,27 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error('Faucet request error:', error);
+
+    // Parse common faucet errors
+    const errorMessage = error instanceof Error ? error.message : 'Failed to request tokens';
+    
+    // Check for rate limiting or blacklist errors
+    if (errorMessage.includes('recently')) {
+      return NextResponse.json(
+        { success: false, error: 'Please wait before requesting tokens again (rate limited)' },
+        { status: 429 }
+      );
+    }
+    
+    if (errorMessage.includes('blacklist')) {
+      return NextResponse.json(
+        { success: false, error: 'Account is blacklisted from the faucet' },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to request tokens' 
-      },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }
