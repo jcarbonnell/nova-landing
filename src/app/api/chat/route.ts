@@ -2,7 +2,7 @@
 import { streamText, convertToModelMessages, UIMessage, stepCountIs } from 'ai';
 import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { groq } from '@ai-sdk/groq';
+import { anthropic } from '@ai-sdk/anthropic';
 import { auth0 } from '@/lib/auth0';
 import { NextRequest } from 'next/server';
 
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     // 1. Parse request body first to check for messages
     const body = await req.json();
     const { messages, email }: { messages: UIMessage[]; email?: string } = body;
-
+    
     // Auth from headers
     const accountId = req.headers.get('x-account-id');
     const walletId = req.headers.get('x-wallet-id');
@@ -65,13 +65,11 @@ export async function POST(req: NextRequest) {
     console.log('User type:', walletId ? 'wallet' : 'email');
     console.log('User identifier:', walletId || userEmail);
     console.log('Has accessToken:', !!accessToken);
-    if (accessToken) {
-      console.log('Token first 50 chars:', accessToken.substring(0, 50));
-    }
     console.log('MCP endpoint:', `${MCP_URL}/mcp`);
 
     // Decode and log token claims
     if (accessToken) {
+      console.log('Token first 50 chars:', accessToken.substring(0, 50));
       try {
         const parts = accessToken.split('.');
         const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
@@ -128,11 +126,11 @@ export async function POST(req: NextRequest) {
     // 5. Convert UI messages to model messages
     const modelMessages = convertToModelMessages(messages);
 
-    // 6. Stream response with Groq + MCP tools
+    // 6. Stream response with Anthropic + MCP tools
     const userIdentifier = walletId || userEmail;
 
     const result = streamText({
-      model: groq('llama-3.3-70b-versatile'),
+      model: anthropic('claude-haiku-4-5-20251001'),
       system: `You are NOVA, a secure file-sharing assistant powered by the NOVA SDK.
 
 Your capabilities include:
@@ -145,9 +143,25 @@ Your capabilities include:
 Current user: ${userIdentifier}
 NEAR Account: ${accountId || 'Not connected'}
 
-When users want to upload files, use the composite_upload tool with their file data.
-When users ask about their files, use appropriate tools to list or retrieve them.
-Always explain what you're doing and confirm successful operations.
+IMPORTANT WORKFLOW FOR FILE UPLOADS:
+1. When a user wants to upload a file, you need to:
+   - Convert the file content to base64 if not already
+   - Generate a payload for signing (timestamp + group_id + user_id)
+   - Use composite_upload with: group_id, user_id, data (base64), filename, payload_b64, sig_hex
+
+2. For file retrieval:
+   - Use composite_retrieve with: group_id, ipfs_hash, payload_b64, sig_hex
+
+3. For group management:
+   - register_group: Create a new group (you become owner)
+   - add_group_member: Add member to your group
+   - revoke_group_member: Remove member (key rotation happens automatically)
+
+When users upload images or files:
+- Acknowledge the file type and content
+- Ask which group they want to upload to (or offer to create a new one)
+- Explain the encryption and IPFS storage process
+- Confirm successful uploads with the CID and transaction ID
 
 Be helpful, concise, and security-conscious.`,
       messages: modelMessages,
