@@ -576,7 +576,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         onClose={() => setIsCreateOpen(false)}
         onAccountCreated={handleAccountCreated}
         userData={userData}
-        onPaymentOpen={(id: string) => { setPendingId(id); setIsPaymentOpen(true); }}
       />
       <PaymentModal
         isOpen={isPaymentOpen}
