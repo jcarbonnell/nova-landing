@@ -20,14 +20,16 @@ export async function POST(req: NextRequest) {
   try {
     const { username, email, wallet_id } = await req.json();
 
-    // skip Auth0 session check for wallet users
+    // 1. Authentication and Authorization
     if (!wallet_id) {
+      // For Auth0 users, verify session and match email
       const session = await auth0.getSession();
       if (!session?.user?.email || session.user.email !== email) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
     }
 
+    // 2. Validate Username
     const cleanUsername = username.replace(/[^a-z0-9_-]/gi, '').toLowerCase();
     if (cleanUsername.length < 2 || cleanUsername.length > 64) {
       return NextResponse.json({ error: 'Username must be 2–64 characters' }, { status: 400 });
@@ -35,29 +37,29 @@ export async function POST(req: NextRequest) {
 
     const fullId = `${cleanUsername}.${PARENT_DOMAIN}`;
   
-    // 1. Generate a keypair
+    // 3. Generate a keypair for the new NEAR account
     const newKeyPair = KeyPair.fromRandom('ed25519');
     const publicKey = newKeyPair.getPublicKey();
     const privateKey = newKeyPair.toString();
 
-    // 2. Setup creator key
+    // 4. Setup creator key (the key of the account funding the new account)
     let secret = CREATOR_PRIVATE_KEY.trim();
     if (!secret.startsWith('ed25519:')) {
       secret = `ed25519:${secret}`;
     }
 
-    // 3. Create signer
+    // 5. Create signer
     const signer = KeyPairSigner.fromSecretKey(secret as KeyPairString);
 
-    // 4. Create provider and creator account 
+    // 6. Create provider and creator account 
     const provider = new JsonRpcProvider({ url: RPC_URL });
     const creatorAccount = new Account(PARENT_DOMAIN, provider, signer);
     
-    // 5. Create account
+    // 7. Create account
     const result = await creatorAccount.createAccount(
       fullId,
       publicKey,
-      '100000000000000000000000' // 0.1 NEAR in yoctoNEAR
+      '100000000000000000000000' // allocate 0.1 NEAR
     );
 
     if (typeof result.status !== 'string' && 'Failure' in result.status) {
@@ -66,7 +68,7 @@ export async function POST(req: NextRequest) {
 
     console.log('Account created:', fullId);
 
-    // 6. Store key in Shade TEE
+    // 8. Store key in Shade TEE
     const token = wallet_id ? null : await getAuthToken();
     
     // No auth_token for wallet users, we use wallet_id

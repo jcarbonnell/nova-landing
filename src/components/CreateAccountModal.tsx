@@ -11,7 +11,6 @@ interface CreateAccountModalProps {
   onClose: () => void;
   onAccountCreated: (accountId: string) => void;
   userData?: { email: string; publicKey?: string; wallet_id?: string } | null;
-  onPaymentOpen: (fullId: string) => void;  // Triggers payment modal
 }
 
 export default function CreateAccountModal({
@@ -19,7 +18,6 @@ export default function CreateAccountModal({
   onClose,
   onAccountCreated,
   userData,
-  onPaymentOpen,
 }: CreateAccountModalProps) {
   const [username, setUsername] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -149,14 +147,31 @@ export default function CreateAccountModal({
         return;
       }
 
-      // Username is available, proceed to payment modal
-      console.log('Username available, opening payment modal');
-      onPaymentOpen(fullAccountId);
-      setIsLoading(false);
+      // Username is available, proceed to create account
+      console.log('Username available, creating account...');
+      const createRes = await fetch('/api/auth/create-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload), // Send the same payload for creation
+      });
+
+      if (!createRes.ok) {
+        const errorData = await createRes.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Account creation failed');
+      }
+
+      const { accountId: newAccountId } = await createRes.json();
+      console.log('Account created successfully:', newAccountId);
+
+      setIsAccountCreated(true);
+      onAccountCreated(newAccountId); // This should log in the user client-side
+      onClose(); // Close the modal
+
     } catch (err: unknown) {
-      console.error('Error checking account:', err);
+      console.error('Error during account creation:', err);
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
-      setError(`Failed to check availability: ${errMsg}`);
+      setError(`Failed to create account: ${errMsg}`);
+    } finally {
       setIsLoading(false);
     }
   };

@@ -64,9 +64,9 @@ export default function Header({ onOpenLogin, onOpenPayment }: HeaderProps) {
               onClick={onOpenPayment}
               className="flex items-center space-x-2 px-3 py-2 rounded-md bg-purple-900/50 border border-purple-500/30 cursor-pointer hover:bg-purple-800/50"
             >
-               <User size={16} className="text-purple-300" />
-               <span className="text-sm max-w-32 truncate text-purple-100" title={user?.email || accountId || ''}>
-                 {user?.email || accountId}
+               <Wallet size={16} className="text-purple-300" />
+               <span className="text-sm max-w-32 truncate text-purple-100">
+                 Fund Account
                </span>
             </div>
             <Button 
