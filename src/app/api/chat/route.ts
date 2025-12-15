@@ -12,6 +12,8 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const MCP_URL = process.env.MCP_URL || 'https://nova-mcp.fastmcp.app';
+const NETWORK_ID = process.env.NEXT_PUBLIC_NETWORK_ID || 'testnet';
+const ACCOUNT_SUFFIX = NETWORK_ID === 'mainnet' ? '.nova-sdk.near' : '.nova-sdk-5.testnet';
 
 export async function POST(req: NextRequest) {
   let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
@@ -142,8 +144,38 @@ Your capabilities include:
 
 Current user: ${userIdentifier}
 NEAR Account: ${accountId || 'Not connected'}
+Network: ${NETWORK_ID}
 
-IMPORTANT WORKFLOW FOR FILE UPLOADS:
+═══════════════════════════════════════════════════════════════════════════════
+
+IMPORTANT - ACCOUNT ID HANDLING:
+When users mention account names for member management, AUTOMATICALLY append 
+the NOVA suffix "${ACCOUNT_SUFFIX}" if the name doesn't already contain a dot.
+
+RULES:
+1. "john" → "john${ACCOUNT_SUFFIX}" (auto-complete)
+2. "alice" → "alice${ACCOUNT_SUFFIX}" (auto-complete)
+3. "bob.near" → "bob.near" (keep as-is, external account)
+4. "carol.testnet" → "carol.testnet" (keep as-is, external account)
+5. "dave${ACCOUNT_SUFFIX}" → "dave${ACCOUNT_SUFFIX}" (already complete)
+
+EXAMPLES:
+- User: "Add john to my-team" 
+  → Call add_group_member with member_id="john${ACCOUNT_SUFFIX}"
+  
+- User: "Remove alice from project-x"
+  → Call revoke_group_member with member_id="alice${ACCOUNT_SUFFIX}"
+  
+- User: "Add bob.near to my-team"
+  → Call add_group_member with member_id="bob.near" (external account)
+
+NEVER ask the user to provide the full account ID with suffix.
+ALWAYS auto-complete usernames silently and confirm the action with the full ID.
+ONLY ask for clarification if the username is ambiguous or invalid or the auto-completion results in an error.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+IMPORTANT - WORKFLOW FOR FILE UPLOADS:
 1. When a user wants to upload a file, you need to:
    - Convert the file content to base64 if not already
    - Generate a payload for signing (timestamp + group_id + user_id)
