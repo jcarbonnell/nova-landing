@@ -365,16 +365,15 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
             <div className="text-left max-w-md mx-auto text-sm text-purple-300 space-y-2">
               <p><strong>What I can do:</strong></p>
               <ul className="list-disc list-inside space-y-1 text-purple-400">
-                <li>📤 Upload files with end-to-end encryption</li>
+                <li>📤 Upload data with end-to-end encryption</li>
                 <li>👥 Create secure sharing groups</li>
-                <li>🔐 Manage access permissions</li>
-                <li>📊 Track file analytics</li>
+                <li>🔐 Add/Revoke access permissions</li>
               </ul>
               <p className="mt-4"><strong>Try:</strong></p>
               <ul className="list-disc list-inside space-y-1 text-purple-400">
-                <li>&quot;Upload my document securely&quot;</li>
                 <li>&quot;Create a group called &apos;Team Files&apos;&quot;</li>
-                <li>&quot;Share file X with user Y&quot;</li>
+                <li>&quot;Upload this document in that group&quot;</li>
+                <li>&quot;Add user Y as an authorized member&quot;</li>
               </ul>
             </div>
           </div>
