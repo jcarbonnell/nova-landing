@@ -123,6 +123,7 @@ export default function PaymentModal({
         
         const response = await fetch('/api/payments/create-onramp-session', {
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ accountId, email, amount }),
         });
