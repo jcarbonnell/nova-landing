@@ -561,7 +561,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             Contact
           </a>
         </div>
-        <p className="mt-2 text-purple-300">&copy; 2025 CivicTech OÜ. All rights reserved.</p>
+        <p className="mt-2 text-purple-300">&copy; 2026 CivicTech OÜ. All rights reserved.</p>
       </footer>
 
       {/* Modals */}
