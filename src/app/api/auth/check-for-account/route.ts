@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
       // 1. Check username availability      
       const fullId = username.includes('.') ? username : `${username}.${parentDomain}`;
       
-      // Validate format (e.g., jcarbonnell.nova-sdk-5.testnet)
+      // Validate format (e.g., jcarbonnell.nova-sdk-6.testnet)
       const domainEscaped = parentDomain.replace(/\./g, '\\.');
       const regex = new RegExp(`^[a-z0-9_-]{2,64}\\.${domainEscaped}$`);
       

@@ -24,7 +24,7 @@ User → Auth0 → nova-sdk.com (Next.js)
 
 All heavy cryptography and key storage happens inside attested TEEs. The MCP server and frontend never see private keys.
 
-**Live on testnet**: https://nova-sdk.com  
-Mainnet launch January 2026.
+**Live on mainnet**: https://nova-sdk.com  
+**Live on testnet**: https://testnet.nova-sdk.com  
 
 Built for the Agent Economy – your data, your vault, your rules.

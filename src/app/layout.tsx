@@ -20,7 +20,7 @@ export default function RootLayout({
     default-src 'self';
     script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.auth0.com https://auth0.com;
     style-src 'self' 'unsafe-inline';
-    connect-src 'self' https://*.auth0.com https://auth0.com https://*.near.org https://rpc.testnet.near.org https://*.nearblocks.io;
+    connect-src 'self' https://*.auth0.com https://auth0.com https://*.near.org https://rpc.mainnet.near.org https://rpc.testnet.near.org https://*.nearblocks.io https://relayer.mainnet.near.org https://relayer.testnet.near.org;
     img-src 'self' data: https: blob:;
     font-src 'self' https:;
     frame-src 'self' https://*.auth0.com https://walletselector.com;
