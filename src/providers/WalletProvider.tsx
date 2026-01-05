@@ -23,6 +23,32 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | null>(null);
 
+// Network config based on env variable
+const NETWORK_ID = process.env.NEXT_PUBLIC_NEAR_NETWORK || 'testnet';
+const isMainnet = NETWORK_ID === 'mainnet';
+
+const NETWORK_CONFIG = {
+  mainnet: {
+    networkId: 'mainnet',
+    nodeUrl: process.env.NEXT_PUBLIC_RPC_URL || 'https://rpc.mainnet.near.org',
+    helperUrl: 'https://helper.mainnet.near.org',
+    explorerUrl: 'https://nearblocks.io',
+    indexerUrl: 'https://api.nearblocks.io/v1',
+  },
+  testnet: {
+    networkId: 'testnet',
+    nodeUrl: process.env.NEXT_PUBLIC_RPC_URL || 'https://rpc.testnet.near.org',
+    helperUrl: 'https://helper.testnet.near.org',
+    explorerUrl: 'https://testnet.nearblocks.io',
+    indexerUrl: 'https://api.testnet.nearblocks.io/v1',
+  },
+} as const;
+
+const WALLET_URLS = {
+  mainnet: 'https://app.mynearwallet.com',
+  testnet: 'https://testnet.mynearwallet.com',
+} as const;
+
 export function NearWalletProvider({ children }: { children: ReactNode }) {
   const [wallet, setWallet] = useState<WalletContextType>({ 
     isSignedIn: false, 
@@ -31,7 +57,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
     setOnWalletConnect: () => {},
   });
 
-  // Callback for when wallet connects - HomeClient will set this
+  // Callback when wallet connects - HomeClient will set this
   const [onWalletConnectCallback, setOnWalletConnectCallback] = useState<((accountId: string) => void) | undefined>();
 
   const setOnWalletConnect = useCallback((callback: ((accountId: string) => void) | undefined) => {
@@ -92,19 +118,20 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         const { setupMyNearWallet } = await import('@near-wallet-selector/my-near-wallet');
         // Add more wallets if you want: setupHereWallet(), setupMeteorWallet(), etc.
 
+        const networkConfig = isMainnet ? NETWORK_CONFIG.mainnet : NETWORK_CONFIG.testnet;
+        const walletUrl = isMainnet ? WALLET_URLS.mainnet : WALLET_URLS.testnet;
+
         const selector = await setupWalletSelector({
-          network: {
-            networkId: 'testnet',
-            nodeUrl: process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.testnet.near.org",
-            helperUrl: "https://helper.testnet.near.org",
-            explorerUrl: "https://explorer.testnet.near.org",
-            indexerUrl: "https://api.testnet.nearblocks.io/v1",
-          },
-          modules: [setupMyNearWallet()],
+          network: networkConfig,
+          modules: [
+            setupMyNearWallet({
+              walletUrl,
+            }),
+          ],
         });
 
         const modal = setupModal(selector, {
-          contractId: process.env.NEXT_PUBLIC_CONTRACT_ID || "nova-sdk-5.testnet",
+          contractId: process.env.NEXT_PUBLIC_CONTRACT_ID || "nova-sdk.near",
         });
 
         const state = selector.store.getState();
@@ -156,7 +183,7 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
           const accountId = accounts[0]?.accountId;
           
           if (mounted) {
-            // Detect new sign-in (was not signed in or different account)
+            // Detect new sign-ins
             const isNewConnection = accountId && accountId !== previousAccountId;
 
             setWallet(prev => ({
