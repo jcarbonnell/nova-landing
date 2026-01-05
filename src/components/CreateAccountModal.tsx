@@ -13,6 +13,12 @@ interface CreateAccountModalProps {
   userData?: { email: string; publicKey?: string; wallet_id?: string } | null;
 }
 
+// Derive parent domain from environment
+const NETWORK_ID = process.env.NEXT_PUBLIC_NEAR_NETWORK || 'testnet';
+const PARENT_DOMAIN =
+  process.env.NEXT_PUBLIC_PARENT_DOMAIN ||
+  (NETWORK_ID === 'mainnet' ? 'nova-sdk.near' : 'nova-sdk-6.testnet');
+
 export default function CreateAccountModal({
   isOpen,
   onClose,
@@ -60,8 +66,6 @@ export default function CreateAccountModal({
         setExistingAccount(accountId);
         setIsAccountCreated(true);
         onAccountCreated(accountId);
-        
-        // Auto-close after showing message
         setTimeout(() => onClose(), 1500);
       }
     } catch (err: unknown) {
@@ -109,14 +113,13 @@ export default function CreateAccountModal({
     }
 
     // Construct full account ID
-    const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN || 'nova-sdk-5.testnet';
-    const fullAccountId = `${username}.${parentDomain}`;
+    const fullAccountId = `${username}.${PARENT_DOMAIN}`;
 
     console.log('Checking account:', { username, fullAccountId, isWalletUser });
 
     try {
       // Build payload with wallet_id if this is a wallet user
-      const payload: any = {
+      const payload: Record<string, string | undefined> = {
         username,
         email: userData?.email,
       };
@@ -131,7 +134,6 @@ export default function CreateAccountModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-
       });
 
       if (!checkRes.ok) {
@@ -164,9 +166,8 @@ export default function CreateAccountModal({
       console.log('Account created successfully:', newAccountId);
 
       setIsAccountCreated(true);
-      onAccountCreated(newAccountId); // This should log in the user client-side
-      onClose(); // Close the modal
-
+      onAccountCreated(newAccountId); // log in the account ID client-side
+      onClose();
     } catch (err: unknown) {
       console.error('Error during account creation:', err);
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
@@ -177,6 +178,11 @@ export default function CreateAccountModal({
   };
 
   if (!isOpen || !userData) return null;
+
+  // Display placeholder based on network
+  const accountPlaceholder = username
+    ? `${username}.${PARENT_DOMAIN}`
+    : `<username>.${PARENT_DOMAIN}`;
 
   return (
     <>
@@ -217,9 +223,7 @@ export default function CreateAccountModal({
                       maxLength={64}
                     />
                     <div className={styles.formText}>
-                      NOVA account: <strong>
-                        {username ? `${username}.${process.env.NEXT_PUBLIC_PARENT_DOMAIN || 'nova-sdk-5.testnet'}` : '<username>.nova-sdk-5.testnet'}
-                      </strong>
+                      NOVA account: <strong>{accountPlaceholder}</strong>
                     </div>
                   </div>
                   {error && (

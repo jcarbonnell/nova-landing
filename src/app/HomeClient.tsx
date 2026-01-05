@@ -40,42 +40,49 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const [connectedWalletId, setConnectedWalletId] = useState<string | undefined>();
   const autoSignInAttemptedRef = useRef(false);
   const walletCheckInProgressRef = useRef(false);
+  const sessionCheckInProgress = useRef(false);
+  const lastSessionCheck = useRef<number>(0);
+  const SESSION_CHECK_INTERVAL = 5000;
 
   // Verify session token before checking account
-  const verifySessionToken = useCallback(async () => {
-    // Skip Auth0 verification for wallet users
-    if (accountId || userData?.wallet_id) {
-      console.log('Wallet user - skipping Auth0 session verification');
-      setSessionTokenVerified(true);
-      return true;
-    }
-
-    if (!user?.email || sessionTokenVerified) return true;
-
-    console.log('Verifying Auth0 session token...');
-    
-    try {
-      const response = await fetch('/auth/profile');
-      
-      if (response.ok) {
-        setSessionTokenVerified(true);
-        return true;
-      } else {
-        console.warn('Session verification failed, status:', response.status);
-        
-        if (response.status === 401) {
-          console.log('Session expired, redirecting to login...');
-          setIsLoginOpen(true);
-          return false;
-        }
-        
-        return false;
-      }
-    } catch (err) {
-      console.error('Session verification error:', err);
+  const verifySessionToken = useCallback(async (): Promise<boolean> => {
+    // Prevent concurrent checks
+    if (sessionCheckInProgress.current) {
       return false;
     }
-  }, [user?.email, sessionTokenVerified, accountId, userData?.wallet_id]);
+  
+    // Throttle checks
+    const now = Date.now();
+    if (now - lastSessionCheck.current < SESSION_CHECK_INTERVAL) {
+      return false;
+    }
+  
+    sessionCheckInProgress.current = true;
+    lastSessionCheck.current = now;
+  
+    try {
+      const res = await fetch('/api/auth/verify', {
+        method: 'GET',
+        credentials: 'include',
+      });
+    
+      if (!res.ok) {
+        setSessionTokenVerified(false);
+        return false;
+      }
+    
+      const data = await res.json();
+      const isValid = !!data.valid;
+      setSessionTokenVerified(isValid); // ← Add this!
+      return isValid;
+    } catch (err) {
+      console.error('Session verification failed:', err);
+      setSessionTokenVerified(false);
+      return false;
+    } finally {
+      sessionCheckInProgress.current = false;
+    }
+  }, []);
 
   const checkExistingAccount = useCallback(async () => {
     if (!user?.email) {
@@ -85,14 +92,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     
     if (hasCheckedAccount) {
       console.log('Account already checked, skipping...');
-      return;
-    }
-
-    // Verify session before checking account
-    const tokenValid = await verifySessionToken();
-    if (!tokenValid) {
-      console.warn('Session token invalid, cannot proceed with account check');
-      setError('Session expired. Please log in again.');
       return;
     }
 
@@ -139,7 +138,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       setError(`Account check failed: ${errMsg}`);
       setHasCheckedAccount(false);
     }
-  }, [user?.email, hasCheckedAccount, verifySessionToken]);
+  }, [user?.email]);
 
   // AUTO-SIGN-IN FROM SHADE after account creation
   const selector = useWalletSelector();
@@ -232,7 +231,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       const displayName = existingAccountId.split('.')[0];
       setWelcomeMessage(`Signed in as ${displayName}!`);
       setTimeout(() => setWelcomeMessage(''), 6000);
-
     } catch (err) {
       console.error('Auto sign-in failed:', err);
     }
