@@ -1,6 +1,6 @@
 // src/components/PaymentModal.tsx
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from './ui/button';
 import styles from '@/styles/modal.module.css';
 
@@ -28,6 +28,18 @@ export default function PaymentModal({
   const [faucetSuccess, setFaucetSuccess] = useState('');
   const [pingPayReady, setPingPayReady] = useState(false);
   const pingPayInstanceRef = useRef<any>(null);
+
+  // Store callbacks in refs to avoid re-initialization loops
+  const onSubmitRef = useRef(onSubmit);
+  const onCloseRef = useRef(onClose);
+  const amountRef = useRef(amount);
+
+  // Keep refs updated
+  useEffect(() => {
+    onSubmitRef.current = onSubmit;
+    onCloseRef.current = onClose;
+    amountRef.current = amount;
+  }, [onSubmit, onClose, amount]);
 
   // Detect testnet
   const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK !== 'mainnet';
@@ -74,6 +86,12 @@ export default function PaymentModal({
     let mounted = true;
 
     const initPingPay = async () => {
+      // Prevent re-initialization if already ready
+      if (pingPayInstanceRef.current) {
+        console.log("PingPay already initialized, skipping");
+        return;
+      }
+
       setIsLoading(true);
       setError('');
 
@@ -94,7 +112,7 @@ export default function PaymentModal({
               result.data?.depositAddress || "pingpay-complete",
               result.data?.amount || amount
             );
-            onClose();
+            onCloseRef.current();
           },
           onProcessFailed: (errorInfo) => {
             console.error("PingPay process failed:", errorInfo);
@@ -129,20 +147,39 @@ export default function PaymentModal({
 
     return () => {
       mounted = false;
+      // Only cleanup when modal actually closes
+      if (!isOpen && pingPayInstanceRef.current) {
+        try {
+          pingPayInstanceRef.current.close?.();
+        } catch (e) {
+          console.warn("PingPay close error:", e);
+        }
+        pingPayInstanceRef.current = null;
+        setPingPayReady(false);
+      }
+    };
+  }, [isOpen, isTestnet, accountId]);
+
+  // Cleanup when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setFaucetSuccess("");
+      setError("");
+      // Clean up PingPay instance when modal closes
       if (pingPayInstanceRef.current) {
         try {
           pingPayInstanceRef.current.close?.();
         } catch (e) {
-          console.warn('PingPay close error:', e);
+          console.warn("PingPay close error:", e);
         }
         pingPayInstanceRef.current = null;
       }
       setPingPayReady(false);
-    };
-  }, [isOpen, isTestnet, accountId, amount, onSubmit, onClose]);
+    }
+  }, [isOpen]);
 
   // Handle initiating the onramp
-  const handleStartOnramp = async () => {
+  const handleStartOnramp = useCallback(() => {
     if (!pingPayInstanceRef.current) {
       setError("Payment SDK not initialized");
       return;
@@ -173,7 +210,7 @@ export default function PaymentModal({
       }
       setIsLoading(false);
     }
-  };
+  }, [accountId]);
 
   // Reset states when modal closes
   useEffect(() => {
@@ -297,11 +334,11 @@ export default function PaymentModal({
                   <div style={{ width: "100%", maxWidth: "540px" }}>
                     <div className="mb-4 p-4 bg-purple-500/20 border border-purple-500/50 rounded-lg text-center">
                       <p className="text-purple-200 text-sm mb-2">
-                        <strong>💳 Buy $NEAR with card payment</strong>
+                        <strong>💳 Buy NEAR with a card payment</strong>
                       </p>
                       <p className="text-gray-300 text-sm">
                         Click the button below to purchase NEAR tokens with your
-                        credit/debit card via PingPay.
+                        credit/debit card via PingPay. Those tokens will be burned through your file storage operations.
                       </p>
                     </div>
 
@@ -321,7 +358,7 @@ export default function PaymentModal({
                           Processing...
                         </span>
                       ) : (
-                        "Buy NEAR with credit/debit card"
+                        "Buy $NEAR tokens"
                       )}
                     </Button>
                   </div>
