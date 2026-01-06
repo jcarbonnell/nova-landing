@@ -19,7 +19,6 @@ export default function PaymentModal({
   onSubmit,
   onSkip,
   accountId,
-  email,
 }: PaymentModalProps) {
   const [amount, setAmount] = useState('10.00');
   const [error, setError] = useState('');
@@ -77,50 +76,45 @@ export default function PaymentModal({
   // Initialize PingPay widget (mainnet only)
   const handleStartOnramp = () => {
     if (!accountId) {
-      setError("No wallet address available");
+      setError('No wallet address available');
       return;
     }
 
     setIsLoading(true);
-    setError("");
+    setError('');
 
-    // Use dynamic import, then create instance and call initiateOnramp
-    import("@pingpay/onramp-sdk")
+    import('@pingpay/onramp-sdk')
       .then(({ PingpayOnramp }) => {
-        console.log("Creating PingPay instance...");
+        console.log('Creating PingPay instance...');
 
-        // Exactly like their example - create instance with callbacks only
+        const targetAssetDetails = { chain: 'NEAR', asset: 'wNEAR' };
+
         const onramp = new PingpayOnramp({
-          onPopupReady: () => {
-            console.log("Example: Popup is ready");
-          },
-          onProcessComplete: (result) => {
-            console.log("Example: Process complete", result);
-            onSubmit(
-              result.data?.depositAddress || "pingpay-complete",
-              result.data?.amount || amount
-            );
+          onPopupReady: () => console.log('PingPay: Popup is ready'),
+          onProcessComplete: (result: unknown) => {
+            console.log('PingPay: Process complete', result);
+            const data = (result as { data?: { depositAddress?: string; amount?: string } })?.data;
+            onSubmit(data?.depositAddress || 'pingpay-complete', data?.amount || amount);
             onClose();
           },
-          onProcessFailed: (errorInfo) => {
-            console.error("Example: Process failed", errorInfo);
-            setError(errorInfo?.error || "Payment failed");
+          onProcessFailed: (errorInfo: unknown) => {
+            console.error('PingPay: Process failed', errorInfo);
+            const errMsg = (errorInfo as { error?: string })?.error || 'Payment failed';
+            setError(errMsg);
             setIsLoading(false);
           },
           onPopupClose: () => {
-            console.log("Example: Popup was closed");
+            console.log('PingPay: Popup was closed');
             setIsLoading(false);
           },
-        });
+        } as any);
 
-        console.log("Calling initiateOnramp with targetAsset...");
-
-        // Pass targetAsset to initiateOnramp, exactly like their example
-        onramp.initiateOnramp({ chain: "NEAR", asset: "wNEAR" });
+        console.log('Calling initiateOnramp with targetAsset...');
+        onramp.initiateOnramp(targetAssetDetails);
       })
       .catch((err) => {
-        console.error("Failed to load PingPay SDK:", err);
-        setError("Failed to load payment SDK");
+        console.error('Failed to load PingPay SDK:', err);
+        setError('Failed to load payment SDK');
         setIsLoading(false);
       });
   };
@@ -228,11 +222,11 @@ export default function PaymentModal({
                 <div style={{ width: "100%", maxWidth: "540px" }}>
                   <div className="mb-4 p-4 bg-purple-500/20 border border-purple-500/50 rounded-lg text-center">
                     <p className="text-purple-200 text-sm mb-2">
-                      <strong>💳 Buy NEAR with a card payment</strong>
+                      <strong>💳 Get NEAR coins with a card payment</strong>
                     </p>
                     <p className="text-gray-300 text-sm">
-                      Click the button below to purchase NEAR tokens with your
-                      credit/debit card via PingPay.
+                      Click the button below to purchase NEAR credits with your
+                      credit/debit card via PingPay. These tokens will be burned through your file sharing operations.
                     </p>
                   </div>
 
@@ -252,7 +246,7 @@ export default function PaymentModal({
                         Processing...
                       </span>
                     ) : (
-                      "Buy $NEAR tokens"
+                      "Buy NEAR tokens"
                     )}
                   </Button>
                 </div>
