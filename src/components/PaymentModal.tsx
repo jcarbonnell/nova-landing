@@ -13,25 +13,6 @@ interface PaymentModalProps {
   email: string;
 }
 
-interface OnrampSessionEvent {
-  payload: { session: { status: string; [key: string]: unknown } };
-}
-
-interface OnrampSession {
-  mount: (el: HTMLElement) => void;
-  addEventListener: (event: 'onramp_session_updated', cb: (e: OnrampSessionEvent) => void) => void;
-  removeEventListener: (event: 'onramp_session_updated', cb: (e: OnrampSessionEvent) => void) => void;
-  setAppearance: (opts: { theme: 'dark' | 'light' }) => void;
-  unmount: () => void;
-}
-
-interface OnrampSessionRef {
-  session?: OnrampSession;
-  mounted?: boolean;
-  sessionId?: string;
-  amount?: number;
-}
-
 export default function PaymentModal({
   isOpen,
   onClose,
@@ -41,14 +22,12 @@ export default function PaymentModal({
   email,
 }: PaymentModalProps) {
   const [amount, setAmount] = useState('10.00');
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [scriptLoaded, setScriptLoaded] = useState(false);
   const [faucetLoading, setFaucetLoading] = useState(false);
   const [faucetSuccess, setFaucetSuccess] = useState('');
-  const onrampRef = useRef<HTMLDivElement>(null);
-  const sessionRef = useRef<OnrampSessionRef>({});
+  const [pingPayReady, setPingPayReady] = useState(false);
+  const pingPayInstanceRef = useRef<any>(null);
 
   // Detect testnet
   const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK !== 'mainnet';
@@ -88,147 +67,115 @@ export default function PaymentModal({
     }
   };
 
-  // Load Stripe script
+  // Initialize PingPay widget (mainnet only)
   useEffect(() => {
-    if (scriptLoaded || !isOpen || isTestnet) return;
+    if (!isOpen || isTestnet || !accountId) return;
 
-    const script = document.createElement('script');
-    script.src = 'https://crypto-js.stripe.com/crypto-onramp-outer.js';
-    script.async = true;
-    script.onload = () => {
-      console.log('Stripe Crypto script loaded');
-      setScriptLoaded(true);
-    };
-    script.onerror = () => {
-      console.error('Failed to load Stripe Crypto script');
-      setError('Failed to load payment interface');
-    };
-    document.head.appendChild(script);
+    let mounted = true;
 
-    return () => {
-      if (script.parentNode) script.parentNode.removeChild(script);
-    };
-  }, [scriptLoaded, isOpen, isTestnet]);
-
-  // Create session when modal opens
-  useEffect(() => {
-    if (!isOpen || !amount || isTestnet) return;
-
-    const createSession = async () => {
+    const initPingPay = async () => {
       setIsLoading(true);
       setError('');
-      
+
       try {
-        console.log('Creating Stripe onramp session...');
-        
-        const response = await fetch('/api/payments/create-onramp-session', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 
-            'Content-Type': 'application/json',
-            // Add wallet ID if available (passed as prop or from accountId)
-            ...(accountId && !email.includes('@') && { 'x-wallet-id': accountId }),
+        // Dynamic import to avoid SSR issues
+        const { PingpayOnramp } = await import('@pingpay/onramp-sdk');
+
+        if (!mounted) return;
+
+        // Initialize PingPay
+        const pingPay = new PingpayOnramp({
+          targetAsset: {
+            chain: "NEAR",
+            asset: "wNEAR",
           },
-          body: JSON.stringify({ accountId, email, amount }),
+          onPopupReady: () => {
+            console.log("PingPay popup ready");
+          },
+          onPopupClose: () => {
+            console.log("PingPay popup closed");
+          },
         });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `Server error: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('Session created:', data.sessionId);
-        
-        setClientSecret(data.clientSecret);
-        sessionRef.current = { 
-          sessionId: data.sessionId, 
-          amount: parseFloat(amount) 
-        };
-        
-      } catch (err: unknown) {
-        const errMsg = err instanceof Error ? err.message : 'Unknown error';
-        console.error('Stripe session creation failed');
-        setError(`Failed to initialize: ${errMsg}`);
-      } finally {
+        pingPayInstanceRef.current = pingPay;
+        setPingPayReady(true);
         setIsLoading(false);
-      }
-    };
-
-    createSession();
-  }, [isOpen, amount, accountId, email, isTestnet]);
-
-  // Mount Stripe Onramp element
-  useEffect(() => {
-    if (!clientSecret || !onrampRef.current || !scriptLoaded || sessionRef.current.mounted || isTestnet) {
-      return;
-    }
-
-    if (!window.StripeOnramp) {
-      console.error('StripeOnramp not available');
-      setError('Payment interface not loaded');
-      return;
-    }
-
-    // Define handler inside effect to capture current closure
-    const handleSessionUpdate = (e: OnrampSessionEvent) => {
-      console.log('Onramp session updated:', e.payload.session.status);
-    
-      if (e.payload.session.status === 'fulfillment_complete') {
-        const { sessionId, amount: sessionAmount } = sessionRef.current;
-        if (sessionId && sessionAmount) {
-          console.log('Payment completed, submitting...');
-          onSubmit(sessionId, sessionAmount.toString());
-          onClose();
+      } catch (err) {
+        console.error("PingPay init error:", err);
+        if (mounted) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Failed to initialize payment SDK"
+          );
+          setIsLoading(false);
         }
       }
     };
 
-    try {
-      console.log('Mounting Stripe Onramp widget...');
-      
-      const session = window.StripeOnramp.createSession({
-        clientSecret,
-        appearance: { theme: 'dark' },
-      });
-
-      session.mount(onrampRef.current);
-      session.addEventListener('onramp_session_updated', handleSessionUpdate);
-      
-      sessionRef.current = {
-        ...sessionRef.current,
-        session,
-        mounted: true,
-      };
-
-      console.log('Stripe Onramp mounted');
-      
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : 'Unknown error';
-      console.error('Stripe Onramp mount failed');
-      setError(`Failed to load payment: ${errMsg}`);
-    }
+    initPingPay();
 
     return () => {
-      if (sessionRef.current.session) {
+      mounted = false;
+      if (pingPayInstanceRef.current) {
         try {
-          sessionRef.current.session.removeEventListener(
-            'onramp_session_updated', 
-            handleSessionUpdate
-          );
-          sessionRef.current.session.unmount();
-        } catch (err) {
-          console.warn('Unmount error:', err);
+          pingPayInstanceRef.current.close?.();
+        } catch (e) {
+          console.warn('PingPay close error:', e);
         }
+        pingPayInstanceRef.current = null;
       }
+      setPingPayReady(false);
     };
-  }, [clientSecret, scriptLoaded, isTestnet, onSubmit, onClose]);
+  }, [isOpen, isTestnet, accountId]);
 
-  // Reset faucet states when modal closes
+  // Handle initiating the onramp
+  const handleStartOnramp = async () => {
+    if (!pingPayInstanceRef.current) {
+      setError("Payment SDK not initialized");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const { PingpayOnrampError } = await import("@pingpay/onramp-sdk");
+
+      const result = await pingPayInstanceRef.current.initiateOnramp();
+
+      console.log("PingPay onramp result:", result);
+
+      // notify parent component - PingPay already sent funds to user's wallet
+      onSubmit(result.depositAddress || "pingpay-complete", result.amount || amount);
+      onClose();
+    } catch (err) {
+      console.error("PingPay onramp error:", err);
+      const { PingpayOnrampError } = await import("@pingpay/onramp-sdk");
+
+      if (err instanceof PingpayOnrampError) {
+        setError(err.message);
+      } else if (err instanceof Error) {
+        // User likely closed the popup - not an error
+        if (err.message.toLowerCase().includes("closed") || err.message.toLowerCase().includes("cancelled")) {
+          console.log("User closed PingPay popup");
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError("Payment failed");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Reset states when modal closes
   useEffect(() => {
     if (!isOpen) {
       setFaucetSuccess('');
       setError('');
+      setPingPayReady(false);
     }
   }, [isOpen]);
 
@@ -315,50 +262,66 @@ export default function PaymentModal({
               </div>
             )}
 
-            {/* MAINNET: Amount selector */}
+            {/* MAINNET: PingPay onramp */}
             {!isTestnet && (
-              <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Amount (USD)</label>
-                <select
-                  className={styles.formControl}
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  disabled={isLoading || !!error}
-                >
-                  <option value="5.00">$5.00</option>
-                  <option value="10.00">$10.00</option>
-                  <option value="20.00">$20.00</option>
-                </select>
-              </div>
-            )}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  padding: "20px 0",
+                }}
+              >
+                {/* Error message */}
+                {error && (
+                  <div className={styles.alertDanger} style={{ width: "100%", maxWidth: "540px", marginBottom: "16px" }}>
+                    {error}
+                  </div>
+                )}
+
+                {/* Loading state */}
+                {isLoading && !pingPayReady && (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2" />
+                    <p>Loading payment options...</p>
+                  </div>
+                )}
             
-            {/* MAINNET: Error message */}
-            {error && !isTestnet && (
-              <div className={styles.alertDanger}>
-                {error}
-              </div>
-            )}
-            
-            {/* MAINNET: Loading state */}
-            {!isTestnet && isLoading && (
-              <div className="text-center py-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2" />
-                <p>Initializing payment...</p>
-              </div>
-            )}
-            
-            {/* MAINNET: Stripe payment widget */}
-            {!isTestnet && clientSecret && scriptLoaded && !isLoading && (
-              <div style={{ 
-                position: 'relative', 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center' 
-              }}>
-                <div
-                  ref={onrampRef}
-                  style={{ maxWidth: '540px', height: '500px', width: '100%' }}
-                />
+                {/* Ready state - show button to start onramp */}
+                {pingPayReady && (
+                  <div style={{ width: "100%", maxWidth: "540px" }}>
+                    <div className="mb-4 p-4 bg-purple-500/20 border border-purple-500/50 rounded-lg text-center">
+                      <p className="text-purple-200 text-sm mb-2">
+                        <strong>💳 Buy NEAR with Card</strong>
+                      </p>
+                      <p className="text-gray-300 text-sm">
+                        Click the button below to purchase NEAR tokens with your
+                        credit/debit card via PingPay.
+                      </p>
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={handleStartOnramp}
+                      disabled={isLoading}
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                      style={{
+                        fontSize: "16px",
+                        padding: "12px 24px",
+                      }}
+                    >
+                      {isLoading ? (
+                        <span className="flex items-center justify-center">
+                          <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                          Processing...
+                        </span>
+                      ) : (
+                        "Buy NEAR with Card"
+                      )}
+                    </Button>
+                  </div>
+                )}
+
                 <Button
                   type="button"
                   onClick={() => {
@@ -367,21 +330,14 @@ export default function PaymentModal({
                   }}
                   disabled={isLoading}
                   className={styles.buttonSecondary}
-                  style={{ 
-                    marginTop: '15px', 
-                    width: '100%', 
-                    maxWidth: '540px' 
+                  style={{
+                    marginTop: "15px",
+                    width: "100%",
+                    maxWidth: "540px",
                   }}
                 >
                   Skip Funding (Create Free Account)
                 </Button>
-              </div>
-            )}
-            
-            {/* MAINNET: Preparing message */}
-            {!isTestnet && !clientSecret && !isLoading && !error && (
-              <div className="text-center py-4">
-                Preparing secure payment...
               </div>
             )}
           </div>
