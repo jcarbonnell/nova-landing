@@ -10,6 +10,11 @@ const NOVA_MASTER_ACCOUNT = 'nova-sdk-6.testnet';
 const FAUCET_CONTRACT = 'v2.faucet.nonofficial.testnet';
 const FAUCET_REQUEST_AMOUNT = '2000000000000000000000000';
 
+const VALID_NOVA_SUFFIXES = [
+  '.nova-sdk-6.testnet',  // Current
+  '.nova-sdk-5.testnet',  // Legacy
+];
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -27,8 +32,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify this is a NOVA subaccount
-    if (!accountId.endsWith(`.${NOVA_MASTER_ACCOUNT}`)) {
-      console.log('Validation failed - accountId does not end with:', `.${NOVA_MASTER_ACCOUNT}`);
+    const isNovaSubaccount = VALID_NOVA_SUFFIXES.some(suffix => 
+      accountId.endsWith(suffix)
+    );
+
+    if (!isNovaSubaccount) {
+      console.log('Validation failed - accountId:', accountId);
+      console.log('Expected to end with one of:', VALID_NOVA_SUFFIXES);
       return NextResponse.json(
         { success: false, error: 'Can only fund NOVA subaccounts' },
         { status: 400 }
