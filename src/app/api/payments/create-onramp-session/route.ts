@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       body: new URLSearchParams({
         // Source: What the user pays (USD)
         'transaction_details[source_currency]': 'usd',
-        'transaction_details[source_amount]': String(parsedAmount),
+        'transaction_details[source_exchange_amount]': String(parsedAmount),
 
         // Destination: Where the crypto goes
         'transaction_details[destination_currency]': 'near',
