@@ -179,12 +179,7 @@ export default function PaymentModal({
   }, [isOpen]);
 
   // Handle initiating the onramp
-  const handleStartOnramp = useCallback(() => {
-    if (!pingPayInstanceRef.current) {
-      setError("Payment SDK not initialized");
-      return;
-    }
-
+  const handleStartOnramp = async () => {
     if (!accountId) {
       setError("No wallet address available");
       return;
@@ -194,33 +189,56 @@ export default function PaymentModal({
     setError("");
 
     try {
+      const { PingpayOnramp } = await import("@pingpay/onramp-sdk");
+
+      console.log("Creating fresh PingPay instance...");
+
+      // Create instance exactly like their example - on button click
+      const onramp = new PingpayOnramp({
+        onPopupReady: () => console.log("PingPay popup ready"),
+        onProcessComplete: (result) => {
+          console.log("PingPay process complete:", result);
+          onSubmit(
+            result.data?.depositAddress || "pingpay-complete",
+            result.data?.amount || amount
+          );
+          onClose();
+        },
+        onProcessFailed: (errorInfo) => {
+          console.error("PingPay process failed:", errorInfo);
+          setError(errorInfo?.error || "Payment failed");
+          setIsLoading(false);
+        },
+        onPopupClose: () => {
+          console.log("PingPay popup closed");
+          setIsLoading(false);
+        },
+      });
+
       console.log("Starting onramp for:", accountId);
 
-      // Pass targetAsset to initiateOnramp, callbacks handle the result
-      pingPayInstanceRef.current.initiateOnramp({
-        chain: "NEAR",
-        asset: "NEAR",
-      });
+      // Try with wNEAR - that's what their NEAR example uses
+      onramp.initiateOnramp({ chain: "NEAR", asset: "wNEAR" });
     } catch (err) {
-      console.error("PingPay onramp error:", err);
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Failed to open payment window");
-      }
+      console.error("PingPay error:", err);
+      setError(err instanceof Error ? err.message : "Failed to open payment");
       setIsLoading(false);
     }
-  }, [accountId]);
+  };
 
   // Reset states when modal closes
   useEffect(() => {
-    if (!isOpen) {
-      setFaucetSuccess('');
-      setError('');
-      setPingPayReady(false);
+    if (isOpen && !isTestnet && accountId) {
+      setPingPayReady(true);
     }
-  }, [isOpen]);
-
+    return () => {
+      if (!isOpen) {
+        setPingPayReady(false);
+        setError("");
+      }
+    };
+  }, [isOpen, isTestnet, accountId]);
+  
   if (!isOpen) return null;
 
   return (
