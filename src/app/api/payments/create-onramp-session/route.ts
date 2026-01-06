@@ -1,6 +1,6 @@
 // src/app/api/payments/create-onramp-session/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth0 } from '@/lib/auth0';
+import { auth0, isWalletOnlyUser } from '@/lib/auth0';
 
 // Stripe secret key for server-side API calls
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
@@ -21,11 +21,22 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
+    // Validate user - either Auth0 session OR wallet user
+    const isWalletUser = isWalletOnlyUser(req);
     
-    // Validate session
-    const session = await auth0.getSession();
-    if (!session?.user?.email || session.user.email !== email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (isWalletUser) {
+      // For wallet users, validate via wallet_id header or accountId
+      const walletId = req.headers.get('x-wallet-id');
+      if (!walletId && !accountId) {
+        return NextResponse.json({ error: 'Unauthorized - no wallet ID' }, { status: 401 });
+      }
+      console.log('Wallet user creating onramp session:', walletId || accountId);
+    } else {
+      // For Auth0 users, validate session
+      const session = await auth0.getSession();
+      if (!session?.user?.email || session.user.email !== email) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
     }
 
     const parsedAmount = parseFloat(amount);
@@ -42,7 +53,8 @@ export async function POST(req: NextRequest) {
       accountId, 
       email, 
       amount: parsedAmount, 
-      network 
+      network,
+      isWalletUser,
     });
 
     // Create onramp session via Stripe REST API
@@ -56,7 +68,7 @@ export async function POST(req: NextRequest) {
         // Source: What the user pays (USD)
         'transaction_details[source_currency]': 'usd',
         'transaction_details[source_amount]': String(parsedAmount),
-        
+
         // Destination: Where the crypto goes
         'transaction_details[destination_currency]': 'near',
         'transaction_details[destination_network]': network,
@@ -68,7 +80,7 @@ export async function POST(req: NextRequest) {
         [`wallet_addresses[${network}]`]: accountId, // Use network-specific key
         
         // Customer info
-        'customer_information[email]': email,
+        'customer_information[email]': email || `${accountId}@wallet.near`,
       }).toString(),
     });
 
@@ -93,9 +105,7 @@ export async function POST(req: NextRequest) {
         errorMessage = errorText.substring(0, 200);
       }
       
-      return NextResponse.json({ 
-        error: errorMessage 
-      }, { status: response.status });
+      return NextResponse.json({ error: errorMessage }, { status: response.status });
     }
 
     const sessionData = await response.json();

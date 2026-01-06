@@ -124,7 +124,11 @@ export default function PaymentModal({
         const response = await fetch('/api/payments/create-onramp-session', {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            // Add wallet ID if available (passed as prop or from accountId)
+            ...(accountId && !email.includes('@') && { 'x-wallet-id': accountId }),
+          },
           body: JSON.stringify({ accountId, email, amount }),
         });
 
