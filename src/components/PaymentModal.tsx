@@ -85,12 +85,21 @@ export default function PaymentModal({
 
         // Initialize PingPay
         const pingPay = new PingpayOnramp({
-          targetAsset: {
-            chain: "NEAR",
-            asset: "NEAR",
-          },
           onPopupReady: () => {
             console.log("PingPay popup ready");
+          },
+          onProcessComplete: (result) => {
+            console.log("PingPay process complete:", result);
+            onSubmit(
+              result.data?.depositAddress || "pingpay-complete",
+              result.data?.amount || amount
+            );
+            onClose();
+          },
+          onProcessFailed: (errorInfo) => {
+            console.error("PingPay process failed:", errorInfo);
+            setError(errorInfo?.error || "Payment failed");
+            setIsLoading(false);
           },
           onPopupClose: () => {
             console.log("PingPay popup closed");
@@ -130,7 +139,7 @@ export default function PaymentModal({
       }
       setPingPayReady(false);
     };
-  }, [isOpen, isTestnet, accountId]);
+  }, [isOpen, isTestnet, accountId, amount, onSubmit, onClose]);
 
   // Handle initiating the onramp
   const handleStartOnramp = async () => {
@@ -148,32 +157,20 @@ export default function PaymentModal({
     setError("");
 
     try {
-      const { PingpayOnrampError } = await import("@pingpay/onramp-sdk");
-
       console.log("Starting onramp for:", accountId);
 
-      const result = await pingPayInstanceRef.current.initiateOnramp();
-
-      console.log("PingPay onramp result:", result);
-      onSubmit(result.depositAddress || "pingpay-complete", result.amount || amount);
-      onClose();
+      // Pass targetAsset to initiateOnramp, callbacks handle the result
+      pingPayInstanceRef.current.initiateOnramp({
+        chain: "NEAR",
+        asset: "NEAR",
+      });
     } catch (err) {
       console.error("PingPay onramp error:", err);
-      const { PingpayOnrampError } = await import("@pingpay/onramp-sdk");
-
-      if (err instanceof PingpayOnrampError) {
+      if (err instanceof Error) {
         setError(err.message);
-      } else if (err instanceof Error) {
-        // User likely closed the popup - not an error
-        if (err.message.toLowerCase().includes("closed") || err.message.toLowerCase().includes("cancelled")) {
-          console.log("User closed PingPay popup");
-        } else {
-          setError(err.message);
-        }
       } else {
-        setError("Payment failed");
+        setError("Failed to open payment window");
       }
-    } finally {
       setIsLoading(false);
     }
   };
