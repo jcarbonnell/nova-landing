@@ -336,7 +336,7 @@ export default function PaymentModal({
                     maxWidth: "540px",
                   }}
                 >
-                  Skip Funding (Create Free Account)
+                  Skip Funding
                 </Button>
               </div>
             )}
