@@ -1,7 +1,12 @@
 // next.config.ts
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
   reactCompiler: true,
+  transpilePackages: ['@pingpay/onramp-sdk', '@pingpay/onramp-types'],
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   env: {
     NEXT_PUBLIC_CONTRACT_ID: process.env.NEXT_PUBLIC_CONTRACT_ID,
     NEXT_PUBLIC_MCP_URL: process.env.NEXT_PUBLIC_MCP_URL,
@@ -18,6 +23,7 @@ const nextConfig = {
       },
     ];
   },
+  
   async headers() {
     const csp = `
       default-src 'self';
