@@ -1,6 +1,6 @@
 // src/components/PaymentModal.tsx
 'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import styles from '@/styles/modal.module.css';
 
@@ -26,20 +26,6 @@ export default function PaymentModal({
   const [isLoading, setIsLoading] = useState(false);
   const [faucetLoading, setFaucetLoading] = useState(false);
   const [faucetSuccess, setFaucetSuccess] = useState('');
-  const [pingPayReady, setPingPayReady] = useState(false);
-  const pingPayInstanceRef = useRef<any>(null);
-
-  // Store callbacks in refs to avoid re-initialization loops
-  const onSubmitRef = useRef(onSubmit);
-  const onCloseRef = useRef(onClose);
-  const amountRef = useRef(amount);
-
-  // Keep refs updated
-  useEffect(() => {
-    onSubmitRef.current = onSubmit;
-    onCloseRef.current = onClose;
-    amountRef.current = amount;
-  }, [onSubmit, onClose, amount]);
 
   // Detect testnet
   const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK !== 'mainnet';
@@ -79,107 +65,17 @@ export default function PaymentModal({
     }
   };
 
-  // Initialize PingPay widget (mainnet only)
-  useEffect(() => {
-    if (!isOpen || isTestnet || !accountId) return;
-
-    let mounted = true;
-
-    const initPingPay = async () => {
-      // Prevent re-initialization if already ready
-      if (pingPayInstanceRef.current) {
-        console.log("PingPay already initialized, skipping");
-        return;
-      }
-
-      setIsLoading(true);
-      setError('');
-
-      try {
-        // Dynamic import to avoid SSR issues
-        const { PingpayOnramp } = await import('@pingpay/onramp-sdk');
-
-        if (!mounted) return;
-
-        // Initialize PingPay
-        const pingPay = new PingpayOnramp({
-          onPopupReady: () => {
-            console.log("PingPay popup ready");
-          },
-          onProcessComplete: (result) => {
-            console.log("PingPay process complete:", result);
-            onSubmit(
-              result.data?.depositAddress || "pingpay-complete",
-              result.data?.amount || amount
-            );
-            onCloseRef.current();
-          },
-          onProcessFailed: (errorInfo) => {
-            console.error("PingPay process failed:", errorInfo);
-            setError(errorInfo?.error || "Payment failed");
-            setIsLoading(false);
-          },
-          onPopupClose: () => {
-            console.log("PingPay popup closed");
-            setIsLoading(false);
-          },
-        });
-
-        pingPayInstanceRef.current = pingPay;
-        setPingPayReady(true);
-        setIsLoading(false);
-
-        console.log("PingPay initialized for account:", accountId);
-      } catch (err) {
-        console.error("PingPay init error:", err);
-        if (mounted) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Failed to initialize payment SDK"
-          );
-          setIsLoading(false);
-        }
-      }
-    };
-
-    initPingPay();
-
-    return () => {
-      mounted = false;
-      // Only cleanup when modal actually closes
-      if (!isOpen && pingPayInstanceRef.current) {
-        try {
-          pingPayInstanceRef.current.close?.();
-        } catch (e) {
-          console.warn("PingPay close error:", e);
-        }
-        pingPayInstanceRef.current = null;
-        setPingPayReady(false);
-      }
-    };
-  }, [isOpen, isTestnet, accountId]);
-
-  // Cleanup when modal closes
+  // Reset states when modal closes
   useEffect(() => {
     if (!isOpen) {
       setFaucetSuccess("");
       setError("");
-      // Clean up PingPay instance when modal closes
-      if (pingPayInstanceRef.current) {
-        try {
-          pingPayInstanceRef.current.close?.();
-        } catch (e) {
-          console.warn("PingPay close error:", e);
-        }
-        pingPayInstanceRef.current = null;
-      }
-      setPingPayReady(false);
+      setIsLoading(false);
     }
   }, [isOpen]);
 
-  // Handle initiating the onramp
-  const handleStartOnramp = async () => {
+  // Initialize PingPay widget (mainnet only)
+  const handleStartOnramp = () => {
     if (!accountId) {
       setError("No wallet address available");
       return;
@@ -188,57 +84,47 @@ export default function PaymentModal({
     setIsLoading(true);
     setError("");
 
-    try {
-      const { PingpayOnramp } = await import("@pingpay/onramp-sdk");
+    // Use dynamic import, then create instance and call initiateOnramp
+    import("@pingpay/onramp-sdk")
+      .then(({ PingpayOnramp }) => {
+        console.log("Creating PingPay instance...");
 
-      console.log("Creating fresh PingPay instance...");
+        // Exactly like their example - create instance with callbacks only
+        const onramp = new PingpayOnramp({
+          onPopupReady: () => {
+            console.log("Example: Popup is ready");
+          },
+          onProcessComplete: (result) => {
+            console.log("Example: Process complete", result);
+            onSubmit(
+              result.data?.depositAddress || "pingpay-complete",
+              result.data?.amount || amount
+            );
+            onClose();
+          },
+          onProcessFailed: (errorInfo) => {
+            console.error("Example: Process failed", errorInfo);
+            setError(errorInfo?.error || "Payment failed");
+            setIsLoading(false);
+          },
+          onPopupClose: () => {
+            console.log("Example: Popup was closed");
+            setIsLoading(false);
+          },
+        });
 
-      // Create instance exactly like their example - on button click
-      const onramp = new PingpayOnramp({
-        onPopupReady: () => console.log("PingPay popup ready"),
-        onProcessComplete: (result) => {
-          console.log("PingPay process complete:", result);
-          onSubmit(
-            result.data?.depositAddress || "pingpay-complete",
-            result.data?.amount || amount
-          );
-          onClose();
-        },
-        onProcessFailed: (errorInfo) => {
-          console.error("PingPay process failed:", errorInfo);
-          setError(errorInfo?.error || "Payment failed");
-          setIsLoading(false);
-        },
-        onPopupClose: () => {
-          console.log("PingPay popup closed");
-          setIsLoading(false);
-        },
+        console.log("Calling initiateOnramp with targetAsset...");
+
+        // Pass targetAsset to initiateOnramp, exactly like their example
+        onramp.initiateOnramp({ chain: "NEAR", asset: "wNEAR" });
+      })
+      .catch((err) => {
+        console.error("Failed to load PingPay SDK:", err);
+        setError("Failed to load payment SDK");
+        setIsLoading(false);
       });
-
-      console.log("Starting onramp for:", accountId);
-
-      // Try with wNEAR - that's what their NEAR example uses
-      onramp.initiateOnramp({ chain: "NEAR", asset: "wNEAR" });
-    } catch (err) {
-      console.error("PingPay error:", err);
-      setError(err instanceof Error ? err.message : "Failed to open payment");
-      setIsLoading(false);
-    }
   };
 
-  // Reset states when modal closes
-  useEffect(() => {
-    if (isOpen && !isTestnet && accountId) {
-      setPingPayReady(true);
-    }
-    return () => {
-      if (!isOpen) {
-        setPingPayReady(false);
-        setError("");
-      }
-    };
-  }, [isOpen, isTestnet, accountId]);
-  
   if (!isOpen) return null;
 
   return (
@@ -339,48 +225,37 @@ export default function PaymentModal({
                   </div>
                 )}
 
-                {/* Loading state */}
-                {isLoading && !pingPayReady && (
-                  <div className="text-center py-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2" />
-                    <p>Loading payment options...</p>
+                <div style={{ width: "100%", maxWidth: "540px" }}>
+                  <div className="mb-4 p-4 bg-purple-500/20 border border-purple-500/50 rounded-lg text-center">
+                    <p className="text-purple-200 text-sm mb-2">
+                      <strong>💳 Buy NEAR with a card payment</strong>
+                    </p>
+                    <p className="text-gray-300 text-sm">
+                      Click the button below to purchase NEAR tokens with your
+                      credit/debit card via PingPay.
+                    </p>
                   </div>
-                )}
-            
-                {/* Ready state - show button to start onramp */}
-                {pingPayReady && (
-                  <div style={{ width: "100%", maxWidth: "540px" }}>
-                    <div className="mb-4 p-4 bg-purple-500/20 border border-purple-500/50 rounded-lg text-center">
-                      <p className="text-purple-200 text-sm mb-2">
-                        <strong>💳 Buy NEAR with a card payment</strong>
-                      </p>
-                      <p className="text-gray-300 text-sm">
-                        Click the button below to purchase NEAR tokens with your
-                        credit/debit card via PingPay. Those tokens will be burned through your file storage operations.
-                      </p>
-                    </div>
 
-                    <Button
-                      type="button"
-                      onClick={handleStartOnramp}
-                      disabled={isLoading}
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                      style={{
-                        fontSize: "16px",
-                        padding: "12px 24px",
-                      }}
-                    >
-                      {isLoading ? (
-                        <span className="flex items-center justify-center">
-                          <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                          Processing...
-                        </span>
-                      ) : (
-                        "Buy $NEAR tokens"
-                      )}
-                    </Button>
-                  </div>
-                )}
+                  <Button
+                    type="button"
+                    onClick={handleStartOnramp}
+                    disabled={isLoading}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                    style={{
+                      fontSize: "16px",
+                      padding: "12px 24px",
+                    }}
+                  >
+                    {isLoading ? (
+                      <span className="flex items-center justify-center">
+                        <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                        Processing...
+                      </span>
+                    ) : (
+                      "Buy $NEAR tokens"
+                    )}
+                  </Button>
+                </div>
 
                 <Button
                   type="button"
