@@ -94,12 +94,15 @@ export default function PaymentModal({
           },
           onPopupClose: () => {
             console.log("PingPay popup closed");
+            setIsLoading(false);
           },
         });
 
         pingPayInstanceRef.current = pingPay;
         setPingPayReady(true);
         setIsLoading(false);
+
+        console.log("PingPay initialized for account:", accountId);
       } catch (err) {
         console.error("PingPay init error:", err);
         if (mounted) {
@@ -136,17 +139,22 @@ export default function PaymentModal({
       return;
     }
 
+    if (!accountId) {
+      setError("No wallet address available");
+      return;
+    }
+
     setIsLoading(true);
     setError("");
 
     try {
       const { PingpayOnrampError } = await import("@pingpay/onramp-sdk");
 
+      console.log("Starting onramp for:", accountId);
+
       const result = await pingPayInstanceRef.current.initiateOnramp();
 
       console.log("PingPay onramp result:", result);
-
-      // notify parent component - PingPay already sent funds to user's wallet
       onSubmit(result.depositAddress || "pingpay-complete", result.amount || amount);
       onClose();
     } catch (err) {
