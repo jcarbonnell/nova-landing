@@ -87,7 +87,7 @@ export default function PaymentModal({
         const pingPay = new PingpayOnramp({
           targetAsset: {
             chain: "NEAR",
-            asset: "wNEAR",
+            asset: "NEAR",
           },
           onPopupReady: () => {
             console.log("PingPay popup ready");
@@ -186,7 +186,7 @@ export default function PaymentModal({
       <div className={styles.modalDialog}>
         <div className={`${styles.modalContent} ${styles.paymentModal}`}>
           <div className={styles.modalHeader}>
-            <h5 className={styles.modalTitle}>Fund Your Wallet (Optional)</h5>
+            <h5 className={styles.modalTitle}>Fund Your Wallet</h5>
             <button type="button" className={styles.closeButton} onClick={onClose}>
               ×
             </button>
@@ -292,7 +292,7 @@ export default function PaymentModal({
                   <div style={{ width: "100%", maxWidth: "540px" }}>
                     <div className="mb-4 p-4 bg-purple-500/20 border border-purple-500/50 rounded-lg text-center">
                       <p className="text-purple-200 text-sm mb-2">
-                        <strong>💳 Buy NEAR with Card</strong>
+                        <strong>💳 Buy $NEAR with card payment</strong>
                       </p>
                       <p className="text-gray-300 text-sm">
                         Click the button below to purchase NEAR tokens with your
@@ -316,7 +316,7 @@ export default function PaymentModal({
                           Processing...
                         </span>
                       ) : (
-                        "Buy NEAR with Card"
+                        "Buy NEAR with credit/debit card"
                       )}
                     </Button>
                   </div>
