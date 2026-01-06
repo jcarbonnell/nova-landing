@@ -6,7 +6,7 @@ import { KeyPairSigner } from '@near-js/signers';
 import { KeyPair, KeyPairString } from '@near-js/crypto';
 import { actionCreators } from '@near-js/transactions';
 
-const NOVA_MASTER_ACCOUNT = 'nova-sdk-5.testnet';
+const NOVA_MASTER_ACCOUNT = 'nova-sdk-6.testnet';
 const FAUCET_CONTRACT = 'v2.faucet.nonofficial.testnet';
 const FAUCET_REQUEST_AMOUNT = '2000000000000000000000000';
 
