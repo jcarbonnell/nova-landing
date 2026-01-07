@@ -113,7 +113,7 @@ export default function PaymentModal({
         console.log('Calling initiateOnramp with targetAsset...');
         onramp.initiateOnramp({
           ...targetAssetDetails,
-          recipient: accountId,
+          recipientAddress: accountId,
       } as any);
       })
       .catch((err) => {
