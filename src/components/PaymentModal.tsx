@@ -87,9 +87,10 @@ export default function PaymentModal({
       .then(({ PingpayOnramp }) => {
         console.log('Creating PingPay instance...');
 
-        const targetAssetDetails = { chain: 'NEAR', asset: 'NEAR', recipient: accountId };
+        const targetAssetDetails = { chain: 'NEAR', asset: 'NEAR' };
 
         const onramp = new PingpayOnramp({
+          recipientAddress: accountId,
           onPopupReady: () => console.log('PingPay: Popup is ready'),
           onProcessComplete: (result: unknown) => {
             console.log('PingPay: Process complete', result);
@@ -110,7 +111,10 @@ export default function PaymentModal({
         } as any);
 
         console.log('Calling initiateOnramp with targetAsset...');
-        onramp.initiateOnramp(targetAssetDetails);
+        onramp.initiateOnramp({
+          ...targetAssetDetails,
+          recipient: accountId,
+      } as any);
       })
       .catch((err) => {
         console.error('Failed to load PingPay SDK:', err);
