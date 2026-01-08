@@ -25,6 +25,7 @@ export default function PaymentModal({
   const [isLoading, setIsLoading] = useState(false);
   const [faucetLoading, setFaucetLoading] = useState(false);
   const [faucetSuccess, setFaucetSuccess] = useState('');
+  const [copied, setCopied] = useState(false);
 
   // Detect testnet
   const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK !== 'mainnet';
@@ -117,6 +118,18 @@ export default function PaymentModal({
         setError('Failed to load payment SDK');
         setIsLoading(false);
       });
+  };
+
+  // copy account ID to clipboard for simplified funding
+  const copyToClipboard = async () => {
+    if (!accountId) return;
+    try {
+      await navigator.clipboard.writeText(accountId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
   };
 
   if (!isOpen) return null;
@@ -212,13 +225,6 @@ export default function PaymentModal({
                   padding: "20px 0",
                 }}
               >
-                {/* Connected Account Display */}
-                {accountId && (
-                  <div className="mb-4 p-3 bg-gray-800/50 rounded-lg" style={{ width: "100%", maxWidth: "540px" }}>
-                    <p className="text-gray-400 text-xs mb-1">Connected Account</p>
-                    <p className="text-purple-200 text-sm font-mono truncate">{accountId}</p>
-                  </div>
-                )}
 
                 {/* Error message */}
                 {error && (
@@ -238,6 +244,59 @@ export default function PaymentModal({
                     </p>
                   </div>
 
+                  {/* Connected Account Display */}
+                  {accountId && (
+                    <div
+                      className="mb-4 p-3 bg-gray-800/50 rounded-lg"
+                      style={{ width: "100%", maxWidth: "540px" }}
+                    >
+                      <p className="text-gray-400 text-xs mb-1">Connected Account</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-purple-200 text-sm font-mono truncate flex-1">
+                          {accountId}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={copyToClipboard}
+                          className="text-gray-400 hover:text-purple-300 transition-colors p-1 rounded hover:bg-gray-700/50"
+                          title="Copy to clipboard"
+                        >
+                          {copied ? (
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="text-green-400"
+                            >
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          ) : (
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
                   <Button
                     type="button"
                     onClick={handleStartOnramp}
