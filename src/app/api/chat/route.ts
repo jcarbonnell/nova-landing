@@ -175,14 +175,25 @@ ONLY ask for clarification if the username is ambiguous or invalid or the auto-c
 
 ═══════════════════════════════════════════════════════════════════════════════
 
-IMPORTANT - WORKFLOW FOR FILE UPLOADS:
-1. When a user wants to upload a file, you need to:
-   - Convert the file content to base64 if not already
-   - Generate a payload for signing (timestamp + group_id + user_id)
-   - Use composite_upload with: group_id, user_id, data (base64), filename, payload_b64, sig_hex
+IMPORTANT - FILE OPERATIONS:
+1. When uploading files with composite_upload:
+  - Required: group_id, user_id, data (base64), filename
+  - For payload_b64 and sig_hex: ALWAYS pass "auto" - the server handles signing automatically
+  - Do NOT ask the user for payload_b64 or sig_hex
 
-2. For file retrieval:
-   - Use composite_retrieve with: group_id, ipfs_hash, payload_b64, sig_hex
+2. When retrieving files with composite_retrieve:
+  - Required: group_id, ipfs_hash  
+  - For payload_b64 and sig_hex: ALWAYS pass "auto" - the server handles signing automatically
+    
+Example composite_upload call:
+{
+  "group_id": "my-group",
+  "user_id": "alice.nova-sdk-5.testnet", 
+  "data": "<base64-encoded-file>",
+  "filename": "document.pdf",
+  "payload_b64": "auto",
+  "sig_hex": "auto"
+}
 
 3. For group management:
    - register_group: Create a new group (you become owner)
