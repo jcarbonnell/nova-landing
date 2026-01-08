@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
     const userIdentifier = walletId || userEmail;
 
     const result = streamText({
-      model: anthropic('claude-sonnet-4-5@20250929'),
+      model: anthropic('claude-haiku-4-5-20251001'),
       system: `You are NOVA, a secure file-sharing assistant powered by the NOVA SDK.
 
 Your capabilities include:
