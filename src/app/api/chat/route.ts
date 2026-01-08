@@ -12,8 +12,13 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const MCP_URL = process.env.MCP_URL || 'https://nova-mcp.fastmcp.app';
-const NETWORK_ID = process.env.NEXT_PUBLIC_NETWORK_ID || 'testnet';
+const NETWORK_ID = process.env.NEXT_PUBLIC_NEAR_NETWORK || 'testnet';
 const ACCOUNT_SUFFIX = NETWORK_ID === 'mainnet' ? '.nova-sdk.near' : '.nova-sdk-5.testnet';
+
+console.log('=== NETWORK CONFIG ===');
+console.log('NEXT_PUBLIC_NEAR_NETWORK:', process.env.NEXT_PUBLIC_NEAR_NETWORK);
+console.log('NETWORK_ID resolved:', NETWORK_ID);
+console.log('ACCOUNT_SUFFIX:', ACCOUNT_SUFFIX);
 
 export async function POST(req: NextRequest) {
   let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
@@ -188,7 +193,7 @@ IMPORTANT - FILE OPERATIONS:
 Example composite_upload call:
 {
   "group_id": "my-group",
-  "user_id": "alice.nova-sdk-5.testnet", 
+  "user_id": "alice.nova-sdk.near", 
   "data": "<base64-encoded-file>",
   "filename": "document.pdf",
   "payload_b64": "auto",
