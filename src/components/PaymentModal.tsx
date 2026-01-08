@@ -212,6 +212,14 @@ export default function PaymentModal({
                   padding: "20px 0",
                 }}
               >
+                {/* Connected Account Display */}
+                {accountId && (
+                  <div className="mb-4 p-3 bg-gray-800/50 rounded-lg" style={{ width: "100%", maxWidth: "540px" }}>
+                    <p className="text-gray-400 text-xs mb-1">Connected Account</p>
+                    <p className="text-purple-200 text-sm font-mono truncate">{accountId}</p>
+                  </div>
+                )}
+
                 {/* Error message */}
                 {error && (
                   <div className={styles.alertDanger} style={{ width: "100%", maxWidth: "540px", marginBottom: "16px" }}>
