@@ -15,9 +15,7 @@ interface CreateAccountModalProps {
 
 // Derive parent domain from environment
 const NETWORK_ID = process.env.NEXT_PUBLIC_NEAR_NETWORK || 'testnet';
-const PARENT_DOMAIN =
-  process.env.NEXT_PUBLIC_PARENT_DOMAIN ||
-  (NETWORK_ID === 'mainnet' ? 'nova-sdk.near' : 'nova-sdk-6.testnet');
+const PARENT_DOMAIN = process.env.NEXT_PUBLIC_PARENT_DOMAIN || (NETWORK_ID === 'mainnet' ? 'nova-sdk.near' : 'nova-sdk-6.testnet');
 
 export default function CreateAccountModal({
   isOpen,
