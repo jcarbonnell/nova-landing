@@ -40,63 +40,58 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const [connectedWalletId, setConnectedWalletId] = useState<string | undefined>();
   const autoSignInAttemptedRef = useRef(false);
   const walletCheckInProgressRef = useRef(false);
-  const sessionCheckInProgress = useRef(false);
-  const lastSessionCheck = useRef<number>(0);
-  const SESSION_CHECK_INTERVAL = 5000;
 
   // Debugging: log flow state tracking
   useEffect(() => {
-    console.log('🔍 Flow State Check:', {
-      user: !!user,
-      userEmail: user?.email,
-      loading,
-      isSignedIn,
-      sessionTokenVerified,
-      hasCheckedAccount,
-      autoSignInAttempted: autoSignInAttemptedRef.current,
-      sessionCheckInProgress: sessionCheckInProgress.current,
-      walletCheckInProgress: walletCheckInProgressRef.current
-    });
-  }, [user, loading, isSignedIn, sessionTokenVerified, hasCheckedAccount]);
+  console.log('🔍 Flow State Check:', {
+    user: !!user,
+    userEmail: user?.email,
+    loading,
+    authLoading,
+    walletLoading,
+    isSignedIn,
+    sessionTokenVerified,
+    hasCheckedAccount,
+    autoSignInAttempted: autoSignInAttemptedRef.current,
+    walletCheckInProgress: walletCheckInProgressRef.current
+  });
+}, [user, loading, authLoading, walletLoading, isSignedIn, sessionTokenVerified, hasCheckedAccount]);
 
   // Verify session token before checking account
-  const verifySessionToken = useCallback(async (): Promise<boolean> => {
-    if (sessionCheckInProgress.current) {
-      return false;
+  const verifySessionToken = useCallback(async () => {
+    // Skip Auth0 verification for wallet users
+    if (accountId || userData?.wallet_id) {
+      console.log('Wallet user - skipping Auth0 session verification');
+      setSessionTokenVerified(true);
+      return true;
     }
-  
-    const now = Date.now();
-    // Only throttle AFTER the first successful check
-    if (sessionTokenVerified && now - lastSessionCheck.current < SESSION_CHECK_INTERVAL) {
-      return sessionTokenVerified;
-    }
-  
-    sessionCheckInProgress.current = true;
-    lastSessionCheck.current = now;
-  
-    try {
-      const res = await fetch('/api/auth/verify', {
-        method: 'GET',
-        credentials: 'include',
-      });
+
+    if (!user?.email || sessionTokenVerified) return true;
+
+    console.log('Verifying Auth0 session token...');
     
-      if (!res.ok) {
-        setSessionTokenVerified(false);
+    try {
+      const response = await fetch('/auth/profile');
+      
+      if (response.ok) {
+        setSessionTokenVerified(true);
+        return true;
+      } else {
+        console.warn('Session verification failed, status:', response.status);
+        
+        if (response.status === 401) {
+          console.log('Session expired, redirecting to login...');
+          setIsLoginOpen(true);
+          return false;
+        }
+        
         return false;
       }
-    
-      const data = await res.json();
-      const isValid = !!data.valid;
-      setSessionTokenVerified(isValid);
-      return isValid;
     } catch (err) {
-      console.error('Session verification failed:', err);
-      setSessionTokenVerified(false);
+      console.error('Session verification error:', err);
       return false;
-    } finally {
-      sessionCheckInProgress.current = false;
     }
-  }, [sessionTokenVerified]);
+  }, [user?.email, sessionTokenVerified, accountId, userData?.wallet_id]);
 
   const checkExistingAccount = useCallback(async () => {
     if (!user?.email) {
@@ -106,6 +101,14 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     
     if (hasCheckedAccount) {
       console.log('Account already checked, skipping...');
+      return;
+    }
+
+    // Verify session before checking account
+    const tokenValid = await verifySessionToken();
+    if (!tokenValid) {
+      console.warn('Session token invalid, cannot proceed with account check');
+      setError('Session expired. Please log in again.');
       return;
     }
 
@@ -152,7 +155,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       setError(`Account check failed: ${errMsg}`);
       setHasCheckedAccount(false);
     }
-  }, [user?.email]);
+  }, [user?.email, hasCheckedAccount, verifySessionToken]);
 
   // AUTO-SIGN-IN FROM SHADE after account creation
   const selector = useWalletSelector();
@@ -245,6 +248,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       const displayName = existingAccountId.split('.')[0];
       setWelcomeMessage(`Signed in as ${displayName}!`);
       setTimeout(() => setWelcomeMessage(''), 6000);
+
     } catch (err) {
       console.error('Auto sign-in failed:', err);
     }
@@ -318,23 +322,32 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   }, [setOnWalletConnect, handleWalletConnect]);
 
   useEffect(() => {
-  if (!user || loading || isSignedIn) return;
-
-  const runFlow = async () => {
-    // Step 1: Verify session (only once)
-    if (!sessionTokenVerified && !sessionCheckInProgress.current) {
-      const valid = await verifySessionToken();
-      if (!valid) return; // Exit if session invalid
+    if (!user || loading) {
+      console.log('Waiting for user/wallet load...');
+      return;
     }
 
-    // Step 2: Check account (only once after session verified)
-    if (sessionTokenVerified && !hasCheckedAccount && !autoSignInAttemptedRef.current) {
-      await checkExistingAccount();
+    if (isSignedIn) {
+      console.log('Already signed in');
+      return;
     }
-  };
 
-  runFlow();
-}, [user, loading, isSignedIn, sessionTokenVerified, hasCheckedAccount]);
+    // check if we need to auto-sign-in
+    if (!sessionTokenVerified) {
+      // Step 1: Verify session first
+      console.log('User logged in, verifying session...');
+      verifySessionToken();
+    } else if (!hasCheckedAccount) {
+      // Step 2: Then check for account
+      console.log('Session verified, checking account...');
+      checkExistingAccount();
+    } else if (hasCheckedAccount && sessionTokenVerified && !autoSignInAttemptedRef.current) {
+      // Step 3: Only attempt ONCE using ref
+      console.log('Account exists, attempting auto-sign-in...');
+      autoSignInAttemptedRef.current = true;
+      autoSignInFromShade();
+    }
+  }, [user, loading, isSignedIn, sessionTokenVerified, hasCheckedAccount, verifySessionToken, checkExistingAccount, autoSignInFromShade]);
 
   // logout message
   useEffect(() => {
@@ -349,19 +362,30 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   // reload client-side after server-side redirect
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
     const params = new URLSearchParams(window.location.search);
     const isCallback = params.has("code") || params.has("state") || params.has("token") || params.has("near");
     
     if (isCallback) {
-      console.log('OAuth callback detected, cleaning URL...');
-      // Use replaceState to avoid reload
+      console.log('OAuth callback detected, cleaning URL and resetting state...');
       window.history.replaceState({}, "", "/");
-      // Reset state for fresh flow
       setHasCheckedAccount(false);
       setSessionTokenVerified(false);
-      autoSignInAttemptedRef.current = false;
+      window.location.href = "/";
     }
+  }, []);
+
+  // in case the above runs too early, a fallback timeout
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const timer = setTimeout(() => {
+      if (window.location.search.includes("code=") || window.location.search.includes("token=")) {
+        console.log('Fallback: Cleaning OAuth params...');
+        setHasCheckedAccount(false);
+        setSessionTokenVerified(false);
+        window.location.href = "/";
+      }
+    }, 500);
+    return () => clearTimeout(timer);
   }, []);
 
   // login success message
