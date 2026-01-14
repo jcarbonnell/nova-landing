@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Send, Paperclip, X, FileIcon, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRef, useState, useCallback, useEffect } from 'react';
+import { importKey, encryptData, decryptData, hashData } from '@/lib/crypto';
 
 interface ChatInterfaceProps {
   accountId: string;
@@ -19,6 +20,19 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
   const [input, setInput] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    status: 'idle' | 'encrypting' | 'uploading' | 'complete' | 'error';
+    filename?: string;
+    error?: string;
+    result?: { cid: string; trans_id: string };
+  } | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<{
+    status: 'idle' | 'fetching' | 'decrypting' | 'complete' | 'error';
+    ipfsHash?: string;
+    error?: string;
+    result?: { data: ArrayBuffer; mimeType: string; filename: string };
+  } | null>(null);
+  const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set());
 
   const { 
     messages, 
@@ -74,6 +88,244 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     },
   });
 
+  const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const getGroupKey = useCallback(async (groupId: string): Promise<CryptoKey> => {
+    const response = await fetch('/api/nova/get-key', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-account-id': accountId,
+        ...(email && { 'x-user-email': email }),
+        ...(walletId && { 'x-wallet-id': walletId }),
+      },
+      body: JSON.stringify({ group_id: groupId }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'Failed to get encryption key');
+    }
+
+    const { key } = await response.json();
+    return importKey(key);
+  }, [accountId, email, walletId]);
+
+  const handleEncryptedUpload = useCallback(async (file: File, groupId: string) => {
+    setUploadProgress({ status: 'encrypting', filename: file.name });
+    setTimeout(() => setUploadProgress(null), 3000);
+
+    try {
+      // 1. Get key & encrypt
+      const key = await getGroupKey(groupId);
+      const plaintext = await readFileAsArrayBuffer(file);
+      const fileHash = await hashData(plaintext);
+      const encryptedData = await encryptData(plaintext, key);
+
+      // 2. Upload via API
+      setUploadProgress({ status: 'uploading', filename: file.name });
+
+      const response = await fetch('/api/nova/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-account-id': accountId,
+          ...(email && { 'x-user-email': email }),
+          ...(walletId && { 'x-wallet-id': walletId }),
+        },
+        body: JSON.stringify({
+          group_id: groupId,
+          encrypted_data: encryptedData,
+          filename: file.name,
+          file_hash: fileHash,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Upload failed');
+      }
+
+      const result = await response.json();
+      setUploadProgress({ status: 'complete', filename: file.name, result });
+
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Upload failed';
+      setUploadProgress({ status: 'error', filename: file.name, error: message });
+      throw error;
+    }
+  }, [accountId, email, walletId, getGroupKey]);
+
+  const handleEncryptedDownload = useCallback(async (groupId: string, ipfsHash: string) => {
+    setDownloadProgress({ status: 'fetching', ipfsHash });
+    setTimeout(() => setDownloadProgress(null), 3000);
+
+    try {
+      // 1. Fetch encrypted data from MCP
+      const retrieveResponse = await fetch('/api/nova/retrieve', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-account-id': accountId,
+          ...(email && { 'x-user-email': email }),
+          ...(walletId && { 'x-wallet-id': walletId }),
+        },
+        body: JSON.stringify({ group_id: groupId, ipfs_hash: ipfsHash }),
+      });
+
+      if (!retrieveResponse.ok) {
+        const err = await retrieveResponse.json();
+        throw new Error(err.error || 'Failed to retrieve file');
+      }
+
+      const { encrypted_b64 } = await retrieveResponse.json();
+
+      // 2. Get key & decrypt
+      setDownloadProgress({ status: 'decrypting', ipfsHash });
+
+      const key = await getGroupKey(groupId);
+      const decryptedData = await decryptData(encrypted_b64, key);
+
+      // 3. Detect mime type and create download
+      const mimeType = detectMimeType(new Uint8Array(decryptedData));
+      const filename = `file-${ipfsHash.slice(0, 8)}`;
+
+      setDownloadProgress({
+        status: 'complete',
+        ipfsHash,
+        result: { data: decryptedData, mimeType, filename },
+      });
+
+      // Trigger browser download
+      const blob = new Blob([decryptedData], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      return { mimeType, filename };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Download failed';
+      setDownloadProgress({ status: 'error', ipfsHash, error: message });
+      throw error;
+    }
+  }, [accountId, email, walletId, getGroupKey]);
+
+  const detectMimeType = (data: Uint8Array): string => {
+    // Check magic bytes
+    if (data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4E && data[3] === 0x47) return 'image/png';
+    if (data[0] === 0xFF && data[1] === 0xD8 && data[2] === 0xFF) return 'image/jpeg';
+    if (data[0] === 0x47 && data[1] === 0x49 && data[2] === 0x46) return 'image/gif';
+    if (data[0] === 0x25 && data[1] === 0x50 && data[2] === 0x44 && data[3] === 0x46) return 'application/pdf';
+    if (data[0] === 0x50 && data[1] === 0x4B) return 'application/zip';
+    
+    // Try UTF-8 decode for text
+    try {
+      new TextDecoder('utf-8', { fatal: true }).decode(data.slice(0, 1000));
+      return 'text/plain';
+    } catch {
+      return 'application/octet-stream';
+    }
+  };
+
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+
+    if (
+      lastMessage?.role === 'assistant' &&
+      pendingFiles.length > 0 &&
+      uploadProgress?.status !== 'encrypting' &&
+      uploadProgress?.status !== 'uploading' &&
+      !processedMessageIds.has(lastMessage.id)
+    ) {
+      // Pattern: "upload ... to group [group_id]" or "uploading ... to [group_id]"
+      const content = lastMessage.parts
+        ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+        .map(p => p.text)
+        .join(' ') || '';
+
+      const match = content.match(
+        /(?:upload|uploading).+(?:to|into) (?:group |["'])?([a-zA-Z0-9_-]+)["']?/i
+      );
+
+      if (match) {
+        setProcessedMessageIds(prev => new Set(prev).add(lastMessage.id));
+        const groupId = match[1];
+        const file = pendingFiles[0];
+
+        console.log(`Detected upload to group: ${groupId}`);
+
+        handleEncryptedUpload(file, groupId)
+          .then((result) => {
+            // Notify AI of success
+            sendMessage({
+              text: `✅ File "${file.name}" encrypted and uploaded successfully!\n- CID: ${result.cid}\n- Transaction: ${result.trans_id}`,
+            });
+            setPendingFiles(prev => prev.slice(1));
+          })
+          .catch((error) => {
+            sendMessage({
+              text: `❌ Upload failed: ${error.message}`,
+            });
+          });
+      }
+    }
+  }, [messages, pendingFiles, uploadProgress, handleEncryptedUpload, sendMessage, processedMessageIds]);
+
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+
+    if (
+      lastMessage?.role === 'assistant' &&
+      downloadProgress?.status !== 'fetching' &&
+      downloadProgress?.status !== 'decrypting' &&
+      !processedMessageIds.has(lastMessage.id)
+    ) {
+      const content = lastMessage.parts
+        ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+        .map(p => p.text)
+        .join(' ') || '';
+
+      // Pattern: "retrieve file [ipfs_hash] from group [group_id]"
+      const match = content.match(
+        /retrieve (?:file )?["']?(Qm[a-zA-Z0-9]+|bafy[a-zA-Z0-9]+)["']? from group ["']?([a-zA-Z0-9_-]+)["']?/i
+      );
+
+      if (match) {
+        setProcessedMessageIds(prev => new Set(prev).add(lastMessage.id));
+
+        const ipfsHash = match[1];
+        const groupId = match[2];
+
+        console.log(`Detected retrieve: ${ipfsHash} from ${groupId}`);
+
+        handleEncryptedDownload(groupId, ipfsHash)
+          .then(({ filename, mimeType }) => {
+            sendMessage({
+              text: `✅ File decrypted and downloaded successfully!\n- Filename: ${filename}\n- Type: ${mimeType}`,
+            });
+          })
+          .catch((error) => {
+            sendMessage({
+              text: `❌ Download failed: ${error.message}`,
+            });
+          });
+      }
+    }
+  }, [messages, downloadProgress, handleEncryptedDownload, sendMessage, processedMessageIds]);
+
   // Auto-scroll to bottom when messages change
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -104,51 +356,21 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     if (!input.trim() && pendingFiles.length === 0) return;
     if (status !== 'ready') return;
 
-    const messageText = input.trim() || `Uploading ${pendingFiles.length} file(s)`;
+    // Build message text
+    let messageText = input.trim();
     
-    // Send message with files if any
-    if (pendingFiles.length > 0 && fileInputRef.current?.files) {
-      // Use the FileList directly from the input element
-      sendMessage({
-        text: messageText,
-        files: fileInputRef.current.files,
-      });
-    } else if (pendingFiles.length > 0) {
-      // Convert File[] to FileUIPart[] format
-      const filePromises = pendingFiles.map(async (file): Promise<{
-        type: 'file';
-        mediaType: string;
-        filename: string;
-        url: string;
-      }> => {
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            resolve({
-              type: 'file',
-              mediaType: file.type || 'application/octet-stream',
-              filename: file.name,
-              url: reader.result as string,
-            });
-          };
-          reader.readAsDataURL(file);
-        });
-      });
-      
-      const fileUIParts = await Promise.all(filePromises);
-      sendMessage({
-        text: messageText,
-        files: fileUIParts,
-      });
-    } else {
-      sendMessage({
-        text: messageText,
-      });
+    // If files are pending, mention them but DON'T send file content to AI
+    if (pendingFiles.length > 0) {
+      const fileNames = pendingFiles.map(f => `${f.name} (${(f.size / 1024).toFixed(1)}KB)`).join(', ');
+      messageText = messageText 
+        ? `${messageText}\n\n📎 Attached files: ${fileNames}`
+        : `📎 I want to upload: ${fileNames}`;
     }
+
+    sendMessage({ text: messageText });
 
     // Clear state
     setInput('');
-    setPendingFiles([]);
     
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -483,6 +705,70 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Upload Progress */}
+      {uploadProgress && uploadProgress.status !== 'idle' && (
+        <div className="mx-4 mb-3 p-3 bg-purple-900/50 rounded-lg border border-purple-600/50">
+          <div className="flex items-center gap-2">
+            {uploadProgress.status === 'encrypting' && (
+              <>
+                <Loader2 size={16} className="animate-spin text-purple-400" />
+                <span className="text-sm text-purple-200">🔐 Encrypting {uploadProgress.filename}...</span>
+              </>
+            )}
+            {uploadProgress.status === 'uploading' && (
+              <>
+                <Loader2 size={16} className="animate-spin text-purple-400" />
+                <span className="text-sm text-purple-200">📤 Uploading encrypted data...</span>
+              </>
+            )}
+            {uploadProgress.status === 'complete' && (
+              <>
+                <CheckCircle size={16} className="text-green-400" />
+                <span className="text-sm text-green-300">✅ Upload complete!</span>
+              </>
+            )}
+            {uploadProgress.status === 'error' && (
+              <>
+                <AlertCircle size={16} className="text-red-400" />
+                <span className="text-sm text-red-300">❌ {uploadProgress.error}</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Download Progress */}
+      {downloadProgress && downloadProgress.status !== 'idle' && (
+        <div className="mx-4 mb-3 p-3 bg-purple-900/50 rounded-lg border border-purple-600/50">
+          <div className="flex items-center gap-2">
+            {downloadProgress.status === 'fetching' && (
+              <>
+                <Loader2 size={16} className="animate-spin text-purple-400" />
+                <span className="text-sm text-purple-200">📥 Fetching encrypted data...</span>
+              </>
+            )}
+            {downloadProgress.status === 'decrypting' && (
+              <>
+                <Loader2 size={16} className="animate-spin text-purple-400" />
+                <span className="text-sm text-purple-200">🔓 Decrypting file...</span>
+              </>
+            )}
+            {downloadProgress.status === 'complete' && (
+              <>
+                <CheckCircle size={16} className="text-green-400" />
+                <span className="text-sm text-green-300">✅ File decrypted!</span>
+              </>
+            )}
+            {downloadProgress.status === 'error' && (
+              <>
+                <AlertCircle size={16} className="text-red-400" />
+                <span className="text-sm text-red-300">❌ {downloadProgress.error}</span>
+              </>
+            )}
           </div>
         </div>
       )}
