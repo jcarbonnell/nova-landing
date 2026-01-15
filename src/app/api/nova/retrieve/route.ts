@@ -1,12 +1,11 @@
 // src/app/api/nova/retrieve/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud';
+// Your custom Pinata gateway (without /ipfs suffix - we'll add it)
+const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
 
 export async function POST(req: NextRequest) {
   const accountId = req.headers.get('x-account-id');
-  const walletId = req.headers.get('x-wallet-id');
-  const userEmail = req.headers.get('x-user-email');
 
   if (!accountId) {
     return NextResponse.json({ error: 'Missing account ID' }, { status: 400 });
@@ -39,9 +38,19 @@ export async function POST(req: NextRequest) {
   console.log('retrieve request:', { accountId, group_id, ipfs_hash });
 
   try {
-    // Fetch encrypted data from IPFS via Pinata gateway
-    const gatewayUrl = `${PINATA_GATEWAY}/ipfs/${ipfs_hash}`;
+    // Build gateway URL
+    // Handle both formats: "https://gateway.com/ipfs" and "https://gateway.com/ipfs/"
+    const gateway = PINATA_GATEWAY.endsWith('/') 
+      ? PINATA_GATEWAY.slice(0, -1) 
+      : PINATA_GATEWAY;
     
+    // If gateway already ends with /ipfs, don't add it again
+    const gatewayUrl = gateway.endsWith('/ipfs')
+      ? `${gateway}/${ipfs_hash}`
+      : `${gateway}/ipfs/${ipfs_hash}`;
+
+    console.log('Fetching from:', gatewayUrl);
+
     const response = await fetch(gatewayUrl, {
       method: 'GET',
       headers: {
@@ -54,7 +63,7 @@ export async function POST(req: NextRequest) {
       if (response.status === 404) {
         return NextResponse.json({ error: 'File not found on IPFS' }, { status: 404 });
       }
-      throw new Error('Failed to retrieve file from IPFS');
+      throw new Error(`Failed to retrieve file from IPFS: ${response.status}`);
     }
 
     // Get the encrypted data as text (it's base64-encoded)

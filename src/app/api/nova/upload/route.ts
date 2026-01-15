@@ -1,13 +1,14 @@
 // src/app/api/nova/upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-const SHADE_API_URL = process.env.NEXT_PUBLIC_SHADE_API_URL;
-const PINATA_JWT = process.env.PINATA_JWT;
+const PINATA_API_KEY = process.env.IPFS_API_KEY;
+const PINATA_API_SECRET = process.env.IPFS_API_SECRET;
+const PINATA_GATEWAY = process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs';
 const MCP_BASE = process.env.MCP_URL || 'https://nova-mcp.fastmcp.app';
 const MCP_ENDPOINT = MCP_BASE.endsWith('/mcp') ? MCP_BASE : `${MCP_BASE}/mcp`;
 
-if (!SHADE_API_URL) {
-  console.error('NEXT_PUBLIC_SHADE_API_URL is not configured');
+if (!PINATA_API_KEY || !PINATA_API_SECRET) {
+  console.error('IPFS_API_KEY or IPFS_API_SECRET is not configured');
 }
 
 export async function POST(req: NextRequest) {
@@ -17,6 +18,10 @@ export async function POST(req: NextRequest) {
 
   if (!accountId) {
     return NextResponse.json({ error: 'Missing account ID' }, { status: 400 });
+  }
+
+  if (!PINATA_API_KEY || !PINATA_API_SECRET) {
+    return NextResponse.json({ error: 'IPFS credentials not configured' }, { status: 500 });
   }
 
   let body;
@@ -82,19 +87,26 @@ export async function POST(req: NextRequest) {
 }
 
 async function uploadToIPFS(encryptedData: string, filename: string): Promise<string> {
-  if (!PINATA_JWT) {
-    throw new Error('PINATA_JWT not configured');
-  }
-
   // Create form data with the encrypted content
   const blob = new Blob([encryptedData], { type: 'application/octet-stream' });
   const formData = new FormData();
   formData.append('file', blob, filename);
 
+  // Optional: Add metadata
+  const metadata = JSON.stringify({
+    name: filename,
+    keyvalues: {
+      encrypted: 'true',
+      source: 'nova-sdk',
+    },
+  });
+  formData.append('pinataMetadata', metadata);
+
   const response = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${PINATA_JWT}`,
+      'pinata_api_key': PINATA_API_KEY!,
+      'pinata_secret_api_key': PINATA_API_SECRET!,
     },
     body: formData,
   });
@@ -102,7 +114,7 @@ async function uploadToIPFS(encryptedData: string, filename: string): Promise<st
   if (!response.ok) {
     const errorText = await response.text();
     console.error('Pinata upload failed:', response.status, errorText.substring(0, 200));
-    throw new Error('IPFS upload failed');
+    throw new Error(`IPFS upload failed: ${response.status}`);
   }
 
   const data = await response.json();
@@ -135,7 +147,6 @@ async function recordTransaction(params: {
   }
 
   // Call MCP to record the transaction on NEAR
-  // This handles the blockchain transaction signing via Shade TEE
   const response = await fetch(MCP_ENDPOINT, {
     method: 'POST',
     headers: mcpHeaders,
