@@ -1,7 +1,7 @@
 // src/app/api/nova/get-key/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-const MCP_URL = process.env.MCP_URL || 'https://nova-mcp.fastmcp.app';
+const MCP_URL = process.env.MCP_URL || 'https://nova-mcp.fastmcp.app/mcp';
 
 export async function POST(req: NextRequest) {
   const accountId = req.headers.get('x-account-id');
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   try {
     // Call MCP's get_shade_key tool via the MCP protocol
-    const response = await fetch(`${MCP_URL}/mcp`, {
+    const response = await fetch(`${MCP_URL}`, {
       method: 'POST',
       headers: mcpHeaders,
       body: JSON.stringify({
