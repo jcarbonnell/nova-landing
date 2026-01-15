@@ -1,15 +1,23 @@
 // src/app/api/nova/get-key/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-const MCP_URL = process.env.MCP_URL || 'https://nova-mcp.fastmcp.app/mcp';
+const SHADE_API_URL = process.env.NEXT_PUBLIC_SHADE_API_URL;
+
+if (!SHADE_API_URL) {
+  console.error('NEXT_PUBLIC_SHADE_API_URL is not configured');
+}
 
 export async function POST(req: NextRequest) {
   const accountId = req.headers.get('x-account-id');
   const walletId = req.headers.get('x-wallet-id');
   const userEmail = req.headers.get('x-user-email');
-  
+
   if (!accountId) {
     return NextResponse.json({ error: 'Missing account ID' }, { status: 400 });
+  }
+
+  if (!SHADE_API_URL) {
+    return NextResponse.json({ error: 'Shade API URL not configured' }, { status: 500 });
   }
 
   let body;
@@ -20,69 +28,74 @@ export async function POST(req: NextRequest) {
   }
 
   const { group_id } = body;
-  
+
   if (!group_id) {
     return NextResponse.json({ error: 'group_id required' }, { status: 400 });
   }
 
-  // Build headers for MCP
-  const mcpHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'x-account-id': accountId,
-  };
-  
-  if (walletId) {
-    mcpHeaders['Authorization'] = `Bearer wallet:${walletId}`;
-    mcpHeaders['x-wallet-id'] = walletId;
-  }
-  if (userEmail) {
-    mcpHeaders['x-user-email'] = userEmail;
-  }
+  console.log('get-key request:', { 
+    accountId, 
+    group_id, 
+    hasWalletId: !!walletId,
+    hasEmail: !!userEmail 
+  });
 
   try {
-    // Call MCP's get_shade_key tool via the MCP protocol
-    const response = await fetch(`${MCP_URL}`, {
+    // Call Shade key-management API directly
+    // Using account_id auth (same as server.py when payload_b64/sig_hex are "auto")
+    const shadeResponse = await fetch(`${SHADE_API_URL}/api/key-management/get_key`, {
       method: 'POST',
-      headers: mcpHeaders,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'tools/call',
-        params: {
-          name: 'get_shade_key',
-          arguments: {
-            group_id,
-            payload_b64: 'auto',
-            sig_hex: 'auto',
-          },
-        },
+        group_id,
+        account_id: accountId,
       }),
     });
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('MCP get_shade_key error:', error);
-      return NextResponse.json({ error: 'Failed to get key from MCP' }, { status: response.status });
+    if (!shadeResponse.ok) {
+      const errorText = await shadeResponse.text();
+      console.error('Shade get_key failed:', {
+        status: shadeResponse.status,
+        error: errorText.substring(0, 200),
+        group_id,
+        accountId,
+      });
+
+      // Map common Shade errors to user-friendly messages
+      if (shadeResponse.status === 404) {
+        return NextResponse.json({ 
+          error: 'Group key not found. The group may not exist or you may not have access.' 
+        }, { status: 404 });
+      }
+      if (shadeResponse.status === 403) {
+        return NextResponse.json({ 
+          error: 'Access denied. You are not authorized for this group.' 
+        }, { status: 403 });
+      }
+
+      return NextResponse.json({ 
+        error: 'Failed to retrieve encryption key from Shade TEE' 
+      }, { status: shadeResponse.status });
     }
 
-    const data = await response.json();
-    
-    // MCP returns result in jsonrpc format
-    if (data.error) {
-      console.error('MCP tool error:', data.error);
-      return NextResponse.json({ error: data.error.message || 'MCP tool failed' }, { status: 500 });
+    const shadeData = await shadeResponse.json();
+
+    const key = shadeData.key;
+    const checksum = shadeData.checksum;
+
+    if (!key || !checksum) {
+      console.error('Invalid Shade response: missing key or checksum', { 
+        hasKey: !!key, 
+        hasChecksum: !!checksum 
+      });
+      return NextResponse.json({ 
+        error: 'Invalid response from Shade TEE: missing key data' 
+      }, { status: 500 });
     }
 
-    // Extract key from MCP response
-    // The tool returns the key directly or in a content array
-    let key = data.result;
-    if (data.result?.content) {
-      // Handle MCP content array format
-      const textContent = data.result.content.find((c: { type: string }) => c.type === 'text');
-      key = textContent?.text || data.result;
-    }
+    console.log('Retrieved encryption key for:', { group_id, accountId, checksum });
 
-    return NextResponse.json({ key });
+    return NextResponse.json({ key, checksum });
   } catch (error) {
     console.error('get-key error:', error);
     return NextResponse.json(

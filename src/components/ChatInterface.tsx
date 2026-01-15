@@ -245,6 +245,7 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     }
   };
 
+  // Watch for AI upload confirmation
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
 
@@ -255,29 +256,37 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
       uploadProgress?.status !== 'uploading' &&
       !processedMessageIds.has(lastMessage.id)
     ) {
-      // Pattern: "upload ... to group [group_id]" or "uploading ... to [group_id]"
       const content = lastMessage.parts
         ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
         .map(p => p.text)
         .join(' ') || '';
 
-      // Specific pattern: "upload [filename] to group [group_id]"
+      // Pattern: "I'll upload [filename] to group [group_id]"
+      // - Requires "I'll upload" or "I'll upload" (curly apostrophe)
+      // - Captures the group_id which must start with alphanumeric and can contain _ or -
+      // - Group ID must be followed by end of string, whitespace, or punctuation
       const match = content.match(
-        /upload .+ to group ["']?([a-zA-Z0-9_-]+)["']?/i
+        /I['']ll upload .+? to group ["']?([a-zA-Z0-9][a-zA-Z0-9_-]*)["']?(?:\s|$|[.,!?])/i
       );
 
       if (match) {
         const groupId = match[1];
         const file = pendingFiles[0];
 
-        console.log(`Detected upload to group: ${groupId}, file: ${file.name}`);
+        // Validate that groupId looks reasonable (not common words)
+        const invalidGroupNames = ['the', 'a', 'an', 'this', 'that', 'it', 'file', 'data', 'test'];
+        if (invalidGroupNames.includes(groupId.toLowerCase()) && !groupId.includes('_')) {
+          console.log(`Skipping invalid group name: ${groupId}`);
+          return;
+        }
+
+        console.log(`Detected upload confirmation: ${file.name} -> group ${groupId}`);
 
         // Mark as processed BEFORE starting async operation
         setProcessedMessageIds(prev => new Set(prev).add(lastMessage.id));
 
         handleEncryptedUpload(file, groupId)
           .then((result) => {
-            // Notify AI of success
             sendMessage({
               text: `✅ File "${file.name}" encrypted and uploaded successfully!\n- CID: ${result.cid}\n- Transaction: ${result.trans_id}`,
             });
@@ -307,16 +316,17 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
         .map(p => p.text)
         .join(' ') || '';
 
-      // Pattern: "retrieve file [ipfs_hash] from group [group_id]"
+      // Pattern: "I'll retrieve [CID] from group [group_id]"
+      // CID starts with "Qm" or "bafy"
       const match = content.match(
-        /retrieve (?:file )?["']?(Qm[a-zA-Z0-9]+|bafy[a-zA-Z0-9]+)["']? from group ["']?([a-zA-Z0-9_-]+)["']?/i
+        /I['']ll retrieve (?:file )?["']?(Qm[a-zA-Z0-9]{44,}|bafy[a-zA-Z0-9]{50,})["']? from group ["']?([a-zA-Z0-9][a-zA-Z0-9_-]*)["']?/i
       );
 
       if (match) {
         const ipfsHash = match[1];
         const groupId = match[2];
 
-        console.log(`Detected retrieve: ${ipfsHash} from ${groupId}`);
+        console.log(`Detected retrieve confirmation: ${ipfsHash} from group ${groupId}`);
 
         // Mark as processed BEFORE starting async operation
         setProcessedMessageIds(prev => new Set(prev).add(lastMessage.id));
