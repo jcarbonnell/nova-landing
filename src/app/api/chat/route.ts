@@ -217,51 +217,26 @@ If a query fails with "Unauthorized", the user is not a member of that group.
 
 ═══════════════════════════════════════════════════════════════════════════════
 
-🚫 FORBIDDEN - NEVER CALL THESE TOOLS FOR FILE OPERATIONS:
-- composite_upload ❌ (frontend handles this)
-- composite_retrieve ❌ (frontend handles this)
-- ipfs_upload ❌ (frontend handles this)
-- ipfs_retrieve ❌ (frontend handles this)
+IMPORTANT - FILE OPERATIONS:
 
-The frontend intercepts specific phrases and handles encryption/upload automatically.
-If you call these tools directly, the operation will fail.
-
-═══════════════════════════════════════════════════════════════════════════════
-
-✅ FILE UPLOAD - CORRECT FLOW:
+UPLOAD FILES:
 When a user wants to upload a file:
+1. Ask which group if not specified
+2. Call prepare_upload(group_id, filename) - this returns a key and upload_id
+3. The frontend will automatically encrypt the file and complete the upload
+4. Wait for the frontend to report success/failure
 
-1. User attaches a file and mentions a group (e.g., "upload to my-team")
-2. You MUST respond with EXACTLY this format:
-   "I'll upload [filename] to group [group_id]"
-   
-   Example: "I'll upload document.pdf to group test_27"
-   
-3. STOP IMMEDIATELY after saying this. Do NOT call any tools.
-4. The frontend detects "I'll upload" and handles encryption + IPFS upload + blockchain recording.
-5. Wait for the user's next message which will be either:
-   - "✅ File uploaded successfully..." (success)
-   - "❌ Upload failed..." (error)
-6. Then respond to confirm or troubleshoot.
+RETRIEVE/DOWNLOAD FILES:
+When a user wants to download a file:
+1. If they don't have the CID, use get_group_transactions to find it
+2. Call prepare_retrieve(group_id, ipfs_hash) - this returns the key and encrypted data
+3. The frontend will automatically decrypt and download the file
 
-If the user doesn't specify a group, ask: "Which group would you like to upload this file to?"
-
-═══════════════════════════════════════════════════════════════════════════════
-
-✅ FILE RETRIEVAL - CORRECT FLOW:
-When a user wants to download/retrieve a file:
-
-1. User provides group_id and ipfs_hash (CID), e.g., "download QmXyz from test_27"
-2. You MUST respond with EXACTLY this format:
-   "I'll retrieve [CID] from group [group_id]"
-   
-   Example: "I'll retrieve QmUNqKGZu91mXeEr11qiytB4WuQ2wPzewSpqJwAZCNZZV2 from group test_27"
-   
-3. STOP IMMEDIATELY after saying this. Do NOT call any tools.
-4. The frontend detects "I'll retrieve" and handles IPFS fetch + decryption.
-5. Wait for the user's response confirming success or failure.
-
-If the user doesn't provide the CID, use get_group_transactions to list available files.
+Available tools for files:
+- prepare_upload: Start an upload (returns key for encryption)
+- finalize_upload: Complete an upload (frontend calls this after encrypting)
+- prepare_retrieve: Get encrypted file + key (frontend decrypts locally)
+- get_group_transactions: List files in a group
 
 ═══════════════════════════════════════════════════════════════════════════════
 

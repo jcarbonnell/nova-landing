@@ -14,13 +14,27 @@ interface ChatInterfaceProps {
   walletId?: string;
 }
 
+interface PrepareUploadResult {
+  upload_id: string;
+  key: string;
+  group_id: string;
+  filename: string;
+}
+
+interface PrepareRetrieveResult {
+  key: string;
+  encrypted_b64: string;
+  ipfs_hash: string;
+  group_id: string;
+}
+
 export default function ChatInterface({ accountId, email, walletId }: ChatInterfaceProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set());
+  const [processedToolCalls, setProcessedToolCalls] = useState<Set<string>>(new Set());
   
   const [uploadProgress, setUploadProgress] = useState<{
     status: 'idle' | 'encrypting' | 'uploading' | 'complete' | 'error';
@@ -68,7 +82,6 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     async onToolCall({ toolCall }) {
       if (toolCall.dynamic) {
         console.log('Dynamic tool call:', toolCall.toolName, toolCall.input);
-        return;
       }
     },
     
@@ -91,43 +104,28 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     });
   };
 
-  // Get encryption key from MCP via API
-  const getGroupKey = useCallback(async (groupId: string): Promise<CryptoKey> => {
-    const response = await fetch('/api/nova/get-key', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-account-id': accountId,
-        ...(email && { 'x-user-email': email }),
-        ...(walletId && { 'x-wallet-id': walletId }),
-      },
-      body: JSON.stringify({ group_id: groupId }),
-    });
-
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Failed to get encryption key');
+  // Handle prepare_upload tool result - encrypt and finalize
+  const handlePrepareUpload = useCallback(async (result: PrepareUploadResult) => {
+    const file = pendingFiles.find(f => f.name === result.filename);
+    if (!file) {
+      console.error('File not found for upload:', result.filename);
+      sendMessage({ text: `❌ Upload failed: File "${result.filename}" not found in pending files.` });
+      return;
     }
 
-    const { key } = await response.json();
-    return importKey(key);
-  }, [accountId, email, walletId]);
-
-  const handleEncryptedUpload = useCallback(async (file: File, groupId: string) => {
     setUploadProgress({ status: 'encrypting', filename: file.name });
-    setTimeout(() => setUploadProgress(null), 3000);
 
     try {
-      // 1. Get key & encrypt
-      const key = await getGroupKey(groupId);
+      // Import key and encrypt
+      const key = await importKey(result.key);
       const plaintext = await readFileAsArrayBuffer(file);
       const fileHash = await hashData(plaintext);
       const encryptedData = await encryptData(plaintext, key);
 
-      // 2. Upload via API
       setUploadProgress({ status: 'uploading', filename: file.name });
 
-      const response = await fetch('/api/nova/upload', {
+      // Call finalize-upload endpoint
+      const response = await fetch('/api/nova/finalize-upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -136,9 +134,8 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
           ...(walletId && { 'x-wallet-id': walletId }),
         },
         body: JSON.stringify({
-          group_id: groupId,
+          upload_id: result.upload_id,
           encrypted_data: encryptedData,
-          filename: file.name,
           file_hash: fileHash,
         }),
       });
@@ -148,62 +145,41 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
         throw new Error(err.error || 'Upload failed');
       }
 
-      const result = await response.json();
-      setUploadProgress({ status: 'complete', filename: file.name, result });
-
+      const uploadResult = await response.json();
+      
+      setUploadProgress({ status: 'complete', filename: file.name, result: uploadResult });
       setTimeout(() => setUploadProgress(null), 3000);
 
-      return result;
+      // Remove file from pending
+      setPendingFiles(prev => prev.filter(f => f.name !== result.filename));
+
+      // Notify chat
+      sendMessage({
+        text: `✅ File "${file.name}" uploaded successfully!\n- CID: ${uploadResult.cid}\n- Transaction: ${uploadResult.trans_id}`,
+      });
+
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Upload failed';
       setUploadProgress({ status: 'error', filename: file.name, error: message });
-      
       setTimeout(() => setUploadProgress(null), 5000);
-      
-      throw error;
+      sendMessage({ text: `❌ Upload failed: ${message}` });
     }
-  }, [accountId, email, walletId, getGroupKey]);
+  }, [accountId, email, walletId, pendingFiles, sendMessage]);
 
-  const handleEncryptedDownload = useCallback(async (groupId: string, ipfsHash: string) => {
-    setDownloadProgress({ status: 'fetching', ipfsHash });
+  // Handle prepare_retrieve tool result - decrypt and download
+  const handlePrepareRetrieve = useCallback(async (result: PrepareRetrieveResult) => {
+    setDownloadProgress({ status: 'decrypting', ipfsHash: result.ipfs_hash });
 
     try {
-      // 1. Fetch encrypted data from MCP
-      const retrieveResponse = await fetch('/api/nova/retrieve', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-account-id': accountId,
-          ...(email && { 'x-user-email': email }),
-          ...(walletId && { 'x-wallet-id': walletId }),
-        },
-        body: JSON.stringify({ group_id: groupId, ipfs_hash: ipfsHash }),
-      });
+      // Import key and decrypt
+      const key = await importKey(result.key);
+      const decryptedData = await decryptData(result.encrypted_b64, key);
 
-      if (!retrieveResponse.ok) {
-        const err = await retrieveResponse.json();
-        throw new Error(err.error || 'Failed to retrieve file');
-      }
-
-      const { encrypted_b64 } = await retrieveResponse.json();
-
-      // 2. Get key & decrypt
-      setDownloadProgress({ status: 'decrypting', ipfsHash });
-
-      const key = await getGroupKey(groupId);
-      const decryptedData = await decryptData(encrypted_b64, key);
-
-      // 3. Detect mime type and create download
+      // Detect mime type
       const mimeType = detectMimeType(new Uint8Array(decryptedData));
-      const filename = `file-${ipfsHash.slice(0, 8)}`;
+      const filename = `file-${result.ipfs_hash.slice(0, 8)}`;
 
-      setDownloadProgress({
-        status: 'complete',
-        ipfsHash,
-        result: { data: decryptedData, mimeType, filename },
-      });
-
-      // Trigger browser download
+      // Trigger download
       const blob = new Blob([decryptedData], { type: mimeType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -214,18 +190,21 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
+      setDownloadProgress({ status: 'complete', ipfsHash: result.ipfs_hash });
       setTimeout(() => setDownloadProgress(null), 3000);
 
-      return { mimeType, filename };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Download failed';
-      setDownloadProgress({ status: 'error', ipfsHash, error: message });
-      
-      setTimeout(() => setDownloadProgress(null), 5000);
+      // Notify chat
+      sendMessage({
+        text: `✅ File decrypted and downloaded!\n- Filename: ${filename}\n- Type: ${mimeType}`,
+      });
 
-      throw error;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Decryption failed';
+      setDownloadProgress({ status: 'error', ipfsHash: result.ipfs_hash, error: message });
+      setTimeout(() => setDownloadProgress(null), 5000);
+      sendMessage({ text: `❌ Download failed: ${message}` });
     }
-  }, [accountId, email, walletId, getGroupKey]);
+  }, [sendMessage]);
 
   // Detect MIME type from magic bytes
   const detectMimeType = (data: Uint8Array): string => {
@@ -245,106 +224,39 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     }
   };
 
-  // Watch for AI upload confirmation
+  // Watch for tool call results in messages
   useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
+    for (const message of messages) {
+      if (message.role !== 'assistant') continue;
 
-    if (
-      lastMessage?.role === 'assistant' &&
-      pendingFiles.length > 0 &&
-      uploadProgress?.status !== 'encrypting' &&
-      uploadProgress?.status !== 'uploading' &&
-      !processedMessageIds.has(lastMessage.id)
-    ) {
-      const content = lastMessage.parts
-        ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-        .map(p => p.text)
-        .join(' ') || '';
+      for (const part of message.parts) {
+        // Handle dynamic tool calls (MCP tools)
+        if (part.type === 'dynamic-tool' && part.state === 'output-available') {
+          const toolCallId = `${message.id}-${part.toolName}-${JSON.stringify(part.input)}`;
+          
+          if (processedToolCalls.has(toolCallId)) continue;
 
-      // Pattern: "I'll upload [filename] to group [group_id]"
-      // - Requires "I'll upload" or "I'll upload" (curly apostrophe)
-      // - Captures the group_id which must start with alphanumeric and can contain _ or -
-      // - Group ID must be followed by end of string, whitespace, or punctuation
-      const match = content.match(
-        /I['']ll upload .+? to group ["']?([a-zA-Z0-9][a-zA-Z0-9_-]*)["']?(?:\s|$|[.,!?])/i
-      );
+          // Handle prepare_upload result
+          if (part.toolName === 'prepare_upload' && part.output) {
+            const output = typeof part.output === 'string' ? JSON.parse(part.output) : part.output;
+            if (output.upload_id && output.key) {
+              setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
+              handlePrepareUpload(output as PrepareUploadResult);
+            }
+          }
 
-      if (match) {
-        const groupId = match[1];
-        const file = pendingFiles[0];
-
-        // Validate that groupId looks reasonable (not common words)
-        const invalidGroupNames = ['the', 'a', 'an', 'this', 'that', 'it', 'file', 'data', 'test'];
-        if (invalidGroupNames.includes(groupId.toLowerCase()) && !groupId.includes('_')) {
-          console.log(`Skipping invalid group name: ${groupId}`);
-          return;
+          // Handle prepare_retrieve result
+          if (part.toolName === 'prepare_retrieve' && part.output) {
+            const output = typeof part.output === 'string' ? JSON.parse(part.output) : part.output;
+            if (output.key && output.encrypted_b64) {
+              setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
+              handlePrepareRetrieve(output as PrepareRetrieveResult);
+            }
+          }
         }
-
-        console.log(`Detected upload confirmation: ${file.name} -> group ${groupId}`);
-
-        // Mark as processed BEFORE starting async operation
-        setProcessedMessageIds(prev => new Set(prev).add(lastMessage.id));
-
-        handleEncryptedUpload(file, groupId)
-          .then((result) => {
-            sendMessage({
-              text: `✅ File "${file.name}" encrypted and uploaded successfully!\n- CID: ${result.cid}\n- Transaction: ${result.trans_id}`,
-            });
-            setPendingFiles(prev => prev.slice(1));
-          })
-          .catch((error) => {
-            sendMessage({
-              text: `❌ Upload failed: ${error.message}`,
-            });
-          });
       }
     }
-  }, [messages, pendingFiles, uploadProgress, handleEncryptedUpload, sendMessage, processedMessageIds]);
-
-  // Watch for AI retrieve confirmation
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-
-    if (
-      lastMessage?.role === 'assistant' &&
-      downloadProgress?.status !== 'fetching' &&
-      downloadProgress?.status !== 'decrypting' &&
-      !processedMessageIds.has(lastMessage.id)
-    ) {
-      const content = lastMessage.parts
-        ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-        .map(p => p.text)
-        .join(' ') || '';
-
-      // Pattern: "I'll retrieve [CID] from group [group_id]"
-      // CID starts with "Qm" or "bafy"
-      const match = content.match(
-        /I['']ll retrieve (?:file )?["']?(Qm[a-zA-Z0-9]{44,}|bafy[a-zA-Z0-9]{50,})["']? from group ["']?([a-zA-Z0-9][a-zA-Z0-9_-]*)["']?/i
-      );
-
-      if (match) {
-        const ipfsHash = match[1];
-        const groupId = match[2];
-
-        console.log(`Detected retrieve confirmation: ${ipfsHash} from group ${groupId}`);
-
-        // Mark as processed BEFORE starting async operation
-        setProcessedMessageIds(prev => new Set(prev).add(lastMessage.id));
-
-        handleEncryptedDownload(groupId, ipfsHash)
-          .then(({ filename, mimeType }) => {
-            sendMessage({
-              text: `✅ File decrypted and downloaded successfully!\n- Filename: ${filename}\n- Type: ${mimeType}`,
-            });
-          })
-          .catch((error) => {
-            sendMessage({
-              text: `❌ Download failed: ${error.message}`,
-            });
-          });
-      }
-    }
-  }, [messages, downloadProgress, handleEncryptedDownload, sendMessage, processedMessageIds]);
+  }, [messages, processedToolCalls, handlePrepareUpload, handlePrepareRetrieve]);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
@@ -369,7 +281,7 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     setPendingFiles(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  // Submit message with files
+  // Submit message - send file metadata only, not content
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -379,17 +291,15 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     // Build message text
     let messageText = input.trim();
     
-    // If files are pending, mention them but DON'T send file content to AI
+    // Include file metadata (not content)
     if (pendingFiles.length > 0) {
-      const fileNames = pendingFiles.map(f => `${f.name} (${(f.size / 1024).toFixed(1)}KB)`).join(', ');
+      const fileInfo = pendingFiles.map(f => `${f.name} (${(f.size / 1024).toFixed(1)}KB)`).join(', ');
       messageText = messageText 
-        ? `${messageText}\n\n📎 Attached files: ${fileNames}`
-        : `📎 upload: ${fileNames}`;
+        ? `${messageText}\n\n📎 Files to upload: ${fileInfo}`
+        : `📎 Please upload: ${fileInfo}`;
     }
 
     sendMessage({ text: messageText });
-
-    // Clear input but keep pendingFiles (will be uploaded when AI confirms group)
     setInput('');
     
     if (fileInputRef.current) {
@@ -417,7 +327,7 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     handleFileSelect(e.dataTransfer.files);
   }, [handleFileSelect]);
 
-  // Render message content based on parts
+  // Render message content
   const renderMessageContent = (message: typeof messages[0]) => {
     return message.parts.map((part, index) => {
       switch (part.type) {
@@ -429,7 +339,6 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
           );
 
         case 'file':
-          // Render file attachments
           if (part.mediaType?.startsWith('image/')) {
             return (
               <div key={index} className="mt-2">
@@ -468,7 +377,6 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
             <hr key={index} className="my-2 border-purple-700/50" />
           ) : null;
 
-        // Handle dynamic tools (MCP tools)
         case 'dynamic-tool':
           return (
             <div key={index} className="mt-2 p-3 bg-purple-900/40 rounded-lg border border-purple-700/50">
@@ -483,24 +391,11 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
                 <span>Tool: {part.toolName}</span>
               </div>
               
-              {part.state === 'input-streaming' && (
-                <pre className="mt-2 text-xs text-purple-300 overflow-x-auto">
-                  {JSON.stringify(part.input, null, 2)}
-                </pre>
-              )}
-              
-              {part.state === 'input-available' && (
-                <div className="mt-1 text-xs text-purple-400">
-                  Processing...
-                </div>
-              )}
-              
-              {part.state === 'output-available' && (
-                <div className="mt-2 text-sm text-green-300">
-                  {typeof part.output === 'string' 
-                    ? part.output 
-                    : JSON.stringify(part.output, null, 2)
-                  }
+              {part.state === 'output-available' && part.toolName !== 'prepare_upload' && part.toolName !== 'prepare_retrieve' && (
+                <div className="mt-2 text-sm text-green-300 overflow-x-auto">
+                  <pre className="whitespace-pre-wrap">
+                    {typeof part.output === 'string' ? part.output : JSON.stringify(part.output, null, 2)}
+                  </pre>
                 </div>
               )}
               
@@ -513,48 +408,6 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
           );
 
         default:
-          // Handle other tool types generically
-          if (part.type.startsWith('tool-')) {
-            // Cast to access common tool properties
-            const toolPart = part as {
-              type: string;
-              state?: 'input-streaming' | 'input-available' | 'output-available' | 'output-error';
-              output?: string | number | boolean | object | null;
-              errorText?: string;
-            };
-
-            // Safely convert output to string for display
-            const outputDisplay = toolPart.output != null
-              ? (typeof toolPart.output === 'string' 
-                  ? toolPart.output 
-                  : JSON.stringify(toolPart.output, null, 2))
-              : null;
-
-            return (
-              <div key={index} className="mt-2 p-3 bg-purple-900/40 rounded-lg border border-purple-700/50">
-                <div className="flex items-center gap-2 text-sm font-medium text-purple-200">
-                  {toolPart.state === 'output-available' ? (
-                    <CheckCircle size={14} className="text-green-400" />
-                  ) : toolPart.state === 'output-error' ? (
-                    <AlertCircle size={14} className="text-red-400" />
-                  ) : (
-                    <Loader2 size={14} className="animate-spin text-purple-400" />
-                  )}
-                  <span>{part.type.replace('tool-', '')}</span>
-                </div>
-                {toolPart.state === 'output-available' && outputDisplay && (
-                  <div className="mt-2 text-sm text-green-300">
-                    {outputDisplay}
-                  </div>
-                )}
-                {toolPart.state === 'output-error' && toolPart.errorText && (
-                  <div className="mt-2 text-sm text-red-300">
-                    Error: {toolPart.errorText}
-                  </div>
-                )}
-              </div>
-            );
-          }
           return null;
       }
     });
@@ -649,18 +502,6 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
               <div className="flex items-center space-x-2">
                 <Loader2 size={16} className="animate-spin" />
                 <span className="text-sm">Thinking...</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Streaming Indicator */}
-        {status === 'streaming' && (
-          <div className="flex justify-start">
-            <div className="bg-purple-900/40 text-purple-300 px-3 py-1.5 rounded-full text-xs">
-              <div className="flex items-center space-x-1.5">
-                <div className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-pulse" />
-                <span>Streaming...</span>
               </div>
             </div>
           </div>
