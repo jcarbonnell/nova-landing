@@ -241,28 +241,34 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
             content?: Array<{ text?: string; type?: string }>;
           };
 
-          // Extract the actual data from structuredContent or content[0].text
+          // Extract the actual data - prioritize structuredContent
           let output: Record<string, unknown> | null = null;
           
-          if (rawOutput.structuredContent) {
+          if (rawOutput.structuredContent && typeof rawOutput.structuredContent === 'object') {
             output = rawOutput.structuredContent;
+            console.log('>>> Extracted from structuredContent:', output);
           } else if (rawOutput.content?.[0]?.text) {
             try {
               output = JSON.parse(rawOutput.content[0].text);
+              console.log('>>> Extracted from content[0].text:', output);
             } catch {
-              console.error('Failed to parse tool output');
+              console.error('Failed to parse tool output from content');
             }
           } else if (typeof part.output === 'string') {
             try {
               output = JSON.parse(part.output);
+              console.log('>>> Extracted from string:', output);
             } catch {
               console.error('Failed to parse string output');
             }
           }
 
-          if (!output) continue;
+          if (!output) {
+            console.log('>>> No output extracted, skipping');
+            continue;
+          }
 
-          console.log('>>> Processing tool result:', part.toolName, output);
+          console.log('>>> Checking output for upload_id:', output.upload_id, 'key:', output.key);
 
           if (part.toolName === 'prepare_upload' && output.upload_id && output.key) {
             console.log('>>> Triggering handlePrepareUpload');
