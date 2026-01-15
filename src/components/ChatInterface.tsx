@@ -226,6 +226,21 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
 
   // Watch for tool call results in messages
   useEffect(() => {
+    // DEBUG: Log all message parts to see the structure
+    for (const message of messages) {
+      if (message.role !== 'assistant') continue;
+      for (const part of message.parts) {
+        if (part.type === 'dynamic-tool') {
+          console.log('DEBUG dynamic-tool part:', {
+            toolName: part.toolName,
+            state: part.state,
+            hasOutput: !!part.output,
+            output: part.output,
+          });
+        }
+      }
+    }
+    
     for (const message of messages) {
       if (message.role !== 'assistant') continue;
 
