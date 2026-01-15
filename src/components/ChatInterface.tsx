@@ -226,71 +226,56 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
 
   // Watch for tool call results in messages
   useEffect(() => {
-    console.log('=== useEffect triggered, messages count:', messages.length);
-    
-    const lastMessage = messages[messages.length - 1];
-    if (!lastMessage) {
-      console.log('No messages yet');
-      return;
-    }
-    
-    console.log('Last message:', {
-      id: lastMessage.id,
-      role: lastMessage.role,
-      partsCount: lastMessage.parts?.length,
-    });
-    
-    if (lastMessage.role !== 'assistant') {
-      console.log('Last message is not from assistant, skipping');
-      return;
-    }
-    
-    console.log('All parts in last message:');
-    lastMessage.parts?.forEach((part, i) => {
-      console.log(`  Part ${i}:`, {
-        type: part.type,
-        ...(part.type === 'text' && { textPreview: part.text?.substring(0, 50) }),
-        ...(part.type === 'dynamic-tool' && { 
-          toolName: part.toolName, 
-          state: part.state,
-          hasOutput: 'output' in part,
-          output: part.output,
-        }),
-      });
-    });
-
-    // Now the actual logic
     for (const message of messages) {
       if (message.role !== 'assistant') continue;
 
       for (const part of message.parts) {
-        if (part.type === 'dynamic-tool' && part.state === 'output-available') {
-          const toolCallId = `${message.id}-${part.toolName}-${JSON.stringify(part.input)}`;
+        if (part.type === 'dynamic-tool' && part.state === 'output-available' && part.output) {
+          const toolCallId = `${message.id}-${part.toolName}`;
           
-          if (processedToolCalls.has(toolCallId)) {
-            console.log('Already processed:', toolCallId);
-            continue;
-          }
+          if (processedToolCalls.has(toolCallId)) continue;
 
-          console.log('Processing tool result:', part.toolName, part.output);
+          // Cast output to any to access nested properties
+          const rawOutput = part.output as {
+            structuredContent?: Record<string, unknown>;
+            content?: Array<{ text?: string; type?: string }>;
+          };
 
-          if (part.toolName === 'prepare_upload' && part.output) {
-            const output = typeof part.output === 'string' ? JSON.parse(part.output) : part.output;
-            console.log('Parsed prepare_upload output:', output);
-            
-            if (output.upload_id && output.key) {
-              console.log('Triggering handlePrepareUpload');
-              setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
-              handlePrepareUpload(output as PrepareUploadResult);
+          // Extract the actual data from structuredContent or content[0].text
+          let output: Record<string, unknown> | null = null;
+          
+          if (rawOutput.structuredContent) {
+            output = rawOutput.structuredContent;
+          } else if (rawOutput.content?.[0]?.text) {
+            try {
+              output = JSON.parse(rawOutput.content[0].text);
+            } catch {
+              console.error('Failed to parse tool output');
+            }
+          } else if (typeof part.output === 'string') {
+            try {
+              output = JSON.parse(part.output);
+            } catch {
+              console.error('Failed to parse string output');
             }
           }
 
-          if (part.toolName === 'prepare_retrieve' && part.output) {
-            const output = typeof part.output === 'string' ? JSON.parse(part.output) : part.output;
-            if (output.key && output.encrypted_b64) {
-              setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
-              handlePrepareRetrieve(output as PrepareRetrieveResult);
-            }
+          if (!output) continue;
+
+          console.log('>>> Processing tool result:', part.toolName, output);
+
+          if (part.toolName === 'prepare_upload' && output.upload_id && output.key) {
+            console.log('>>> Triggering handlePrepareUpload');
+            setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
+            handlePrepareUpload(output as unknown as PrepareUploadResult);
+            return;
+          }
+
+          if (part.toolName === 'prepare_retrieve' && output.key && output.encrypted_b64) {
+            console.log('>>> Triggering handlePrepareRetrieve');
+            setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
+            handlePrepareRetrieve(output as unknown as PrepareRetrieveResult);
+            return;
           }
         }
       }
