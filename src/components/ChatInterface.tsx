@@ -20,24 +20,25 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
   const [input, setInput] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set());
+  
   const [uploadProgress, setUploadProgress] = useState<{
     status: 'idle' | 'encrypting' | 'uploading' | 'complete' | 'error';
     filename?: string;
     error?: string;
     result?: { cid: string; trans_id: string };
   } | null>(null);
+
   const [downloadProgress, setDownloadProgress] = useState<{
     status: 'idle' | 'fetching' | 'decrypting' | 'complete' | 'error';
     ipfsHash?: string;
     error?: string;
     result?: { data: ArrayBuffer; mimeType: string; filename: string };
   } | null>(null);
-  const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set());
 
   const { 
     messages, 
-    sendMessage, 
-    addToolOutput,
+    sendMessage,
     status,
     error,
     stop,
@@ -47,11 +48,9 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     
     transport: new DefaultChatTransport({
       api: '/api/chat',
-      // Custom fetch to inject headers
       fetch: async (url, options = {}) => {
         const headers = new Headers(options.headers);
         headers.set('x-account-id', accountId);
-
         if (email) headers.set('x-user-email', email);
         if (walletId) headers.set('x-wallet-id', walletId);
 
@@ -67,15 +66,10 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     
     // Handle client-side tool execution
     async onToolCall({ toolCall }) {
-      // Check for dynamic tools first (MCP tools are dynamic)
       if (toolCall.dynamic) {
         console.log('Dynamic tool call:', toolCall.toolName, toolCall.input);
-        // MCP tools are server-executed, no client action needed
         return;
       }
-      
-      // Handle any client-side tools here if needed
-      // For NOVA, most tools are server-side MCP tools
     },
     
     onError: (error) => {
@@ -97,6 +91,7 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     });
   };
 
+  // Get encryption key from MCP via API
   const getGroupKey = useCallback(async (groupId: string): Promise<CryptoKey> => {
     const response = await fetch('/api/nova/get-key', {
       method: 'POST',
@@ -156,17 +151,21 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
       const result = await response.json();
       setUploadProgress({ status: 'complete', filename: file.name, result });
 
+      setTimeout(() => setUploadProgress(null), 3000);
+
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Upload failed';
       setUploadProgress({ status: 'error', filename: file.name, error: message });
+      
+      setTimeout(() => setUploadProgress(null), 5000);
+      
       throw error;
     }
   }, [accountId, email, walletId, getGroupKey]);
 
   const handleEncryptedDownload = useCallback(async (groupId: string, ipfsHash: string) => {
     setDownloadProgress({ status: 'fetching', ipfsHash });
-    setTimeout(() => setDownloadProgress(null), 3000);
 
     try {
       // 1. Fetch encrypted data from MCP
@@ -215,14 +214,20 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
+      setTimeout(() => setDownloadProgress(null), 3000);
+
       return { mimeType, filename };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Download failed';
       setDownloadProgress({ status: 'error', ipfsHash, error: message });
+      
+      setTimeout(() => setDownloadProgress(null), 5000);
+
       throw error;
     }
   }, [accountId, email, walletId, getGroupKey]);
 
+  // Detect MIME type from magic bytes
   const detectMimeType = (data: Uint8Array): string => {
     // Check magic bytes
     if (data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4E && data[3] === 0x47) return 'image/png';
@@ -256,16 +261,19 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
         .map(p => p.text)
         .join(' ') || '';
 
+      // Specific pattern: "upload [filename] to group [group_id]"
       const match = content.match(
-        /(?:upload|uploading).+(?:to|into) (?:group |["'])?([a-zA-Z0-9_-]+)["']?/i
+        /upload .+ to group ["']?([a-zA-Z0-9_-]+)["']?/i
       );
 
       if (match) {
-        setProcessedMessageIds(prev => new Set(prev).add(lastMessage.id));
         const groupId = match[1];
         const file = pendingFiles[0];
 
-        console.log(`Detected upload to group: ${groupId}`);
+        console.log(`Detected upload to group: ${groupId}, file: ${file.name}`);
+
+        // Mark as processed BEFORE starting async operation
+        setProcessedMessageIds(prev => new Set(prev).add(lastMessage.id));
 
         handleEncryptedUpload(file, groupId)
           .then((result) => {
@@ -284,6 +292,7 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     }
   }, [messages, pendingFiles, uploadProgress, handleEncryptedUpload, sendMessage, processedMessageIds]);
 
+  // Watch for AI retrieve confirmation
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
 
@@ -304,12 +313,13 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
       );
 
       if (match) {
-        setProcessedMessageIds(prev => new Set(prev).add(lastMessage.id));
-
         const ipfsHash = match[1];
         const groupId = match[2];
 
         console.log(`Detected retrieve: ${ipfsHash} from ${groupId}`);
+
+        // Mark as processed BEFORE starting async operation
+        setProcessedMessageIds(prev => new Set(prev).add(lastMessage.id));
 
         handleEncryptedDownload(groupId, ipfsHash)
           .then(({ filename, mimeType }) => {
@@ -326,7 +336,7 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     }
   }, [messages, downloadProgress, handleEncryptedDownload, sendMessage, processedMessageIds]);
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -364,12 +374,12 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
       const fileNames = pendingFiles.map(f => `${f.name} (${(f.size / 1024).toFixed(1)}KB)`).join(', ');
       messageText = messageText 
         ? `${messageText}\n\n📎 Attached files: ${fileNames}`
-        : `📎 I want to upload: ${fileNames}`;
+        : `📎 upload: ${fileNames}`;
     }
 
     sendMessage({ text: messageText });
 
-    // Clear state
+    // Clear input but keep pendingFiles (will be uploaded when AI confirms group)
     setInput('');
     
     if (fileInputRef.current) {
@@ -682,33 +692,6 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
         </div>
       )}
 
-      {/* Pending Files Preview */}
-      {pendingFiles.length > 0 && (
-        <div className="flex-shrink-0 border-t border-purple-700/50 p-3 bg-purple-900/50">
-          <div className="flex flex-wrap gap-2">
-            {pendingFiles.map((file, i) => (
-              <div 
-                key={i} 
-                className="flex items-center gap-2 bg-purple-800/50 px-3 py-2 rounded-lg text-sm"
-              >
-                <FileIcon size={14} className="text-purple-300" />
-                <span className="text-purple-100 max-w-[150px] truncate">{file.name}</span>
-                <span className="text-purple-400 text-xs">
-                  ({(file.size / 1024).toFixed(1)}KB)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => removePendingFile(i)}
-                  className="text-purple-300 hover:text-white transition-colors"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Upload Progress */}
       {uploadProgress && uploadProgress.status !== 'idle' && (
         <div className="mx-4 mb-3 p-3 bg-purple-900/50 rounded-lg border border-purple-600/50">
@@ -769,6 +752,33 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
                 <span className="text-sm text-red-300">❌ {downloadProgress.error}</span>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Pending Files Preview */}
+      {pendingFiles.length > 0 && (
+        <div className="flex-shrink-0 border-t border-purple-700/50 p-3 bg-purple-900/50">
+          <div className="flex flex-wrap gap-2">
+            {pendingFiles.map((file, i) => (
+              <div 
+                key={i} 
+                className="flex items-center gap-2 bg-purple-800/50 px-3 py-2 rounded-lg text-sm"
+              >
+                <FileIcon size={14} className="text-purple-300" />
+                <span className="text-purple-100 max-w-[150px] truncate">{file.name}</span>
+                <span className="text-purple-400 text-xs">
+                  ({(file.size / 1024).toFixed(1)}KB)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removePendingFile(i)}
+                  className="text-purple-300 hover:text-white transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}
