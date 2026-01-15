@@ -226,41 +226,65 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
 
   // Watch for tool call results in messages
   useEffect(() => {
-    // DEBUG: Log all message parts to see the structure
-    for (const message of messages) {
-      if (message.role !== 'assistant') continue;
-      for (const part of message.parts) {
-        if (part.type === 'dynamic-tool') {
-          console.log('DEBUG dynamic-tool part:', {
-            toolName: part.toolName,
-            state: part.state,
-            hasOutput: !!part.output,
-            output: part.output,
-          });
-        }
-      }
+    console.log('=== useEffect triggered, messages count:', messages.length);
+    
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage) {
+      console.log('No messages yet');
+      return;
     }
     
+    console.log('Last message:', {
+      id: lastMessage.id,
+      role: lastMessage.role,
+      partsCount: lastMessage.parts?.length,
+    });
+    
+    if (lastMessage.role !== 'assistant') {
+      console.log('Last message is not from assistant, skipping');
+      return;
+    }
+    
+    console.log('All parts in last message:');
+    lastMessage.parts?.forEach((part, i) => {
+      console.log(`  Part ${i}:`, {
+        type: part.type,
+        ...(part.type === 'text' && { textPreview: part.text?.substring(0, 50) }),
+        ...(part.type === 'dynamic-tool' && { 
+          toolName: part.toolName, 
+          state: part.state,
+          hasOutput: 'output' in part,
+          output: part.output,
+        }),
+      });
+    });
+
+    // Now the actual logic
     for (const message of messages) {
       if (message.role !== 'assistant') continue;
 
       for (const part of message.parts) {
-        // Handle dynamic tool calls (MCP tools)
         if (part.type === 'dynamic-tool' && part.state === 'output-available') {
           const toolCallId = `${message.id}-${part.toolName}-${JSON.stringify(part.input)}`;
           
-          if (processedToolCalls.has(toolCallId)) continue;
+          if (processedToolCalls.has(toolCallId)) {
+            console.log('Already processed:', toolCallId);
+            continue;
+          }
 
-          // Handle prepare_upload result
+          console.log('Processing tool result:', part.toolName, part.output);
+
           if (part.toolName === 'prepare_upload' && part.output) {
             const output = typeof part.output === 'string' ? JSON.parse(part.output) : part.output;
+            console.log('Parsed prepare_upload output:', output);
+            
             if (output.upload_id && output.key) {
+              console.log('Triggering handlePrepareUpload');
               setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
               handlePrepareUpload(output as PrepareUploadResult);
             }
           }
 
-          // Handle prepare_retrieve result
           if (part.toolName === 'prepare_retrieve' && part.output) {
             const output = typeof part.output === 'string' ? JSON.parse(part.output) : part.output;
             if (output.key && output.encrypted_b64) {
