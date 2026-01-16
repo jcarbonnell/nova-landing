@@ -35,6 +35,7 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [processedToolCalls, setProcessedToolCalls] = useState<Set<string>>(new Set());
+  const processingRef = useRef<Set<string>>(new Set());
   
   const [uploadProgress, setUploadProgress] = useState<{
     status: 'idle' | 'encrypting' | 'uploading' | 'complete' | 'error';
@@ -233,7 +234,8 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
         if (part.type === 'dynamic-tool' && part.state === 'output-available' && part.output) {
           const toolCallId = `${message.id}-${part.toolName}`;
           
-          if (processedToolCalls.has(toolCallId)) continue;
+          if (processedToolCalls.has(toolCallId) || processingRef.current.has(toolCallId)) continue;
+          processingRef.current.add(toolCallId);
 
           // Cast output to any to access nested properties
           const rawOutput = part.output as {
@@ -246,39 +248,23 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
           
           if (rawOutput.structuredContent && typeof rawOutput.structuredContent === 'object') {
             output = rawOutput.structuredContent;
-            console.log('>>> Extracted from structuredContent:', output);
           } else if (rawOutput.content?.[0]?.text) {
             try {
               output = JSON.parse(rawOutput.content[0].text);
-              console.log('>>> Extracted from content[0].text:', output);
             } catch {
-              console.error('Failed to parse tool output from content');
-            }
-          } else if (typeof part.output === 'string') {
-            try {
-              output = JSON.parse(part.output);
-              console.log('>>> Extracted from string:', output);
-            } catch {
-              console.error('Failed to parse string output');
+              // ignore parse error
             }
           }
 
-          if (!output) {
-            console.log('>>> No output extracted, skipping');
-            continue;
-          }
-
-          console.log('>>> Checking output for upload_id:', output.upload_id, 'key:', output.key);
+          if (!output) continue;
 
           if (part.toolName === 'prepare_upload' && output.upload_id && output.key) {
-            console.log('>>> Triggering handlePrepareUpload');
             setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
             handlePrepareUpload(output as unknown as PrepareUploadResult);
             return;
           }
 
           if (part.toolName === 'prepare_retrieve' && output.key && output.encrypted_b64) {
-            console.log('>>> Triggering handlePrepareRetrieve');
             setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
             handlePrepareRetrieve(output as unknown as PrepareRetrieveResult);
             return;
