@@ -16,7 +16,7 @@ User → Auth0 → nova-sdk.com (Next.js)
           ↓
    Shade TEE (stores encrypted private key)
           ↓
-   NEAR account (username.nova-sdk-*.near)
+   NEAR account (username.nova-sdk.near)
           ↓
    FastMCP server (authenticated via Auth0 JWT)
           ↓
