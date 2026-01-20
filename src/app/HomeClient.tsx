@@ -230,6 +230,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     try {
       // Verify session
       const sessionRes = await fetch('/auth/profile');
+
+      // 204 means no session (wallet user or logged out) - not an error
+      if (sessionRes.status === 204) {
+        console.log('No Auth0 session (204) - skipping email flow');
+        return;
+      }
+
       if (!sessionRes.ok) {
         console.warn('Session invalid');
         setIsLoginOpen(true);
