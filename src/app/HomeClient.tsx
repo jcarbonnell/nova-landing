@@ -362,6 +362,8 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   // reload client-side after server-side redirect
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (isPaymentOpen) return;
+
     const params = new URLSearchParams(window.location.search);
     const isCallback = params.has("code") || params.has("state") || params.has("token") || params.has("near");
     
@@ -372,11 +374,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       setSessionTokenVerified(false);
       window.location.href = "/";
     }
-  }, []);
+  }, [isPaymentOpen]);
 
   // in case the above runs too early, a fallback timeout
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (isPaymentOpen) return;
+
     const timer = setTimeout(() => {
       if (window.location.search.includes("code=") || window.location.search.includes("token=")) {
         console.log('Fallback: Cleaning OAuth params...');
@@ -386,7 +390,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isPaymentOpen]);
 
   // login success message
   const handleLoginSuccess = () => {
