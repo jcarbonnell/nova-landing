@@ -35,283 +35,149 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const [userData, setUserData] = useState<{ email: string; publicKey?: string; wallet_id?: string } | null>(null);
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [error, setError] = useState('');
-  const [hasCheckedAccount, setHasCheckedAccount] = useState(false);
-  const [sessionTokenVerified, setSessionTokenVerified] = useState(false);
+
+  // state tracking
+  const [novaAccountVerified, setNovaAccountVerified] = useState(false);
   const [connectedWalletId, setConnectedWalletId] = useState<string | undefined>();
-  const autoSignInAttemptedRef = useRef(false);
-  const walletCheckInProgressRef = useRef(false);
+  
+  // Track the original external wallet (before NOVA substitution)
+  const [originalWalletId, setOriginalWalletId] = useState<string | undefined>();
+  
+  // Refs to prevent duplicate operations
+  const verificationInProgressRef = useRef(false);
 
   // Debugging: log flow state tracking
   useEffect(() => {
-  console.log('🔍 Flow State Check:', {
-    user: !!user,
-    userEmail: user?.email,
-    loading,
-    authLoading,
-    walletLoading,
-    isSignedIn,
-    sessionTokenVerified,
-    hasCheckedAccount,
-    autoSignInAttempted: autoSignInAttemptedRef.current,
-    walletCheckInProgress: walletCheckInProgressRef.current
-  });
-}, [user, loading, authLoading, walletLoading, isSignedIn, sessionTokenVerified, hasCheckedAccount]);
+    console.log('🔍 Flow State Check:', {
+      user: !!user,
+      userEmail: user?.email,
+      loading,
+      isSignedIn,
+      accountId,
+      novaAccountVerified,
+      originalWalletId,
+      verificationInProgress: verificationInProgressRef.current,
+    });
+  }, [user, loading, isSignedIn, accountId, novaAccountVerified, originalWalletId]);
 
-  // Verify session token before checking account
-  const verifySessionToken = useCallback(async () => {
-    // Skip Auth0 verification for wallet users
-    if (accountId || userData?.wallet_id) {
-      console.log('Wallet user - skipping Auth0 session verification');
-      setSessionTokenVerified(true);
-      return true;
-    }
-
-    if (!user?.email || sessionTokenVerified) return true;
-
-    console.log('Verifying Auth0 session token...');
+  // NOVA account verification and auto-connect
+  const verifyAndConnectNovaAccount = useCallback(async (walletId?: string) => {
+    const targetWalletId = walletId || originalWalletId || accountId;
     
-    try {
-      const response = await fetch('/auth/profile');
-      
-      if (response.ok) {
-        setSessionTokenVerified(true);
-        return true;
-      } else {
-        console.warn('Session verification failed, status:', response.status);
-        
-        if (response.status === 401) {
-          console.log('Session expired, redirecting to login...');
-          setIsLoginOpen(true);
-          return false;
-        }
-        
-        return false;
-      }
-    } catch (err) {
-      console.error('Session verification error:', err);
-      return false;
-    }
-  }, [user?.email, sessionTokenVerified, accountId, userData?.wallet_id]);
-
-  const checkExistingAccount = useCallback(async () => {
-    if (!user?.email) {
-      console.log('No user email, cannot check account');
+    if (!targetWalletId) {
+      console.log('No wallet ID to verify');
       return;
     }
     
-    if (hasCheckedAccount) {
-      console.log('Account already checked, skipping...');
-      return;
-    }
-
-    // Verify session before checking account
-    const tokenValid = await verifySessionToken();
-    if (!tokenValid) {
-      console.warn('Session token invalid, cannot proceed with account check');
-      setError('Session expired. Please log in again.');
-      return;
-    }
-
-    setError('');
-    setHasCheckedAccount(true);
-
-    console.log('Checking for existing account');
-
-    try {
-      const res = await fetch('/api/auth/check-for-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Check failed');
-      }
-
-      const { exists, accountId: existingId, accountCheck, warning } = await res.json();
-
-      if (warning) {
-        console.warn('Account check warning:', warning);
-      }
-
-      if (!accountCheck) {
-        console.error('Account check failed to complete');
-        setError('Account verification failed. Please try again.');
-        setHasCheckedAccount(false);
-        return;
-      }
-
-      if (exists && existingId) {
-        setWelcomeMessage(`Welcome back! Account ${existingId} ready.`);
-      } else {
-        console.log('No existing account, opening creation modal...');
-        setUserData({ email: user.email });
-        setIsCreateOpen(true);
-      }
-    } catch (err) {
-      console.error('Check existing account error:', err);
-      const errMsg = err instanceof Error ? err.message : 'Unknown error';
-      setError(`Account check failed: ${errMsg}`);
-      setHasCheckedAccount(false);
-    }
-  }, [user?.email, hasCheckedAccount, verifySessionToken]);
-
-  // AUTO-SIGN-IN FROM SHADE after account creation
-  const selector = useWalletSelector();
-
-  const autoSignInFromShade = useCallback(async (accountIdToSignIn?: string, emailToUse?: string) => {
-    const targetEmail = emailToUse || user?.email;
-    
-    if (!targetEmail && !accountIdToSignIn) {
-      console.log('No email or accountId for auto-sign-in');
+    if (verificationInProgressRef.current) {
+      console.log('Verification already in progress, skipping...');
       return;
     }
     
-    if (isSignedIn && !accountIdToSignIn) {
-      console.log('Already signed in');
+    // Check if current account is already a NOVA account (ends with parent domain)
+    const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN || 'nova-sdk.near';
+    if (accountId?.endsWith(`.${parentDomain}`)) {
+      console.log('Already connected with NOVA account:', accountId);
+      setNovaAccountVerified(true);
       return;
     }
     
-    if (!selector) {
-      console.log('Selector not ready');
-      return;
-    }
-
-    console.log('Attempting auto-sign-in from Shade TEE...');
-
-    try {
-      let existingAccountId = accountIdToSignIn;
-      
-      // If no accountId provided, check by email
-      if (!existingAccountId && targetEmail) {
-        const checkRes = await fetch('/api/auth/check-for-account', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: targetEmail }),
-        });
-
-        if (!checkRes.ok) {
-          console.warn('Account check failed during auto-sign-in');
-          return;
-        }
-      
-        const { exists, accountId: foundAccountId } = await checkRes.json();
-        if (!exists || !foundAccountId) {
-          console.log('No account in Shade, cannot auto-sign-in');
-          return;
-        }
-        
-        existingAccountId = foundAccountId;
-      }
-
-      // ensure we have an accountId
-      if (!existingAccountId) {
-        console.warn('No account ID available for auto-sign-in');
-        return;
-      }
-
-      console.log('Account found in Shade');
-
-      // Retrieve key - use account_id for wallet users, email for email users
-      const keyPayload = accountIdToSignIn 
-        ? { account_id: accountIdToSignIn }
-        : { email: targetEmail };
-
-      const keyRes = await fetch('/api/auth/retrieve-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(keyPayload),
-      });
-
-      if (!keyRes.ok) {
-        console.warn('Failed to retrieve key from Shade');
-        return;
-      }
+    console.log('Verifying NOVA account for wallet:', targetWalletId);
+    verificationInProgressRef.current = true;
     
-      const { private_key } = await keyRes.json();
-      if (!private_key) {
-        console.warn('No private key returned from Shade');
-        return;
-      }
-
-      console.log('Auto-login successful');
-
-      // Inject key into localStorage
-      await connectWithPrivateKey(private_key, existingAccountId);
-
-      console.log('Key injected, forcing state via global function...');
-
-      // Force state update
-      (window as any).__forceWalletConnect?.(existingAccountId);
-
-      const displayName = existingAccountId.split('.')[0];
-      setWelcomeMessage(`Signed in as ${displayName}!`);
-      setTimeout(() => setWelcomeMessage(''), 6000);
-
-    } catch (err) {
-      console.error('Auto sign-in failed:', err);
-    }
-  }, [user?.email, isSignedIn, selector]);
-
-  // Handle wallet connection (for NEAR wallet users)
-  const handleWalletConnect = useCallback(async (walletAccountId: string) => {
-    if (walletCheckInProgressRef.current) {
-      console.log('Wallet check already in progress, skipping...');
-      return;
-    }
-    
-    console.log('Wallet connected:', walletAccountId);
-    walletCheckInProgressRef.current = true;
-    setConnectedWalletId(walletAccountId);
-
     try {
       // Check if this wallet has a NOVA account in Shade
       const checkRes = await fetch('/api/auth/check-for-account', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-wallet-id': walletAccountId },
-        body: JSON.stringify({ wallet_id: walletAccountId }),
+        headers: { 'Content-Type': 'application/json', 'x-wallet-id': targetWalletId },
+        body: JSON.stringify({ wallet_id: targetWalletId }),
       });
 
       if (!checkRes.ok) {
-        console.error('Wallet check failed');
-        walletCheckInProgressRef.current = false;
+        console.warn('NOVA account check failed');
+        setNovaAccountVerified(true); // Mark as verified (no NOVA account exists)
         return;
       }
 
       const { exists, accountId: novaAccountId } = await checkRes.json();
 
       if (exists && novaAccountId) {
-        // Found existing NOVA account - auto sign in with it
-        console.log('Found NOVA account for wallet:', novaAccountId);
-        await autoSignInFromShade(novaAccountId);
+        console.log('Found NOVA account:', novaAccountId, '- auto-connecting...');
+        await autoSignInWithNovaAccount(novaAccountId, targetWalletId);
       } else {
-        // No NOVA account - need to create one
-        console.log('No NOVA account found for wallet, starting setup...');
-        
-        // Sign out of the external wallet first
-        if (selector) {
-          try {
-            const wallet = await selector.wallet();
-            await wallet.signOut();
-          } catch (e) {
-            console.warn('Could not sign out wallet:', e);
-          }
-        }
-        
-        // Open create account modal with wallet_id
-        setUserData({ 
-          email: `${walletAccountId}@wallet.nova`,
-          wallet_id: walletAccountId,
-        });
-        setIsCreateOpen(true);
+        console.log('No NOVA account found for wallet');
+        setNovaAccountVerified(true);
       }
     } catch (err) {
-      console.error('Wallet connect flow error:', err);
+      console.error('NOVA account verification error:', err);
+      setNovaAccountVerified(true);
     } finally {
-      walletCheckInProgressRef.current = false;
+      verificationInProgressRef.current = false;
     }
-  }, [selector, autoSignInFromShade]);
+  }, [accountId, originalWalletId]);
+
+  // Auto sign-in with NOVA account from Shade
+  const autoSignInWithNovaAccount = useCallback(async (novaAccountId: string, walletId?: string) => {
+    const selector = (window as any).__nearWalletSelector;
+    
+    console.log('Auto-signing in with NOVA account:', novaAccountId);
+
+    try {
+      // Retrieve key from Shade
+      const keyRes = await fetch('/api/auth/retrieve-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: novaAccountId }),
+      });
+
+      if (!keyRes.ok) {
+        console.warn('Failed to retrieve key from Shade');
+        setNovaAccountVerified(true);
+        return;
+      }
+    
+      const { private_key } = await keyRes.json();
+      if (!private_key) {
+        console.warn('No private key returned from Shade');
+        setNovaAccountVerified(true);
+        return;
+      }
+
+      // Inject key into localStorage
+      await connectWithPrivateKey(private_key, novaAccountId);
+
+      // Force state update
+      (window as any).__forceWalletConnect?.(novaAccountId);
+      
+      // Track the original wallet for reference
+      if (walletId) {
+        setConnectedWalletId(walletId);
+      }
+
+      const displayName = novaAccountId.split('.')[0];
+      setWelcomeMessage(`Signed in as ${displayName}!`);
+      setNovaAccountVerified(true);
+      
+      setTimeout(() => setWelcomeMessage(''), 4000);
+
+    } catch (err) {
+      console.error('Auto sign-in failed:', err);
+      setNovaAccountVerified(true);
+    }
+  }, []);
+
+  // Handle new wallet connection (from wallet selector modal)
+  const handleWalletConnect = useCallback(async (walletAccountId: string) => {
+    console.log('New wallet connected:', walletAccountId);
+    
+    // Store the original wallet ID
+    setOriginalWalletId(walletAccountId);
+    setConnectedWalletId(walletAccountId);
+    setNovaAccountVerified(false);
+    
+    // Immediately verify and potentially substitute with NOVA account
+    await verifyAndConnectNovaAccount(walletAccountId);
+  }, [verifyAndConnectNovaAccount]);
 
   // Register wallet connect callback
   useEffect(() => {
@@ -321,40 +187,83 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     }
   }, [setOnWalletConnect, handleWalletConnect]);
 
+  // Main effect: verify NOVA account on page load/refresh
   useEffect(() => {
-    if (!user || loading) {
-      console.log('Waiting for user/wallet load...');
+    if (loading) {
+      console.log('Waiting for wallet load...');
       return;
     }
 
-    if (isSignedIn) {
-      console.log('Already signed in');
-      return;
+    // If wallet is connected but NOVA not yet verified, verify it
+    if (isSignedIn && accountId && !novaAccountVerified) {
+      console.log('Wallet loaded, verifying NOVA account...');
+      
+      // Store original wallet ID if not already set
+      if (!originalWalletId) {
+        setOriginalWalletId(accountId);
+      }
+      
+      verifyAndConnectNovaAccount(accountId);
     }
+  }, [loading, isSignedIn, accountId, novaAccountVerified, originalWalletId, verifyAndConnectNovaAccount]);
 
-    // check if we need to auto-sign-in
-    if (!sessionTokenVerified) {
-      // Step 1: Verify session first
-      console.log('User logged in, verifying session...');
-      verifySessionToken();
-    } else if (!hasCheckedAccount) {
-      // Step 2: Then check for account
-      console.log('Session verified, checking account...');
-      checkExistingAccount();
-    } else if (hasCheckedAccount && sessionTokenVerified && !autoSignInAttemptedRef.current) {
-      // Step 3: Only attempt ONCE using ref
-      console.log('Account exists, attempting auto-sign-in...');
-      autoSignInAttemptedRef.current = true;
-      autoSignInFromShade();
+  // Handle Auth0 email users (existing flow, simplified)
+  const selector = useWalletSelector();
+  
+  const handleEmailUserFlow = useCallback(async () => {
+    if (!user?.email || isSignedIn) return;
+    
+    console.log('Email user flow: checking for existing account...');
+    
+    try {
+      // Verify session
+      const sessionRes = await fetch('/auth/profile');
+      if (!sessionRes.ok) {
+        console.warn('Session invalid');
+        setIsLoginOpen(true);
+        return;
+      }
+      
+      // Check for existing account
+      const checkRes = await fetch('/api/auth/check-for-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email }),
+      });
+
+      if (!checkRes.ok) {
+        console.error('Account check failed');
+        return;
+      }
+
+      const { exists, accountId: existingId } = await checkRes.json();
+
+      if (exists && existingId) {
+        // Auto sign-in
+        await autoSignInWithNovaAccount(existingId);
+      } else {
+        // New user - show account creation
+        setUserData({ email: user.email });
+        setIsCreateOpen(true);
+      }
+    } catch (err) {
+      console.error('Email user flow error:', err);
     }
-  }, [user, loading, isSignedIn, sessionTokenVerified, hasCheckedAccount, verifySessionToken, checkExistingAccount, autoSignInFromShade]);
+  }, [user?.email, isSignedIn, autoSignInWithNovaAccount]);
+
+  // Trigger email user flow when user is loaded but wallet not connected
+  useEffect(() => {
+    if (!loading && user?.email && !isSignedIn && !novaAccountVerified) {
+      handleEmailUserFlow();
+    }
+  }, [loading, user?.email, isSignedIn, novaAccountVerified, handleEmailUserFlow]);
 
   // logout message
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('loggedOut') === '1') {
       setWelcomeMessage('Successfully logged out.');
-      setHasCheckedAccount(false);
-      setSessionTokenVerified(false);
+      setNovaAccountVerified(false);
+      setOriginalWalletId(undefined);
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -370,13 +279,12 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     if (isCallback) {
       console.log('OAuth callback detected, cleaning URL and resetting state...');
       window.history.replaceState({}, "", "/");
-      setHasCheckedAccount(false);
-      setSessionTokenVerified(false);
+      setNovaAccountVerified(false);
       window.location.href = "/";
     }
   }, [isPaymentOpen]);
 
-  // in case the above runs too early, a fallback timeout
+  // fallback timeout
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (isPaymentOpen) return;
@@ -384,8 +292,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     const timer = setTimeout(() => {
       if (window.location.search.includes("code=") || window.location.search.includes("token=")) {
         console.log('Fallback: Cleaning OAuth params...');
-        setHasCheckedAccount(false);
-        setSessionTokenVerified(false);
+        setNovaAccountVerified(false);
         window.location.href = "/";
       }
     }, 500);
@@ -396,8 +303,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const handleLoginSuccess = () => {
     console.log('Login success, closing modal...');
     setIsLoginOpen(false);
-    setHasCheckedAccount(false);
-    setSessionTokenVerified(false);
+    setNovaAccountVerified(false);
   };
 
   // created account message
@@ -409,9 +315,9 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     // Trigger auto-sign-in after account creation
     setTimeout(() => {
       console.log('Triggering auto-sign-in after account creation...');
-      autoSignInFromShade(newAccountId);
+      autoSignInWithNovaAccount(newAccountId, originalWalletId);
       setWelcomeMessage('');
-    }, 3000);
+    }, 1500);
   };
 
   // handle payment (from payment modal)
@@ -515,6 +421,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         </div>
       )}
 
+      {/* Loading indicator while verifying NOVA account */}
+      {isSignedIn && !novaAccountVerified && (
+        <div className="p-2 text-center text-purple-300 bg-purple-500/10 border-b border-purple-400/20 text-sm">
+          <span className="animate-pulse">Connecting NOVA account...</span>
+        </div>
+      )}
+
       <main className="flex-1 flex items-center justify-center p-4 lg:p-8">
         <div className="page-container w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-center">
           {/* Hero */}
@@ -544,7 +457,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               <ChatInterface 
                 accountId={accountId!} 
                 email={user?.email || ''} 
-                walletId={connectedWalletId || user?.wallet_id} 
+                walletId={connectedWalletId || originalWalletId} 
               />
             ) : (
               /* Blur overlay when not connected */
