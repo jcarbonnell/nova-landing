@@ -189,6 +189,12 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   // Main effect: verify NOVA account on page load/refresh
   useEffect(() => {
+    // Skip all verification during payment flow
+    if (isPaymentOpen) {
+      console.log('Payment flow active - skipping NOVA verification');
+      return;
+    }
+
     if (loading) {
       console.log('Waiting for wallet load...');
       return;
@@ -205,12 +211,18 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       
       verifyAndConnectNovaAccount(accountId);
     }
-  }, [loading, isSignedIn, accountId, novaAccountVerified, originalWalletId, verifyAndConnectNovaAccount]);
+  }, [loading, isSignedIn, accountId, novaAccountVerified, originalWalletId, verifyAndConnectNovaAccount, isPaymentOpen]);
 
   // Handle Auth0 email users (existing flow, simplified)
   const selector = useWalletSelector();
   
   const handleEmailUserFlow = useCallback(async () => {
+    // Skip if payment flow is active
+    if (isPaymentOpen) {
+      console.log('Payment flow active - skipping email user flow');
+      return;
+    }
+
     if (!user?.email || isSignedIn) return;
     
     console.log('Email user flow: checking for existing account...');
@@ -249,14 +261,17 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     } catch (err) {
       console.error('Email user flow error:', err);
     }
-  }, [user?.email, isSignedIn, autoSignInWithNovaAccount]);
+  }, [user?.email, isSignedIn, autoSignInWithNovaAccount, isPaymentOpen]);
 
   // Trigger email user flow when user is loaded but wallet not connected
   useEffect(() => {
+    // Skip if payment flow is active
+    if (isPaymentOpen) return;
+
     if (!loading && user?.email && !isSignedIn && !novaAccountVerified) {
       handleEmailUserFlow();
     }
-  }, [loading, user?.email, isSignedIn, novaAccountVerified, handleEmailUserFlow]);
+  }, [loading, user?.email, isSignedIn, novaAccountVerified, handleEmailUserFlow, isPaymentOpen]);
 
   // logout message
   useEffect(() => {
