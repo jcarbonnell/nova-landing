@@ -27,7 +27,15 @@ const TOKEN_EXPIRY = process.env.SESSION_TOKEN_EXPIRY || '24h';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    let body: { wallet_id?: string } = {};
+    try {
+      const text = await req.text();
+      if (text && text.trim()) {
+        body = JSON.parse(text);
+      }
+    } catch {
+      // Empty body is OK for email users (they use Auth0 session)
+    }
     const { wallet_id } = body;
 
     let accountId: string | null = null;
