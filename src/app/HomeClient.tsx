@@ -106,6 +106,12 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         await autoSignInWithNovaAccount(novaAccountId, targetWalletId);
       } else {
         console.log('No NOVA account found for wallet');
+        // Set user data with wallet info for account creation
+        setUserData({ 
+          email: `${targetWalletId}@wallet.nova`,  // Placeholder email for wallet users
+          wallet_id: targetWalletId,
+        });
+        setIsCreateOpen(true);
         setNovaAccountVerified(true);
       }
     } catch (err) {
