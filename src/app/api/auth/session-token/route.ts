@@ -1,14 +1,4 @@
 // nova-landing/src/app/api/auth/session-token/route.ts
-//
-// Issues a signed JWT session token for authenticated users.
-// This token is used by nova-sdk-js and nova-sdk-rs to authenticate with the MCP server.
-//
-// Flow:
-// 1. User logs in at nova-sdk.com (Auth0 or wallet)
-// 2. Frontend calls this endpoint to get a session token
-// 3. User passes token to SDK: new NovaSdk(accountId, { sessionToken })
-// 4. MCP server verifies token and checks accountId matches
-
 import { NextRequest, NextResponse } from 'next/server';
 import { SignJWT } from 'jose';
 import { auth0 } from '@/lib/auth0';
@@ -27,7 +17,7 @@ const TOKEN_EXPIRY = process.env.SESSION_TOKEN_EXPIRY || '24h';
 
 export async function POST(req: NextRequest) {
   try {
-    let body: { wallet_id?: string } = {};
+    let body: { wallet_id?: string; account_id?: string } = {};
     try {
       const text = await req.text();
       if (text && text.trim()) {
@@ -36,13 +26,44 @@ export async function POST(req: NextRequest) {
     } catch {
       // Empty body is OK for email users (they use Auth0 session)
     }
-    const { wallet_id } = body;
+
+    const { wallet_id, account_id: requestedAccountId } = body;
 
     let accountId: string | null = null;
     let subject: string;
+    const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL;
+    if (!shadeUrl) {
+      return NextResponse.json({ error: 'Shade URL not configured' }, { status: 500 });
+    }
 
-    // Path 1: Wallet user - verify wallet_id and lookup accountId from Shade
-    if (wallet_id) {
+    // Path 1: account_id provided (SDK flow)
+    if (requestedAccountId && !wallet_id) {
+      // Just verify the account exists in Shade (don't need wallet_id back)
+      const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: requestedAccountId }),
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!shadeResponse.ok) {
+        return NextResponse.json({ error: 'Account verification failed' }, { status: 500 });
+      }
+
+      const shadeData = await shadeResponse.json();
+      if (!shadeData.exists) {
+        return NextResponse.json({ 
+          error: 'No NOVA account found. Create one at nova-sdk.com first.' 
+        }, { status: 404 });
+      }
+
+      accountId = shadeData.account_id;
+      subject = `account|${accountId}`;  // Generic subject, no wallet_id exposed
+      
+      console.log('Issuing session token for account_id:', accountId);
+    }
+    // Path 2: wallet_id provided (existing flow - keep for backwards compat)
+    else if (wallet_id) {
       const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL;
       if (!shadeUrl) {
         return NextResponse.json({ error: 'Shade URL not configured' }, { status: 500 });
@@ -74,7 +95,7 @@ export async function POST(req: NextRequest) {
       
       console.log('Issuing session token for wallet user:', wallet_id, '->', accountId);
     } 
-    // Path 2: Email user - verify Auth0 session
+    // Path 3: Email user - verify Auth0 session
     else {
       const session = await auth0.getSession();
       if (!session?.user?.email) {
