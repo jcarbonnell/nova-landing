@@ -66,7 +66,7 @@ export default function Header({ onOpenLogin, onOpenPayment }: HeaderProps) {
             >
                <Wallet size={16} className="text-purple-300" />
                <span className="text-sm max-w-32 truncate text-purple-100">
-                 Fund Account
+                 Manage Account
                </span>
             </div>
             <Button 
