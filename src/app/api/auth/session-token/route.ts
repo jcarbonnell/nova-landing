@@ -17,6 +17,9 @@ const TOKEN_EXPIRY = process.env.SESSION_TOKEN_EXPIRY || '24h';
 
 export async function POST(req: NextRequest) {
   try {
+    // Check for API key authentication (SDK flow)
+    const apiKey = req.headers.get('x-api-key');
+
     let body: { wallet_id?: string; account_id?: string } = {};
     try {
       const text = await req.text();
@@ -36,31 +39,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Shade URL not configured' }, { status: 500 });
     }
 
-    // Path 1: account_id provided (SDK flow)
-    if (requestedAccountId && !wallet_id) {
-      // Just verify the account exists in Shade (don't need wallet_id back)
-      const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/check`, {
+    // Path 0: API key provided (secure SDK flow)
+    if (apiKey && requestedAccountId) {
+      // Verify API key with Shade TEE
+      const verifyResponse = await fetch(`${shadeUrl}/api/user-keys/verify-api-key`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account_id: requestedAccountId }),
+        body: JSON.stringify({ api_key: apiKey, account_id: requestedAccountId }),
         signal: AbortSignal.timeout(10000),
       });
 
-      if (!shadeResponse.ok) {
-        return NextResponse.json({ error: 'Account verification failed' }, { status: 500 });
+      if (!verifyResponse.ok) {
+        const errorData = await verifyResponse.json().catch(() => ({}));
+        return NextResponse.json(
+          { error: errorData.error || 'Invalid API key' },
+          { status: 401 }
+        );
       }
 
-      const shadeData = await shadeResponse.json();
-      if (!shadeData.exists) {
-        return NextResponse.json({ 
-          error: 'No NOVA account found. Create one at nova-sdk.com first.' 
-        }, { status: 404 });
+      const verifyData = await verifyResponse.json();
+      if (!verifyData.valid) {
+        return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
       }
 
-      accountId = shadeData.account_id;
-      subject = `account|${accountId}`;  // Generic subject, no wallet_id exposed
+      accountId = verifyData.account_id;
+      subject = `apikey|${accountId}`;
       
-      console.log('Issuing session token for account_id:', accountId);
+      console.log('Issuing session token via API key for:', accountId);
+    }
+    // Path 1: account_id provided without API key (INSECURE - reject)
+    else if (requestedAccountId && !wallet_id && !apiKey) {
+      return NextResponse.json(
+        { error: 'API key required. Get yours at nova-sdk.com' },
+        { status: 401 }
+      );
     }
     // Path 2: wallet_id provided (existing flow - keep for backwards compat)
     else if (wallet_id) {
