@@ -437,23 +437,6 @@ export default function PaymentModal({
                     )}
                   </div>
                 </div>
-
-                <Button
-                  type="button"
-                  onClick={() => {
-                    onSkip();
-                    onClose();
-                  }}
-                  disabled={isLoading}
-                  className={styles.buttonSecondary}
-                  style={{
-                    marginTop: "15px",
-                    width: "100%",
-                    maxWidth: "540px",
-                  }}
-                >
-                  Skip Funding
-                </Button>
               </div>
             )}
           </div>
