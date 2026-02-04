@@ -83,8 +83,13 @@ export async function POST(req: NextRequest) {
     // No auth_token for wallet users, we use wallet_id
     if (token || wallet_id) {
       try {
+        // Derive NEAR email from account ID (e.g., "alice.nova-sdk.near" → "alice.nova-sdk@near.email")
+        const nearEmail = NETWORK_ID === 'mainnet'
+          ? `${fullId.replace('.near', '')}@near.email`
+          : `${fullId.replace('.testnet', '')}@testnet.near.email`;
+
         const storePayload: Record<string, string> = {
-          email: email || wallet_id,
+          email: email || nearEmail,
           account_id: fullId,
           private_key: privateKey,
           public_key: publicKey.toString(),
@@ -96,6 +101,10 @@ export async function POST(req: NextRequest) {
         }
         if (wallet_id) {
           storePayload.wallet_id = wallet_id;
+          // For wallet users without Auth0 email, use their NEAR email
+          if (!email) {
+            storePayload.email = nearEmail;
+          }
         }
 
         const res = await fetch(`${SHADE_API_URL}/api/user-keys/store`, {

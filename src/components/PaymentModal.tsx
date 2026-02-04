@@ -198,45 +198,73 @@ export default function PaymentModal({
             </button>
           </div>
           <div className={styles.modalBody}>
-            {/* TESTNET: Faucet section */}
+            {/* TESTNET: Faucet + API Key section */}
             {isTestnet && (
-              <div className="text-center py-4">
-                <div className="mb-4 p-4 bg-purple-500/20 border border-purple-500/50 rounded-lg">
-                  <p className="text-purple-200 text-sm mb-2">
-                    <strong>🧪 Testnet Mode</strong>
-                  </p>
-                  <p className="text-gray-300 text-sm">
-                    Testnet accounts are free and can be funded automatically by clicking the &quot;Request Tokens&quot; button below.
-                  </p>
-                </div>
-
-                {accountId && (
-                  <div className="mb-4 p-3 bg-gray-800/50 rounded-lg">
-                    <p className="text-gray-400 text-xs mb-1">Connected Account</p>
-                    <p className="text-purple-200 text-sm font-mono truncate">{accountId}</p>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  padding: "20px 0",
+                }}
+              >
+                <div style={{ width: "100%", maxWidth: "540px" }}>
+                  <div className="mb-4 p-4 bg-purple-500/20 border border-purple-500/50 rounded-lg text-center">
+                    <p className="text-purple-200 text-sm mb-2">
+                      <strong>🧪 Testnet Mode</strong>
+                    </p>
+                    <p className="text-gray-300 text-sm">
+                      Testnet accounts are free and can be funded automatically by clicking the &quot;Request Tokens&quot; button below.
+                    </p>
                   </div>
-                )}
 
-                {faucetSuccess && (
-                  <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
-                    <p className="text-green-200 text-sm">✅ {faucetSuccess}</p>
-                  </div>
-                )}
+                  {/* Connected Account Display */}
+                  {accountId && (
+                    <div className="mb-4 p-3 bg-gray-800/50 rounded-lg">
+                      <p className="text-gray-400 text-xs mb-1">Connected Account</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-purple-200 text-sm font-mono truncate flex-1">
+                          {accountId}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={copyToClipboard}
+                          className="text-gray-400 hover:text-purple-300 transition-colors p-1 rounded hover:bg-gray-700/50"
+                          title="Copy to clipboard"
+                        >
+                          {copied ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-                {error && (
-                  <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
-                    <p className="text-red-200 text-sm">❌ {error}</p>
-                  </div>
-                )}
+                  {faucetSuccess && (
+                    <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
+                      <p className="text-green-200 text-sm">✅ {faucetSuccess}</p>
+                    </div>
+                  )}
 
-                <div className="space-y-3">
+                  {error && (
+                    <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+                      <p className="text-red-200 text-sm">❌ {error}</p>
+                    </div>
+                  )}
+
                   <Button
                     type="button"
                     onClick={requestFaucetTokens}
                     disabled={faucetLoading || !accountId}
                     className="w-full bg-purple-600 hover:bg-purple-700 text-white"
                     style={{ 
-                      maxWidth: '540px',
                       fontSize: '16px',
                       padding: '12px 24px'
                     }}
@@ -251,19 +279,72 @@ export default function PaymentModal({
                     )}
                   </Button>
 
-                  <Button
-                    type="button"
-                    onClick={onClose}
-                    variant="outline"
-                    className="w-full border-purple-500/50 text-purple-200 hover:bg-purple-900/30"
-                    style={{ 
-                      maxWidth: '540px',
-                      fontSize: '14px',
-                      padding: '10px 20px'
-                    }}
-                  >
-                    Close
-                  </Button>
+                  {/* API Key Section */}
+                  <div className="mt-6 pt-6 border-t border-purple-500/30">
+                    <div className="mb-4 p-4 bg-blue-500/20 border border-blue-500/50 rounded-lg text-center">
+                      <p className="text-blue-200 text-sm mb-2">
+                        <strong>🔑 SDK API Key</strong>
+                      </p>
+                      <p className="text-gray-300 text-sm">
+                        Generate an API key to use with the NOVA SDK in your applications.
+                        One key per account — generating a new key will invalidate the old one.
+                      </p>
+                    </div>
+
+                    {apiKeyError && (
+                      <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+                        <p className="text-red-200 text-sm">❌ {apiKeyError}</p>
+                      </div>
+                    )}
+
+                    {apiKey ? (
+                      <div className="mb-4">
+                        <div className="p-3 bg-green-500/20 border border-green-500/50 rounded-lg mb-3">
+                          <p className="text-green-200 text-sm mb-2">✅ API Key Generated</p>
+                          <p className="text-yellow-200 text-xs">⚠️ Save this key now — you won't see it again!</p>
+                        </div>
+                        <div className="flex items-center gap-2 p-3 bg-gray-800/50 rounded-lg">
+                          <code className="text-purple-200 text-xs font-mono flex-1 truncate">
+                            {apiKey}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={copyApiKey}
+                            className="text-gray-400 hover:text-purple-300 transition-colors p-1 rounded hover:bg-gray-700/50"
+                            title="Copy API key"
+                          >
+                            {apiKeyCopied ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        onClick={generateApiKey}
+                        disabled={apiKeyLoading || !accountId}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                        style={{ fontSize: '16px', padding: '12px 24px' }}
+                      >
+                        {apiKeyLoading ? (
+                          <span className="flex items-center justify-center">
+                            <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                            Generating...
+                          </span>
+                        ) : (
+                          '🔑 Generate API Key'
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
