@@ -143,7 +143,15 @@ export async function POST(req: NextRequest) {
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Account creation failed');
+    console.error('Account creation failed:', errorMessage);
+    console.error('Full error:', error);
+    console.error('Env vars:', {
+      PARENT_DOMAIN,
+      RPC_URL,
+      NETWORK_ID,
+      hasCreatorKey: !!CREATOR_PRIVATE_KEY,
+      creatorKeyPrefix: CREATOR_PRIVATE_KEY?.substring(0, 15) + '...',
+    });
     if (errorMessage.includes('already exists')) {
       return NextResponse.json({ error: 'Username taken' }, { status: 400 });
     }
