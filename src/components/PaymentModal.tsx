@@ -95,7 +95,7 @@ export default function PaymentModal({
       .then(({ PingpayOnramp }) => {
         console.log('Creating PingPay instance...');
 
-        const targetAssetDetails = { chain: 'NEAR', asset: 'NEAR' };
+        const targetAssetDetails = { chain: 'NEAR', asset: 'wNEAR' };
 
         const onramp = new PingpayOnramp({
           onPopupReady: () => console.log('PingPay: Popup is ready'),
