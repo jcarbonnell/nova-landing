@@ -98,6 +98,10 @@ export default function PaymentModal({
         const targetAssetDetails = { chain: 'NEAR', asset: 'wNEAR' };
 
         const onramp = new PingpayOnramp({
+          appFees: {
+            feePercentage: 0, // or a small fee like 0.5 if you want to collect fees
+            feeAddress: accountId, // your fee recipient address (can be your own account)
+          },
           onPopupReady: () => console.log('PingPay: Popup is ready'),
           onProcessComplete: (result: unknown) => {
             console.log('PingPay: Process complete', result);
