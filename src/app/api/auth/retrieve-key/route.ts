@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       const res = await fetch(`${process.env.NEXT_PUBLIC_SHADE_API_URL}/api/user-keys/retrieve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, auth_token: token }),
+        body: JSON.stringify({ email, auth_token: token, account_id }),
       });
 
       if (!res.ok) {
