@@ -143,8 +143,8 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         // Email users need email in the request (will trigger auth_token path)
         requestBody.email = userEmail;
       } else if (walletId) {
-        // Wallet users already handled by account_id-only path
-        // (but we could also send wallet_id if needed)
+        // Wallet users need wallet_id for Shade Agent to derive key
+        requestBody.wallet_id = walletId;
       }
 
       // Retrieve key from Shade
