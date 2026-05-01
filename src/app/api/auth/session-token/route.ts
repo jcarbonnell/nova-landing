@@ -10,7 +10,7 @@ if (!SESSION_TOKEN_SECRET) {
 }
 
 const ISSUER = 'https://nova-sdk.com';
-const AUDIENCE = 'https://nova-mcp.fastmcp.app';
+const AUDIENCE = 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-3000.dstack-prod5.phala.network';
 
 // Token validity (24 hours default, configurable)
 const TOKEN_EXPIRY = process.env.SESSION_TOKEN_EXPIRY || '24h';

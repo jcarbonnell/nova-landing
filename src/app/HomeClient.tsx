@@ -103,7 +103,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
       if (exists && novaAccountId) {
         console.log('Found NOVA account:', novaAccountId, '- auto-connecting...');
-        await autoSignInWithNovaAccount(novaAccountId, targetWalletId);
+        await autoSignInWithNovaAccount(novaAccountId, targetWalletId, user?.email);
       } else {
         console.log('No NOVA account found for wallet');
         // Set user data with wallet info for account creation
@@ -123,17 +123,35 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   }, [accountId, originalWalletId]);
 
   // Auto sign-in with NOVA account from Shade
-  const autoSignInWithNovaAccount = useCallback(async (novaAccountId: string, walletId?: string) => {
+  const autoSignInWithNovaAccount = useCallback(async (
+    novaAccountId: string, 
+    walletId?: string,
+    userEmail?: string
+  ) => {
     const selector = (window as any).__nearWalletSelector;
     
     console.log('Auto-signing in with NOVA account:', novaAccountId);
 
     try {
+      // Determine if this is an email user or wallet user
+      const isEmailUser = !!userEmail && !walletId;
+    
+      // Retrieve key from Shade
+      const requestBody: any = { account_id: novaAccountId };
+    
+      if (isEmailUser) {
+        // Email users need email in the request (will trigger auth_token path)
+        requestBody.email = userEmail;
+      } else if (walletId) {
+        // Wallet users already handled by account_id-only path
+        // (but we could also send wallet_id if needed)
+      }
+
       // Retrieve key from Shade
       const keyRes = await fetch('/api/auth/retrieve-key', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account_id: novaAccountId }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!keyRes.ok) {
@@ -265,7 +283,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
       if (exists && existingId) {
         // Auto sign-in
-        await autoSignInWithNovaAccount(existingId);
+        await autoSignInWithNovaAccount(existingId, undefined, user.email);
       } else {
         // New user - show account creation
         setUserData({ email: user.email });
@@ -343,7 +361,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     // Trigger auto-sign-in after account creation
     setTimeout(() => {
       console.log('Triggering auto-sign-in after account creation...');
-      autoSignInWithNovaAccount(newAccountId, originalWalletId);
+      autoSignInWithNovaAccount(newAccountId, originalWalletId, userData?.email);
       setWelcomeMessage('');
     }, 1500);
   };

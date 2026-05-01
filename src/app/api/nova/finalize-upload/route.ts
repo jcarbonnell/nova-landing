@@ -1,7 +1,7 @@
 // src/app/api/nova/finalize-upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-const MCP_BASE = process.env.MCP_URL || 'https://nova-mcp.fastmcp.app';
+const MCP_BASE = process.env.MCP_URL || 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-3000.dstack-prod5.phala.network';
 const MCP_API_BASE = MCP_BASE.replace(/\/mcp$/, '');
 
 export async function POST(req: NextRequest) {
