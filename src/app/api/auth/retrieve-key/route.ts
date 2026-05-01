@@ -23,6 +23,8 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+      console.log('Fetching key from Shade with:', { email, has_token: !!token });
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_SHADE_API_URL}/api/user-keys/retrieve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -33,9 +35,10 @@ export async function POST(req: NextRequest) {
         const errorText = await res.text();
         console.error('Shade retrieve failed:', {
           status: res.status,
-          error: errorText.substring(0, 200),
+          error: errorText,
+          email: email,
         });
-        throw new Error('Shade retrieve failed');
+        throw new Error(`Shade retrieve failed: ${res.status} - ${errorText}`);
       }
 
       const data = await res.json();
@@ -43,10 +46,11 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({ private_key: data.private_key });
     } catch (err) {
-      console.error('Retrieve key error');
+      console.error('Retrieve key error:', err);
       return NextResponse.json({ 
         error: 'Failed to retrieve key',
-        details: err instanceof Error ? err.message : 'Unknown error'
+        details: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined
       }, { status: 500 });
     }
   }
@@ -76,10 +80,11 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({ private_key: data.private_key });
     } catch (err) {
-      console.error('Retrieve key error');
+      console.error('Retrieve key error:', err);
       return NextResponse.json({ 
         error: 'Failed to retrieve key',
-        details: err instanceof Error ? err.message : 'Unknown error'
+        details: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined
       }, { status: 500 });
     }
   }
