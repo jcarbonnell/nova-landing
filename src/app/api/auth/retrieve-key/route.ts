@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth0, getAuthToken, isWalletOnlyUser } from '@/lib/auth0';
 
 export async function POST(req: NextRequest) {
-  const { email, account_id } = await req.json();
+  const { email, account_id, wallet_id } = await req.json();
 
   // Email users: Retrieve by email with auth_token
   if (email) {
@@ -48,13 +48,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Wallet users Retrieve by account_id
-  if (account_id) {    
+  // Wallet users: Retrieve by wallet_id
+  else if (wallet_id) {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_SHADE_API_URL}/api/user-keys/retrieve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account_id, wallet_id: account_id }),
+        body: JSON.stringify({ account_id, wallet_id }),
       });
 
       if (!res.ok) {
@@ -77,5 +77,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // No email or wallet_id provided
   return NextResponse.json({ error: 'Email or account_id required' }, { status: 400 });
 }
