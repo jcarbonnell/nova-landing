@@ -18,7 +18,7 @@ export interface User {
   [key: string]: unknown;
 }
 
-const SHADE_AUDIENCE = 'https://nova-mcp.fastmcp.app';
+const SHADE_AUDIENCE = 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-3000.dstack-prod5.phala.network';
 
 // auth0 v4: Instantiate client with explicit config to ensure all vars are read
 export const auth0 = new Auth0Client({
@@ -73,7 +73,7 @@ export async function getAuthToken(): Promise<string | null> {
     
     // STRATEGY 1: Use accessToken (has correct audience for Shade)
     if (session.tokenSet?.accessToken) {
-      console.log('Using accessToken with audience: https://nova-mcp.fastmcp.app');
+      console.log('Using accessToken with audience: https://5a5223f7d1bfe777433c496b9d52ff851e927259-3000.dstack-prod5.phala.network');
       return session.tokenSet.accessToken;
     }
     
