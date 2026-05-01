@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       throw new Error(`TX failed: ${JSON.stringify(result.status.Failure)}`);
     }
 
-    console.log('Account created:', fullId);
+    console.log('Account created');
 
     // 9. Store key in Shade TEE
     const token = wallet_id ? null : await getAuthToken();
@@ -107,11 +107,7 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        console.log('Storing key with payload:', { 
-          email: storePayload.email, 
-          account_id: storePayload.account_id,
-          has_token: !!storePayload.auth_token 
-        });
+        console.log('Storing key with payload');
 
         const res = await fetch(`${SHADE_API_URL}/api/user-keys/store`, {
           method: 'POST',
@@ -120,7 +116,7 @@ export async function POST(req: NextRequest) {
         });
 
         if (res.ok) {
-          console.log('✅ Key securely stored in Shade TEE for email:', storePayload.email);
+          console.log('✅ Key securely stored in Shade TEE');
         } else {
           const errorText = await res.text();
           console.error('⚠️ Shade backup failed:', res.status );

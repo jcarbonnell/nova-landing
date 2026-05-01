@@ -23,8 +23,6 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      console.log('Fetching key from Shade with:', { email, has_token: !!token });
-
       const res = await fetch(`${process.env.NEXT_PUBLIC_SHADE_API_URL}/api/user-keys/retrieve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -33,16 +31,11 @@ export async function POST(req: NextRequest) {
 
       if (!res.ok) {
         const errorText = await res.text();
-        console.error('Shade retrieve failed:', {
-          status: res.status,
-          error: errorText,
-          email: email,
-        });
         throw new Error(`Shade retrieve failed: ${res.status} - ${errorText}`);
       }
 
       const data = await res.json();
-      console.log('✅ Key retrieved from Shade TEE for:', email);
+      console.log('Key retrieved from Shade TEE');
 
       return NextResponse.json({ private_key: data.private_key });
     } catch (err) {
@@ -56,9 +49,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Wallet users Retrieve by account_id
-  if (account_id) {
-    console.log('Retrieving key by account_id:', account_id);
-    
+  if (account_id) {    
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_SHADE_API_URL}/api/user-keys/retrieve`, {
         method: 'POST',
@@ -68,15 +59,12 @@ export async function POST(req: NextRequest) {
 
       if (!res.ok) {
         const errorText = await res.text();
-        console.error('Shade retrieve failed:', {
-          status: res.status,
-          error: errorText.substring(0, 200),
-        });
+        console.error('Shade retrieve failed');
         return NextResponse.json({ error: 'Key not found' }, { status: 404 });
       }
 
       const data = await res.json();
-      console.log('Key retrieved from Shade TEE for account');
+      console.log('Key retrieved from Shade TEE');
 
       return NextResponse.json({ private_key: data.private_key });
     } catch (err) {
