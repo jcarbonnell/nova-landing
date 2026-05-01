@@ -107,6 +107,12 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        console.log('Storing key with payload:', { 
+          email: storePayload.email, 
+          account_id: storePayload.account_id,
+          has_token: !!storePayload.auth_token 
+        });
+
         const res = await fetch(`${SHADE_API_URL}/api/user-keys/store`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -114,7 +120,7 @@ export async function POST(req: NextRequest) {
         });
 
         if (res.ok) {
-          console.log('Key securely stored in Shade TEE');
+          console.log('✅ Key securely stored in Shade TEE for email:', storePayload.email);
         } else {
           const errorText = await res.text();
           console.error('⚠️ Shade backup failed:', res.status );
