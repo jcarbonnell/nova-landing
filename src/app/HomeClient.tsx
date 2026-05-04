@@ -133,17 +133,12 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     console.log('Auto-signing in with NOVA account:', novaAccountId);
 
     try {
-      // Determine if this is an email user or wallet user
-      const isEmailUser = !!userEmail && !walletId;
-    
-      // Retrieve key from Shade
+      // Build request body based on user type
       const requestBody: any = { account_id: novaAccountId };
     
-      if (isEmailUser) {
-        // Email users need email in the request (will trigger auth_token path)
+      if (userEmail) {
         requestBody.email = userEmail;
       } else if (walletId) {
-        // Wallet users need wallet_id for Shade Agent to derive key
         requestBody.wallet_id = walletId;
       }
 

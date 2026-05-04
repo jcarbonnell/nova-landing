@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
         const decoded = jwt.decode(authToken, { complete: true }) as { payload?: JwtPayload } | null;
           
         // Check if audience matches Shade expectation
-        const expectedAudience = 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-3000.dstack-prod5.phala.network';
+        const expectedAudience = process.env.AUTH0_AUDIENCE || 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-3000.dstack-prod5.phala.network';
         const actualAudience = decoded?.payload?.aud;
           
         if (Array.isArray(actualAudience)) {

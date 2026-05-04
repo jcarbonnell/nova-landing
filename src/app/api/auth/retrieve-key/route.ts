@@ -13,12 +13,9 @@ export async function POST(req: NextRequest) {
     }
 
     const token = await getAuthToken();
-
     if (!token) {
-      console.error('No auth token available for key retrieval');
       return NextResponse.json({ 
         error: 'No authentication token available',
-        details: 'Session exists but token is missing'
       }, { status: 401 });
     }
 
@@ -30,20 +27,14 @@ export async function POST(req: NextRequest) {
       });
 
       if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`Shade retrieve failed: ${res.status} - ${errorText}`);
+        throw new Error('Shade retrieve failed');
       }
 
       const data = await res.json();
-      console.log('Key retrieved from Shade TEE');
-
       return NextResponse.json({ private_key: data.private_key });
     } catch (err) {
-      console.error('Retrieve key error:', err);
       return NextResponse.json({ 
         error: 'Failed to retrieve key',
-        details: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined
       }, { status: 500 });
     }
   }
@@ -58,21 +49,14 @@ export async function POST(req: NextRequest) {
       });
 
       if (!res.ok) {
-        const errorText = await res.text();
-        console.error('Shade retrieve failed');
         return NextResponse.json({ error: 'Key not found' }, { status: 404 });
       }
 
       const data = await res.json();
-      console.log('Key retrieved from Shade TEE');
-
       return NextResponse.json({ private_key: data.private_key });
     } catch (err) {
-      console.error('Retrieve key error:', err);
       return NextResponse.json({ 
         error: 'Failed to retrieve key',
-        details: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined
       }, { status: 500 });
     }
   }
