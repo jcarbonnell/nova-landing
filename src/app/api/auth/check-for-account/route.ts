@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN!;
     const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL!;
     console.log('🔍 SHADE_API_URL:', shadeUrl);
-    
+
     // Wallet users
     if (wallet_id) {
       console.log('Checking for NOVA account linked to wallet:', wallet_id);
@@ -220,13 +220,21 @@ export async function POST(req: NextRequest) {
       console.warn('No auth token available - Shade check will fail');
     }
       
-    console.log('Querying Shade for user account');
+    console.log('🔍 SHADE_API_URL:', shadeUrl);
+    console.log('📧 Querying Shade for user account:', email);
+    console.log('🔑 Has auth token:', !!authToken);
+    if (authToken) {
+      console.log('🎫 Token preview:', authToken.substring(0, 50) + '...');
+    }
       
     try {
       const shadePayload: Record<string, string> = { email };
       if (authToken) {
         shadePayload.auth_token = authToken;
       }
+
+      console.log('📤 Sending to Shade:', `${shadeUrl}/api/user-keys/check`);
+      console.log('📦 Payload:', { email, has_token: !!authToken });
         
       const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/check`, {
         method: 'POST',
@@ -239,6 +247,7 @@ export async function POST(req: NextRequest) {
 
       if (shadeResponse.ok) {
         const shadeData = await shadeResponse.json();
+        console.log('✅ Shade response:', shadeData);
           
         if (shadeData.exists && shadeData.account_id) {
           console.log('Found account in Shade TEE:', shadeData.account_id);
