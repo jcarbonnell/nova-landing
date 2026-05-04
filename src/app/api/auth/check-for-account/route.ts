@@ -23,7 +23,8 @@ export async function POST(req: NextRequest) {
 
     const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN!;
     const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL!;
-
+    console.log('🔍 SHADE_API_URL:', shadeUrl);
+    
     // Wallet users
     if (wallet_id) {
       console.log('Checking for NOVA account linked to wallet:', wallet_id);
