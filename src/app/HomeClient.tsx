@@ -477,9 +477,9 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               <Image
                 src="/nova-logo.png"
                 alt="NOVA - Secure File Sharing"
-                width={250}
-                height={102}
-                className="w-48 h-48 md:w-56 md:h-56 lg:w-64 lg:h-64 object-contain drop-shadow-md hover:drop-shadow-xl transition-all duration-300 hover:scale-105"
+                width={320}
+                height={320}
+                className="w-56 h-56 md:w-64 md:h-64 lg:w-80 lg:h-80 object-contain drop-shadow-md hover:drop-shadow-xl transition-all duration-300 hover:scale-105"
                 priority
               />
             </div>
