@@ -2,6 +2,19 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import Providers from '@/components/Providers';
+import { MuseoModerno, Space_Grotesk } from 'next/font/google';
+
+const museoModerno = MuseoModerno({ 
+  subsets: ['latin'],
+  weight: ['700', '900'],
+  variable: '--font-museo'
+});
+
+const spaceGrotesk = Space_Grotesk({ 
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-space'
+});
 
 export const metadata: Metadata = {
   title: 'NOVA - Your data. Your vault. Your rules.',
@@ -28,7 +41,7 @@ export default function RootLayout({
   `.replace(/\s{2,}/g, ' ').trim();
 
   return (
-    <html lang="en">
+    <html lang="en" className={`${museoModerno.variable} ${spaceGrotesk.variable}`}>
       <head>
         <meta httpEquiv="Content-Security-Policy" content={csp} />
       </head>

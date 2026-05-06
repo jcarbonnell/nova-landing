@@ -25,6 +25,16 @@
     --input: 280 0% 50%;
     --ring: 280 100% 70%;
     --radius: 0.5rem;
+    --font-museo: 'Museo Moderno', sans-serif;
+    --font-space: 'Space Grotesk', sans-serif;
+  }
+
+  .font-museo {
+    font-family: var(--font-museo);
+  }
+
+  .font-space {
+    font-family: var(--font-space);
   }
 
   .dark {
