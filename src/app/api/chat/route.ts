@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Connect to NOVA MCP server using StreamableHTTPClientTransport
-    const mcpEndpoint = new URL(`${MCP_URL}`);
+    const mcpEndpoint = new URL(`${MCP_URL}/mcp`);
     console.log('Connecting to NOVA MCP server:', mcpEndpoint.toString());
     
     // Build headers based on user type
