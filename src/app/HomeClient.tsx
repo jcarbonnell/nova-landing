@@ -475,7 +475,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           <section className="hero-section flex-1 text-center lg:text-left mb-8 lg:mb-0 lg:pr-8 max-w-md lg:max-w-lg">
             <div className="flex justify-center lg:justify-start mb-6 lg:mb-8">
               <Image
-                src="/nova-logo.png"
+                src="/logo-dark-no-bg.svg"
                 alt="NOVA - Secure File Sharing"
                 width={320}
                 height={320}
