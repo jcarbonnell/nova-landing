@@ -475,7 +475,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           <section className="hero-section flex-1 text-center lg:text-left mb-8 lg:mb-0 lg:pr-8 max-w-md lg:max-w-lg">
             <div className="flex justify-center lg:justify-start mb-6 lg:mb-8">
               <img
-                src="/logo-dark-no-bg.svg"
+                src="/logo-dark.svg"
                 alt="NOVA - Secure File Sharing"
                 className="w-56 h-56 md:w-64 md:h-64 lg:w-80 lg:h-80 object-contain drop-shadow-2xl hover:drop-shadow-[0_0_40px_rgba(168,85,247,0.5)] transition-all duration-300 hover:scale-105"
               />
