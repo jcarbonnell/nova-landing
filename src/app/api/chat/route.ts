@@ -1,7 +1,5 @@
 // src/app/api/chat/route.ts
 import { streamText, convertToModelMessages, UIMessage, stepCountIs } from 'ai';
-import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { anthropic } from '@ai-sdk/anthropic';
 import { auth0 } from '@/lib/auth0';
 import { NextRequest } from 'next/server';
@@ -20,9 +18,7 @@ console.log('NEXT_PUBLIC_NEAR_NETWORK:', process.env.NEXT_PUBLIC_NEAR_NETWORK);
 console.log('NETWORK_ID resolved:', NETWORK_ID);
 console.log('ACCOUNT_SUFFIX:', ACCOUNT_SUFFIX);
 
-export async function POST(req: NextRequest) {
-  let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
-  
+export async function POST(req: NextRequest) {  
   try {
     // 1. Parse request body first to check for messages
     const body = await req.json();
@@ -88,8 +84,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Connect to NOVA MCP server using StreamableHTTPClientTransport
-    const mcpEndpoint = new URL(`${MCP_URL}/mcp`);
-    console.log('Connecting to NOVA MCP server:', mcpEndpoint.toString());
+    console.log('Using MCP server:', MCP_URL);
     
     // Build headers based on user type
     const mcpHeaders: Record<string, string> = {
@@ -114,20 +109,162 @@ export async function POST(req: NextRequest) {
       hasAuthToken: !!accessToken,
     });
 
-    // Create the transport with authentication headers
-    const transport = new StreamableHTTPClientTransport(mcpEndpoint, {
-      requestInit: {
-        headers: mcpHeaders,
+    // 4. Define MCP tools with direct HTTP calls
+    async function callMCPTool(toolName: string, args: any) {
+      console.log(`Calling MCP tool: ${toolName}`, args);
+      const response = await fetch(`${MCP_URL}/tools/${toolName}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...mcpHeaders
+        },
+        body: JSON.stringify(args)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`MCP tool ${toolName} failed:`, errorText);
+        throw new Error(`MCP tool ${toolName} failed: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log(`MCP tool ${toolName} result:`, result);
+      return result;
+    }
+
+    const mcpTools = {
+      register_group: {
+        description: 'Create a new group for secure file sharing',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string', description: 'Unique group identifier' }
+          },
+          required: ['group_id']
+        },
+        execute: async (args: any) => callMCPTool('register_group', args)
       },
-    });
+      
+      add_group_member: {
+        description: 'Add a member to a group',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string', description: 'Group ID' },
+            member_id: { type: 'string', description: 'Member account ID to add' }
+          },
+          required: ['group_id', 'member_id']
+        },
+        execute: async (args: any) => callMCPTool('add_group_member', args)
+      },
+      
+      revoke_group_member: {
+        description: 'Remove a member from a group (triggers key rotation)',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string', description: 'Group ID' },
+            member_id: { type: 'string', description: 'Member account ID to remove' }
+          },
+          required: ['group_id', 'member_id']
+        },
+        execute: async (args: any) => callMCPTool('revoke_group_member', args)
+      },
 
-    // Create the MCP client with the transport
-    mcpClient = await createMCPClient({
-      transport,
-    });
+      get_owned_groups: {
+        description: 'List all groups owned by the current user',
+        parameters: {
+          type: 'object',
+          properties: {}
+        },
+        execute: async (args: any) => callMCPTool('get_owned_groups', args)
+      },
 
-    // 4. Get tools from MCP server
-    const mcpTools = await mcpClient.tools();
+      get_member_groups: {
+        description: 'List all groups the current user is a member of',
+        parameters: {
+          type: 'object',
+          properties: {}
+        },
+        execute: async (args: any) => callMCPTool('get_member_groups', args)
+      },
+
+      get_group_members: {
+        description: 'List all members of a specific group',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string', description: 'Group ID to query' }
+          },
+          required: ['group_id']
+        },
+        execute: async (args: any) => callMCPTool('get_group_members', args)
+      },
+
+      get_group_transactions: {
+        description: 'List all file transactions in a group',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string', description: 'Group ID to query' }
+          },
+          required: ['group_id']
+        },
+        execute: async (args: any) => callMCPTool('get_group_transactions', args)
+      },
+
+      prepare_upload: {
+        description: 'Prepare file upload - returns encryption key and upload ID',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string', description: 'Group to upload to' },
+            filename: { type: 'string', description: 'Name of file to upload' }
+          },
+          required: ['group_id', 'filename']
+        },
+        execute: async (args: any) => callMCPTool('prepare_upload', args)
+      },
+
+      finalize_upload: {
+        description: 'Finalize file upload after encryption',
+        parameters: {
+          type: 'object',
+          properties: {
+            upload_id: { type: 'string', description: 'Upload ID from prepare_upload' },
+            encrypted_data: { type: 'string', description: 'Base64 encrypted file data' },
+            file_hash: { type: 'string', description: 'SHA-256 hash of original file' }
+          },
+          required: ['upload_id', 'encrypted_data', 'file_hash']
+        },
+        execute: async (args: any) => callMCPTool('finalize_upload', args)
+      },
+
+      prepare_retrieve: {
+        description: 'Prepare file retrieval - returns decryption key and encrypted data',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string', description: 'Group containing the file' },
+            ipfs_hash: { type: 'string', description: 'IPFS CID of the file' }
+          },
+          required: ['group_id', 'ipfs_hash']
+        },
+        execute: async (args: any) => callMCPTool('prepare_retrieve', args)
+      },
+
+      auth_status: {
+        description: 'Check authentication status and group authorization',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string', description: 'Optional group ID to check authorization' }
+          }
+        },
+        execute: async (args: any) => callMCPTool('auth_status', args)
+      }
+    };
+
     console.log('MCP tools loaded:', Object.keys(mcpTools));
 
     // 5. Convert UI messages to model messages
@@ -263,7 +400,7 @@ RESPONSE STYLE:
 
 Be helpful, concise, and security-conscious.`,
       messages: modelMessages,
-      tools: mcpTools,
+      tools: mcpTools as any,
       // Allow multi-step tool execution (up to 5 steps)
       stopWhen: stepCountIs(5),
       onStepFinish: ({ finishReason, usage, response }) => {
@@ -273,17 +410,6 @@ Be helpful, concise, and security-conscious.`,
           outputTokens: usage?.outputTokens || 0,
           messageCount: response?.messages?.length || 0,
         });
-      },
-      // Close MCP client when streaming finishes
-      onFinish: async () => {
-        if (mcpClient) {
-          try {
-            await mcpClient.close();
-            mcpClient = null;
-          } catch (closeError) {
-            console.warn('Error closing MCP client in onFinish:', closeError);
-          }
-        }
       },
     });
 
@@ -302,15 +428,6 @@ Be helpful, concise, and security-conscious.`,
 
   } catch (error) {
     console.error('Chat API error:', error);
-    
-    // Close MCP client on error
-    if (mcpClient) {
-      try {
-        await mcpClient.close();
-      } catch (closeError) {
-        console.warn('Error closing MCP client on error:', closeError);
-      }
-    }
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     
