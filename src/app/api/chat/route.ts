@@ -178,10 +178,10 @@ RESPONSE STYLE:
 Be helpful, concise, and security-conscious.`;
 
     // Create stream WITHOUT tools first (to test basic streaming)
-    const result = streamText({
+    const result = await streamText({
       model: anthropic('claude-haiku-4-5-20251001'),
       system: systemPrompt,
-      messages: convertToModelMessages(messages),
+      messages: await convertToModelMessages(messages),
     });
 
     return result.toTextStreamResponse();
