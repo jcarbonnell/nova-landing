@@ -365,7 +365,18 @@ Be helpful, concise, and security-conscious.`,
       messages: modelMessages,
       tools: tools as any,
       stopWhen: stepCountIs(5),
+      experimental_telemetry: {
+        isEnabled: true,
+        functionId: 'chat-test',
+      },
+      onError: (error) => {
+        console.error('=== streamText ERROR ===');
+        console.error('Error:', error);
+      },
     });
+
+    console.log('=== CALLING streamText ===');
+    console.log('Tools keys:', Object.keys(tools));
 
     return result.toUIMessageStreamResponse({
       sendSources: true,
