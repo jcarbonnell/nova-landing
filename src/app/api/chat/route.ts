@@ -1,5 +1,7 @@
 // src/app/api/chat/route.ts
-import { streamText, convertToModelMessages } from 'ai';
+import { streamText, convertToModelMessages, stepCountIs } from 'ai';
+import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { anthropic } from '@ai-sdk/anthropic';
 import { auth0 } from '@/lib/auth0';
 import { NextRequest } from 'next/server';
@@ -8,10 +10,13 @@ export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+const MCP_URL = process.env.MCP_URL || 'https://nova-mcp.fastmcp.app';
 const NETWORK_ID = process.env.NEXT_PUBLIC_NEAR_NETWORK || 'mainnet';
 const ACCOUNT_SUFFIX = NETWORK_ID === 'mainnet' ? '.nova-sdk.near' : '.nova-sdk-6.testnet';
 
 export async function POST(req: NextRequest) {
+  let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
+  
   try {
     const body = await req.json();
     const { messages } = body;
@@ -34,6 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get auth
+    let accessToken: string | undefined;
     let userEmail: string | undefined;
 
     if (walletId) {
@@ -46,8 +52,36 @@ export async function POST(req: NextRequest) {
           headers: { 'Content-Type': 'application/json' }
         });
       }
+      accessToken = session.tokenSet?.accessToken;
       userEmail = session.user.email;
     }
+
+    // Build MCP headers
+    const mcpHeaders: Record<string, string> = {
+      'x-account-id': accountId,
+    };
+
+    if (walletId) {
+      mcpHeaders['Authorization'] = `Bearer wallet:${walletId}`;
+      mcpHeaders['x-wallet-id'] = walletId;
+    } else if (accessToken) {
+      mcpHeaders['Authorization'] = `Bearer ${accessToken}`;
+      if (userEmail) {
+        mcpHeaders['x-user-email'] = userEmail;
+      }
+    }
+
+    // Connect to MCP server
+    const mcpEndpoint = new URL(MCP_URL);
+    const transport = new StreamableHTTPClientTransport(mcpEndpoint, {
+      requestInit: {
+        headers: mcpHeaders,
+      },
+    });
+
+    mcpClient = await createMCPClient({ transport });
+    const mcpTools = await mcpClient.tools();
+    console.log('MCP tools loaded:', Object.keys(mcpTools));
 
     const userIdentifier = walletId || userEmail;
     const systemPrompt = `You are NOVA, a secure file-sharing assistant powered by the NOVA SDK.
@@ -175,17 +209,30 @@ RESPONSE STYLE:
 
 Be helpful, concise, and security-conscious.`;
 
-    // Use AI SDK's streamText - no tools for now
+    // streamText with MCP tools + toUIMessageStreamResponse()
     const result = streamText({
       model: anthropic('claude-haiku-4-5-20251001'),
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
+      tools: mcpTools as any,
+      stopWhen: stepCountIs(5),
+      onFinish: async () => {
+        if (mcpClient) {
+          await mcpClient.close();
+          mcpClient = null;
+        }
+      },
     });
 
     return result.toUIMessageStreamResponse();
 
   } catch (error) {
     console.error('Chat API error:', error);
+    
+    if (mcpClient) {
+      await mcpClient.close();
+    }
+    
     return new Response(
       JSON.stringify({ 
         error: 'Chat processing failed', 
