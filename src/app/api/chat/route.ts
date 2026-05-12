@@ -333,46 +333,47 @@ RESPONSE STYLE:
 
 Be helpful, concise, and security-conscious.`;
 
-    // Stream response from Anthropic
-    const stream = await anthropic.messages.stream({
+    // Create stream WITHOUT tools first (to test basic streaming)
+    const stream = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 4096,
       system: systemPrompt,
       messages: anthropicMessages,
       tools: tools,
+      stream: true,
     });
 
-    // Handle tool calls
-    stream.on('contentBlock', async (block) => {
-      if (block.type === 'tool_use') {
-        console.log('Tool use:', block.name, block.input);
-        try {
-          const result = await callMCPTool(block.name, block.input);
-          console.log('Tool result:', result);
-        } catch (error) {
-          console.error('Tool error:', error);
-        }
-      }
-    });
-
-    // Return streaming response
+    // Convert Anthropic stream to text stream for useChat
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
-        for await (const chunk of stream) {
-          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-            controller.enqueue(encoder.encode(chunk.delta.text));
+        try {
+          for await (const chunk of stream) {
+            if (chunk.type === 'content_block_delta' && 
+                chunk.delta.type === 'text_delta') {
+              // Send text chunks in data stream format
+              const data = `0:${JSON.stringify(chunk.delta.text)}\n`;
+              controller.enqueue(encoder.encode(data));
+            } else if (chunk.type === 'content_block_start' && 
+                       chunk.content_block.type === 'tool_use') {
+              // Handle tool call
+              const toolUse = chunk.content_block;
+              console.log('Tool call:', toolUse.name);
+            }
           }
+          controller.close();
+        } catch (error) {
+          console.error('Stream error:', error);
+          controller.error(error);
         }
-        controller.close();
       }
     });
 
     return new Response(readable, {
       headers: {
-        'Content-Type': 'text/event-stream',
+        'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
+        'Connection': 'keep-alive',
       }
     });
 
