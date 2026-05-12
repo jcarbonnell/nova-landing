@@ -1,5 +1,4 @@
-import { streamText, convertToModelMessages, UIMessage, stepCountIs } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
+import Anthropic from '@anthropic-ai/sdk';
 import { auth0 } from '@/lib/auth0';
 import { NextRequest } from 'next/server';
 
@@ -11,10 +10,14 @@ const MCP_URL = process.env.MCP_URL || 'https://5a5223f7d1bfe777433c496b9d52ff85
 const NETWORK_ID = process.env.NEXT_PUBLIC_NEAR_NETWORK || 'mainnet';
 const ACCOUNT_SUFFIX = NETWORK_ID === 'mainnet' ? '.nova-sdk.near' : '.nova-sdk-6.testnet';
 
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+});
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { messages }: { messages: UIMessage[] } = body;
+    const { messages } = body;
     
     const accountId = req.headers.get('x-account-id');
     const walletId = req.headers.get('x-wallet-id');
@@ -51,7 +54,7 @@ export async function POST(req: NextRequest) {
       userEmail = session.user.email;
     }
 
-    // Build headers for REST calls
+    // Build headers for MCP REST calls
     const toolHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'x-account-id': accountId,
@@ -67,7 +70,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Define tools that call REST endpoints (like SDK does)
+    // Tool execution function
     async function callMCPTool(toolName: string, args: any) {
       console.log(`Calling tool: ${toolName}`, args);
       const response = await fetch(`${MCP_URL}/tools/${toolName}`, {
@@ -85,160 +88,127 @@ export async function POST(req: NextRequest) {
       return result.result || result;
     }
 
-    console.log('=== CHAT ROUTE LOADED ===');
-    console.log('Building tools with manual JSON Schema format');
-
-    const tools = {
-      register_group: {
+    // Define tools in Anthropic format
+    const tools: Anthropic.Tool[] = [
+      {
+        name: 'register_group',
         description: 'Create a new group for secure file sharing',
-        parameters: {
-          type: 'object' as const,
+        input_schema: {
+          type: 'object',
           properties: {
-            group_id: { 
-              type: 'string' as const,
-              description: 'Unique group identifier'
-            }
+            group_id: { type: 'string', description: 'Unique group identifier' }
           },
           required: ['group_id']
-        },
-        execute: async ({ group_id }: { group_id: string }) => {
-          return await callMCPTool('register_group', { group_id });
-        },
+        }
       },
-      
-      add_group_member: {
+      {
+        name: 'add_group_member',
         description: 'Add a member to a group',
-        parameters: {
-          type: 'object' as const,
+        input_schema: {
+          type: 'object',
           properties: {
-            group_id: { type: 'string' as const, description: 'Group identifier' },
-            member_id: { type: 'string' as const, description: 'Member account ID' }
+            group_id: { type: 'string', description: 'Group identifier' },
+            member_id: { type: 'string', description: 'Member account ID' }
           },
           required: ['group_id', 'member_id']
-        },
-        execute: async ({ group_id, member_id }: { group_id: string; member_id: string }) => {
-          return await callMCPTool('add_group_member', { group_id, member_id });
-        },
+        }
       },
-
-      revoke_group_member: {
+      {
+        name: 'revoke_group_member',
         description: 'Remove a member from a group',
-        parameters: {
-          type: 'object' as const,
+        input_schema: {
+          type: 'object',
           properties: {
-            group_id: { type: 'string' as const, description: 'Group identifier' },
-            member_id: { type: 'string' as const, description: 'Member account ID' }
+            group_id: { type: 'string', description: 'Group identifier' },
+            member_id: { type: 'string', description: 'Member account ID' }
           },
           required: ['group_id', 'member_id']
-        },
-        execute: async ({ group_id, member_id }: { group_id: string; member_id: string }) => {
-          return await callMCPTool('revoke_group_member', { group_id, member_id });
-        },
+        }
       },
-
-      get_owned_groups: {
+      {
+        name: 'get_owned_groups',
         description: 'List all groups owned by the current user',
-        parameters: {
-          type: 'object' as const,
+        input_schema: {
+          type: 'object',
           properties: {}
-        },
-        execute: async () => {
-          return await callMCPTool('get_owned_groups', {});
-        },
+        }
       },
-
-      get_member_groups: {
+      {
+        name: 'get_member_groups',
         description: 'List all groups the current user is a member of',
-        parameters: {
-          type: 'object' as const,
+        input_schema: {
+          type: 'object',
           properties: {}
-        },
-        execute: async () => {
-          return await callMCPTool('get_member_groups', {});
-        },
+        }
       },
-
-      get_group_members: {
+      {
+        name: 'get_group_members',
         description: 'List members of a specific group',
-        parameters: {
-          type: 'object' as const,
+        input_schema: {
+          type: 'object',
           properties: {
-            group_id: { type: 'string' as const, description: 'Group ID to query' }
+            group_id: { type: 'string', description: 'Group ID to query' }
           },
           required: ['group_id']
-        },
-        execute: async ({ group_id }: { group_id: string }) => {
-          return await callMCPTool('get_group_members', { group_id });
-        },
+        }
       },
-
-      get_group_transactions: {
+      {
+        name: 'get_group_transactions',
         description: 'List file transactions in a group',
-        parameters: {
-          type: 'object' as const,
+        input_schema: {
+          type: 'object',
           properties: {
-            group_id: { type: 'string' as const, description: 'Group ID to query' }
+            group_id: { type: 'string', description: 'Group ID to query' }
           },
           required: ['group_id']
-        },
-        execute: async ({ group_id }: { group_id: string }) => {
-          return await callMCPTool('get_group_transactions', { group_id });
-        },
+        }
       },
-
-      prepare_upload: {
-        description: 'Prepare file upload',
-        parameters: {
-          type: 'object' as const,
+      {
+        name: 'prepare_upload',
+        description: 'Prepare file upload - returns encryption key',
+        input_schema: {
+          type: 'object',
           properties: {
-            group_id: { type: 'string' as const, description: 'Group to upload to' },
-            filename: { type: 'string' as const, description: 'Filename' }
+            group_id: { type: 'string', description: 'Group to upload to' },
+            filename: { type: 'string', description: 'Filename' }
           },
           required: ['group_id', 'filename']
-        },
-        execute: async ({ group_id, filename }: { group_id: string; filename: string }) => {
-          return await callMCPTool('prepare_upload', { group_id, filename });
-        },
+        }
       },
-
-      prepare_retrieve: {
-        description: 'Prepare file retrieval',
-        parameters: {
-          type: 'object' as const,
+      {
+        name: 'prepare_retrieve',
+        description: 'Prepare file retrieval - returns decryption key',
+        input_schema: {
+          type: 'object',
           properties: {
-            group_id: { type: 'string' as const, description: 'Group containing file' },
-            ipfs_hash: { type: 'string' as const, description: 'IPFS CID' }
+            group_id: { type: 'string', description: 'Group containing file' },
+            ipfs_hash: { type: 'string', description: 'IPFS CID' }
           },
           required: ['group_id', 'ipfs_hash']
-        },
-        execute: async ({ group_id, ipfs_hash }: { group_id: string; ipfs_hash: string }) => {
-          return await callMCPTool('prepare_retrieve', { group_id, ipfs_hash });
-        },
+        }
       },
-
-      auth_status: {
+      {
+        name: 'auth_status',
         description: 'Check authentication status',
-        parameters: {
-          type: 'object' as const,
+        input_schema: {
+          type: 'object',
           properties: {
-            group_id: { type: 'string' as const, description: 'Optional group ID' }
+            group_id: { type: 'string', description: 'Optional group ID' }
           }
-        },
-        execute: async ({ group_id }: { group_id?: string }) => {
-          return await callMCPTool('auth_status', group_id ? { group_id } : {});
-        },
-      },
-    };
+        }
+      }
+    ];
 
-    console.log('=== TOOLS DEFINED ===');
-    console.log('First tool schema:', JSON.stringify(tools.register_group.parameters, null, 2));
+    console.log('Tools defined:', tools.length);
 
-    const modelMessages = convertToModelMessages(messages);
+    // Convert messages to Anthropic format
+    const anthropicMessages: Anthropic.MessageParam[] = messages.map((msg: any) => ({
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: msg.content
+    }));
+
     const userIdentifier = walletId || userEmail;
-
-    const result = streamText({
-      model: anthropic('claude-haiku-4-5-20251001'),
-      system: `You are NOVA, a secure file-sharing assistant powered by the NOVA SDK.
+    const systemPrompt = `You are NOVA, a secure file-sharing assistant powered by the NOVA SDK.
 
 Your capabilities include:
 - Uploading files with end-to-end encryption (use composite_upload tool)
@@ -361,26 +331,49 @@ RESPONSE STYLE:
 - If an operation fails, explain why and suggest fixes
 - For file transactions, show: filename, IPFS hash (CID), and file hash when available
 
-Be helpful, concise, and security-conscious.`,
-      messages: modelMessages,
-      tools: tools as any,
-      stopWhen: stepCountIs(5),
-      experimental_telemetry: {
-        isEnabled: true,
-        functionId: 'chat-test',
-      },
-      onError: (error) => {
-        console.error('=== streamText ERROR ===');
-        console.error('Error:', error);
-      },
+Be helpful, concise, and security-conscious.`;
+
+    // Stream response from Anthropic
+    const stream = await anthropic.messages.stream({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: anthropicMessages,
+      tools: tools,
     });
 
-    console.log('=== CALLING streamText ===');
-    console.log('Tools keys:', Object.keys(tools));
+    // Handle tool calls
+    stream.on('contentBlock', async (block) => {
+      if (block.type === 'tool_use') {
+        console.log('Tool use:', block.name, block.input);
+        try {
+          const result = await callMCPTool(block.name, block.input);
+          console.log('Tool result:', result);
+        } catch (error) {
+          console.error('Tool error:', error);
+        }
+      }
+    });
 
-    return result.toUIMessageStreamResponse({
-      sendSources: true,
-      sendReasoning: true,
+    // Return streaming response
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        for await (const chunk of stream) {
+          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+            controller.enqueue(encoder.encode(chunk.delta.text));
+          }
+        }
+        controller.close();
+      }
+    });
+
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+      }
     });
 
   } catch (error) {
