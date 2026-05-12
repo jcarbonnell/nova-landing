@@ -201,41 +201,52 @@ export async function POST(req: NextRequest) {
 
     console.log('Tools defined:', tools.length);
 
-    // Convert messages to Anthropic format
+    // Convert messages to Anthropic format - handle AI SDK message structure
     const anthropicMessages = messages
-      .filter((msg: any) => msg.role !== 'system') // Filter out system messages
+      .filter((msg: any) => msg.role !== 'system')
       .map((msg: any) => {
-        // Handle different message formats
         let content: string;
         
-        if (typeof msg.content === 'string') {
+        // Handle parts array (AI SDK format)
+        if (msg.parts && Array.isArray(msg.parts)) {
+          content = msg.parts
+            .filter((part: any) => part.type === 'text')
+            .map((part: any) => part.text)
+            .join('\n');
+        }
+        // Handle direct content string
+        else if (typeof msg.content === 'string') {
           content = msg.content;
-        } else if (Array.isArray(msg.content)) {
-          // Handle array content (parts)
+        }
+        // Handle content array
+        else if (Array.isArray(msg.content)) {
           content = msg.content
             .filter((part: any) => part.type === 'text')
             .map((part: any) => part.text)
             .join('\n');
-        } else if (msg.content?.text) {
+        }
+        // Handle content.text
+        else if (msg.content?.text) {
           content = msg.content.text;
-        } else {
+        }
+        // Fallback
+        else {
           console.log('Unknown message format:', msg);
-          content = JSON.stringify(msg.content);
+          content = JSON.stringify(msg);
         }
 
         return {
-          role: msg.role === 'user' ? 'user' : 'assistant',
+          role: (msg.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
           content: content
         };
       })
-      .filter((msg: any) => msg.content && msg.content.trim().length > 0) as Anthropic.MessageParam[];
+      .filter((msg: any) => msg.content && msg.content.trim().length > 0);
 
     console.log('Converted messages:', anthropicMessages.length);
     if (anthropicMessages.length > 0) {
       console.log('First message:', JSON.stringify(anthropicMessages[0]));
     }
 
-    // Validation
     if (anthropicMessages.length === 0) {
       console.error('No valid messages after conversion');
       console.error('Original messages:', JSON.stringify(messages, null, 2));
