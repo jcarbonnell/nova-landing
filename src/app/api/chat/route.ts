@@ -400,39 +400,35 @@ Be helpful, concise, and security-conscious.`;
           let textChunks = 0;
           
           for await (const chunk of stream) {
-            console.log('Chunk type:', chunk.type);
-            
             if (chunk.type === 'content_block_delta' && 
                 chunk.delta.type === 'text_delta') {
               textChunks++;
-              console.log(`Text chunk ${textChunks}:`, chunk.delta.text);
               
-              // Send in AI SDK text format
-              const line = `0:"${chunk.delta.text.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"\n`;
+              // AI SDK format: 0:"escaped text"\n
+              const escapedText = JSON.stringify(chunk.delta.text);
+              const line = `0:${escapedText}\n`;
               controller.enqueue(encoder.encode(line));
-            } 
-            else if (chunk.type === 'content_block_start') {
-              console.log('Content block start:', chunk.content_block);
-            }
-            else if (chunk.type === 'message_start') {
-              console.log('Message started');
-            }
-            else if (chunk.type === 'message_delta') {
-              console.log('Message delta:', chunk.delta);
-            }
-            else if (chunk.type === 'content_block_stop') {
-              console.log('Content block stopped');
             }
           }
           
           console.log(`Stream complete. Total text chunks: ${textChunks}`);
           
-          // Send completion marker
-          controller.enqueue(encoder.encode('e:{"finishReason":"stop"}\n'));
+          // Send finish message - AI SDK format
+          const finishMessage = `d:${JSON.stringify({
+            finishReason: 'stop',
+            usage: {
+              promptTokens: 0,
+              completionTokens: textChunks
+            }
+          })}\n`;
+          
+          controller.enqueue(encoder.encode(finishMessage));
           controller.close();
+          
         } catch (error) {
           console.error('Stream error:', error);
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          // AI SDK error format: 3:"error message"\n
           controller.enqueue(encoder.encode(`3:${JSON.stringify(errorMessage)}\n`));
           controller.close();
         }
