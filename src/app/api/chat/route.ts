@@ -392,28 +392,41 @@ Be helpful, concise, and security-conscious.`;
       stream: true,
     });
 
-    // Convert Anthropic stream to text stream for useChat
+    // Convert Anthropic stream to AI SDK format
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
         try {
+          let messageId = 0;
+          
           for await (const chunk of stream) {
             if (chunk.type === 'content_block_delta' && 
                 chunk.delta.type === 'text_delta') {
-              // Send text chunks in data stream format
-              const data = `0:${JSON.stringify(chunk.delta.text)}\n`;
-              controller.enqueue(encoder.encode(data));
-            } else if (chunk.type === 'content_block_start' && 
-                       chunk.content_block.type === 'tool_use') {
-              // Handle tool call
-              const toolUse = chunk.content_block;
-              console.log('Tool call:', toolUse.name);
+              // Send in AI SDK text format
+              const line = `0:"${chunk.delta.text.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"\n`;
+              controller.enqueue(encoder.encode(line));
+            } 
+            else if (chunk.type === 'content_block_start' && 
+                    chunk.content_block.type === 'tool_use') {
+              console.log('Tool call:', chunk.content_block.name);
+              // TODO: Handle tool calls
+            }
+            else if (chunk.type === 'message_start') {
+              console.log('Message started');
+            }
+            else if (chunk.type === 'message_delta') {
+              console.log('Message delta:', chunk.delta);
             }
           }
+          
+          // Send completion marker
+          controller.enqueue(encoder.encode('e:{"finishReason":"stop"}\n'));
           controller.close();
         } catch (error) {
           console.error('Stream error:', error);
-          controller.error(error);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          controller.enqueue(encoder.encode(`3:${JSON.stringify(errorMessage)}\n`));
+          controller.close();
         }
       }
     });
@@ -421,6 +434,7 @@ Be helpful, concise, and security-conscious.`;
     return new Response(readable, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
+        'X-Vercel-AI-Data-Stream': 'v1',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
       }
