@@ -177,7 +177,7 @@ Be helpful, concise, and security-conscious.`;
 
     // Use AI SDK's streamText - no tools for now
     const result = streamText({
-      model: anthropic('claude-haiku-4-20250514'),
+      model: anthropic('claude-haiku-4-5-20251001'),
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
     });
