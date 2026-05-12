@@ -1,4 +1,4 @@
-import { streamText, convertToModelMessages, UIMessage, stepCountIs } from 'ai';
+import { streamText, convertToModelMessages, UIMessage, stepCountIs, zodSchema } from 'ai';
 import { z } from 'zod';
 import { anthropic } from '@ai-sdk/anthropic';
 import { auth0 } from '@/lib/auth0';
@@ -89,9 +89,9 @@ export async function POST(req: NextRequest) {
     const tools = {
       register_group: {
         description: 'Create a new group for secure file sharing',
-        parameters: z.object({
+        parameters: zodSchema(z.object({
           group_id: z.string().describe('Unique group identifier'),
-        }),
+        })),
         execute: async ({ group_id }: { group_id: string }) => {
           return await callMCPTool('register_group', { group_id });
         },
@@ -99,10 +99,10 @@ export async function POST(req: NextRequest) {
       
       add_group_member: {
         description: 'Add a member to a group',
-        parameters: z.object({
+        parameters: zodSchema(z.object({
           group_id: z.string().describe('Group identifier'),
           member_id: z.string().describe('Member account ID to add'),
-        }),
+        })),
         execute: async ({ group_id, member_id }: { group_id: string; member_id: string }) => {
           return await callMCPTool('add_group_member', { group_id, member_id });
         },
@@ -110,10 +110,10 @@ export async function POST(req: NextRequest) {
 
       revoke_group_member: {
         description: 'Remove a member from a group',
-        parameters: z.object({
+        parameters: zodSchema(z.object({
           group_id: z.string().describe('Group identifier'),
           member_id: z.string().describe('Member account ID to remove'),
-        }),
+        })),
         execute: async ({ group_id, member_id }: { group_id: string; member_id: string }) => {
           return await callMCPTool('revoke_group_member', { group_id, member_id });
         },
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
 
       get_owned_groups: {
         description: 'List all groups owned by the current user',
-        parameters: z.object({}),
+        parameters: zodSchema(z.object({})),
         execute: async () => {
           return await callMCPTool('get_owned_groups', {});
         },
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
 
       get_member_groups: {
         description: 'List all groups the current user is a member of',
-        parameters: z.object({}),
+        parameters: zodSchema(z.object({})),
         execute: async () => {
           return await callMCPTool('get_member_groups', {});
         },
@@ -137,9 +137,9 @@ export async function POST(req: NextRequest) {
 
       get_group_members: {
         description: 'List members of a specific group',
-        parameters: z.object({
+        parameters: zodSchema(z.object({
           group_id: z.string().describe('Group ID to query'),
-        }),
+        })),
         execute: async ({ group_id }: { group_id: string }) => {
           return await callMCPTool('get_group_members', { group_id });
         },
@@ -147,9 +147,9 @@ export async function POST(req: NextRequest) {
 
       get_group_transactions: {
         description: 'List file transactions in a group',
-        parameters: z.object({
+        parameters: zodSchema(z.object({
           group_id: z.string().describe('Group ID to query'),
-        }),
+        })),
         execute: async ({ group_id }: { group_id: string }) => {
           return await callMCPTool('get_group_transactions', { group_id });
         },
@@ -157,10 +157,10 @@ export async function POST(req: NextRequest) {
 
       prepare_upload: {
         description: 'Prepare file upload - returns encryption key',
-        parameters: z.object({
+        parameters: zodSchema(z.object({
           group_id: z.string().describe('Group to upload to'),
           filename: z.string().describe('Name of file to upload'),
-        }),
+        })),
         execute: async ({ group_id, filename }: { group_id: string; filename: string }) => {
           return await callMCPTool('prepare_upload', { group_id, filename });
         },
@@ -168,10 +168,10 @@ export async function POST(req: NextRequest) {
 
       prepare_retrieve: {
         description: 'Prepare file retrieval - returns decryption key',
-        parameters: z.object({
+        parameters: zodSchema(z.object({
           group_id: z.string().describe('Group containing the file'),
           ipfs_hash: z.string().describe('IPFS CID of the file'),
-        }),
+        })),
         execute: async ({ group_id, ipfs_hash }: { group_id: string; ipfs_hash: string }) => {
           return await callMCPTool('prepare_retrieve', { group_id, ipfs_hash });
         },
@@ -179,9 +179,9 @@ export async function POST(req: NextRequest) {
 
       auth_status: {
         description: 'Check authentication status',
-        parameters: z.object({
+        parameters: zodSchema(z.object({
           group_id: z.string().optional().describe('Optional group ID'),
-        }),
+        })),
         execute: async ({ group_id }: { group_id?: string }) => {
           return await callMCPTool('auth_status', group_id ? { group_id } : {});
         },
