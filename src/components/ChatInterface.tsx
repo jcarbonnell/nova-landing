@@ -81,7 +81,7 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
         // Clone and log body
         const clone = response.clone();
         const text = await clone.text();
-        console.log('Response body (first 500 chars):', text.substring(0, 500));
+        console.log('Response body FULL:', text);
 
         return response;
       },

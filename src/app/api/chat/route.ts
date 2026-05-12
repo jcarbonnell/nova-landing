@@ -420,7 +420,7 @@ Be helpful, concise, and security-conscious.`;
               promptTokens: 0,
               completionTokens: textChunks
             }
-          })}\n`;
+          })}\n\n`;
           
           controller.enqueue(encoder.encode(finishMessage));
           controller.close();
