@@ -9,7 +9,7 @@ export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const MCP_URL = process.env.MCP_URL || 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network';
+const MCP_URL = process.env.MCP_URL || 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network/mcp';
 const NETWORK_ID = process.env.NEXT_PUBLIC_NEAR_NETWORK || 'mainnet';
 const ACCOUNT_SUFFIX = NETWORK_ID === 'mainnet' ? '.nova-sdk.near' : '.nova-sdk-6.testnet';
 
@@ -81,7 +81,11 @@ export async function POST(req: NextRequest) {
     
     const transport = new StreamableHTTPClientTransport(mcpEndpoint, {
       requestInit: {
-        headers: mcpHeaders,
+        headers: {
+          ...mcpHeaders,
+          'Accept': 'application/json, text/event-stream',  // ← Add this
+          'Content-Type': 'application/json',
+        },
       },
     });
 
