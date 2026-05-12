@@ -202,10 +202,48 @@ export async function POST(req: NextRequest) {
     console.log('Tools defined:', tools.length);
 
     // Convert messages to Anthropic format
-    const anthropicMessages: Anthropic.MessageParam[] = messages.map((msg: any) => ({
-      role: msg.role === 'user' ? 'user' : 'assistant',
-      content: msg.content
-    }));
+    const anthropicMessages = messages
+      .filter((msg: any) => msg.role !== 'system') // Filter out system messages
+      .map((msg: any) => {
+        // Handle different message formats
+        let content: string;
+        
+        if (typeof msg.content === 'string') {
+          content = msg.content;
+        } else if (Array.isArray(msg.content)) {
+          // Handle array content (parts)
+          content = msg.content
+            .filter((part: any) => part.type === 'text')
+            .map((part: any) => part.text)
+            .join('\n');
+        } else if (msg.content?.text) {
+          content = msg.content.text;
+        } else {
+          console.log('Unknown message format:', msg);
+          content = JSON.stringify(msg.content);
+        }
+
+        return {
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: content
+        };
+      })
+      .filter((msg: any) => msg.content && msg.content.trim().length > 0) as Anthropic.MessageParam[];
+
+    console.log('Converted messages:', anthropicMessages.length);
+    if (anthropicMessages.length > 0) {
+      console.log('First message:', JSON.stringify(anthropicMessages[0]));
+    }
+
+    // Validation
+    if (anthropicMessages.length === 0) {
+      console.error('No valid messages after conversion');
+      console.error('Original messages:', JSON.stringify(messages, null, 2));
+      return new Response(
+        JSON.stringify({ error: 'No valid messages' }), 
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     const userIdentifier = walletId || userEmail;
     const systemPrompt = `You are NOVA, a secure file-sharing assistant powered by the NOVA SDK.
