@@ -85,6 +85,9 @@ export async function POST(req: NextRequest) {
       return result.result || result;
     }
 
+    console.log('=== CHAT ROUTE LOADED ===');
+    console.log('Building tools with manual JSON Schema format');
+
     const tools = {
       register_group: {
         description: 'Create a new group for secure file sharing',
@@ -226,6 +229,9 @@ export async function POST(req: NextRequest) {
         },
       },
     };
+
+    console.log('=== TOOLS DEFINED ===');
+    console.log('First tool schema:', JSON.stringify(tools.register_group.parameters, null, 2));
 
     const modelMessages = convertToModelMessages(messages);
     const userIdentifier = walletId || userEmail;
