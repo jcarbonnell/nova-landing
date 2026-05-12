@@ -69,21 +69,10 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
         if (email) headers.set('x-user-email', email);
         if (walletId) headers.set('x-wallet-id', walletId);
 
-        const response = await fetch(url, {
+        return fetch(url, {
           ...options,
           headers,
         });
-
-        // DEBUG: Log raw response
-        console.log('Response status:', response.status);
-        console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-        
-        // Clone and log body
-        const clone = response.clone();
-        const text = await clone.text();
-        console.log('Response body FULL:', text);
-
-        return response;
       },
     }),
     

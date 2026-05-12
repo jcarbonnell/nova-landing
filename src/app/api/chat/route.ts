@@ -439,8 +439,10 @@ Be helpful, concise, and security-conscious.`;
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'X-Vercel-AI-Data-Stream': 'v1',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache, no-transform',
         'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+        'Content-Encoding': 'identity',
       }
     });
 
