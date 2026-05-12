@@ -397,19 +397,22 @@ Be helpful, concise, and security-conscious.`;
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          let messageId = 0;
+          let textChunks = 0;
           
           for await (const chunk of stream) {
+            console.log('Chunk type:', chunk.type);
+            
             if (chunk.type === 'content_block_delta' && 
                 chunk.delta.type === 'text_delta') {
+              textChunks++;
+              console.log(`Text chunk ${textChunks}:`, chunk.delta.text);
+              
               // Send in AI SDK text format
               const line = `0:"${chunk.delta.text.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"\n`;
               controller.enqueue(encoder.encode(line));
             } 
-            else if (chunk.type === 'content_block_start' && 
-                    chunk.content_block.type === 'tool_use') {
-              console.log('Tool call:', chunk.content_block.name);
-              // TODO: Handle tool calls
+            else if (chunk.type === 'content_block_start') {
+              console.log('Content block start:', chunk.content_block);
             }
             else if (chunk.type === 'message_start') {
               console.log('Message started');
@@ -417,7 +420,12 @@ Be helpful, concise, and security-conscious.`;
             else if (chunk.type === 'message_delta') {
               console.log('Message delta:', chunk.delta);
             }
+            else if (chunk.type === 'content_block_stop') {
+              console.log('Content block stopped');
+            }
           }
+          
+          console.log(`Stream complete. Total text chunks: ${textChunks}`);
           
           // Send completion marker
           controller.enqueue(encoder.encode('e:{"finishReason":"stop"}\n'));
