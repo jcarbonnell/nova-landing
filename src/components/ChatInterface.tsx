@@ -1,7 +1,7 @@
 // src/components/ChatInterface.tsx
 'use client';
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from 'ai';
+import { DefaultChatTransport } from 'ai';
 import { Button } from '@/components/ui/button';
 import { Send, Paperclip, X, FileIcon, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -52,53 +52,40 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
   } | null>(null);
 
   const { 
-    messages, 
-    sendMessage,
-    status,
-    error,
-    stop,
-    regenerate,
-  } = useChat({
-    id: `nova-chat-${accountId}`,
-    
-    transport: new DefaultChatTransport({
-      api: '/api/chat',
-      fetch: async (url, options = {}) => {
-        const headers = new Headers(options.headers);
-        headers.set('x-account-id', accountId);
-        if (email) headers.set('x-user-email', email);
-        if (walletId) headers.set('x-wallet-id', walletId);
-
-        const response = await fetch(url, {
-          ...options,
-          headers,
-        });
-
-        return response;
-      },
-    }),
-    
-    // Auto-submit when all tool results are available
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
-    
-    // Handle client-side tool execution
-    async onToolCall({ toolCall }) {
-      if (toolCall.dynamic) {
-        console.log('Dynamic tool call:', toolCall.toolName, toolCall.input);
-      }
+  messages, 
+  sendMessage,
+  status,
+  error,
+  stop,
+  regenerate,
+} = useChat({
+  id: `nova-chat-${accountId}`,
+  
+  transport: new DefaultChatTransport({
+    api: '/api/chat',
+    fetch: async (url, options = {}) => {
+      return fetch(url, {
+        ...options,
+        headers: {
+          ...options?.headers,
+          'x-account-id': accountId,
+          ...(email && { 'x-user-email': email }),
+          ...(walletId && { 'x-wallet-id': walletId }),
+        },
+      });
     },
-    
-    onError: (error) => {
-      console.error('Chat error:', error);
-    },
-    
-    onFinish: ({ message }) => {
-      console.log('Message finished:', message.id);
-      console.log('Message object:', message);
-      console.log('Message parts:', message.parts);
-      scrollToBottom();
-    },
-  });
+  }),
+  
+  onFinish: ({ message }) => {
+    console.log('Message finished:', message.id);
+    console.log('Message parts:', message.parts);
+    scrollToBottom();
+  },
+  
+  onError: (error) => {
+    console.error('Chat error:', error);
+  },
+});
 
   const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
     return new Promise((resolve, reject) => {
