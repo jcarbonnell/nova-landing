@@ -420,7 +420,7 @@ Be helpful, concise, and security-conscious.`;
               promptTokens: 0,
               completionTokens: textChunks
             }
-          })}\n\n`;
+          })}\n`;
           
           controller.enqueue(encoder.encode(finishMessage));
           controller.close();
@@ -439,10 +439,8 @@ Be helpful, concise, and security-conscious.`;
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'X-Vercel-AI-Data-Stream': 'v1',
-        'Cache-Control': 'no-cache, no-transform',
+        'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no',
-        'Content-Encoding': 'identity',
       }
     });
 
