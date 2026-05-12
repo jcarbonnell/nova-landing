@@ -1,8 +1,9 @@
 // src/app/api/chat/route.ts
-import { streamText, convertToModelMessages } from 'ai';
+import { streamText, convertToModelMessages, tool, stepCountIs } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { auth0 } from '@/lib/auth0';
 import { NextRequest } from 'next/server';
+import { z } from 'zod';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
     }
 
     let userEmail: string | undefined;
+    let accessToken: string | undefined;
 
     if (walletId) {
       console.log('Wallet user detected');
@@ -47,6 +49,37 @@ export async function POST(req: NextRequest) {
         });
       }
       userEmail = session.user.email;
+      accessToken = session.tokenSet?.accessToken;
+    }
+
+    // Build headers for MCP REST calls
+    const toolHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-account-id': accountId,
+    };
+
+    if (walletId) {
+      toolHeaders['Authorization'] = `Bearer wallet:${walletId}`;
+      toolHeaders['x-wallet-id'] = walletId;
+    } else if (accessToken) {
+      toolHeaders['Authorization'] = `Bearer ${accessToken}`;
+      if (userEmail) {
+        toolHeaders['x-user-email'] = userEmail;
+      }
+    }
+
+    // Helper to call MCP REST endpoints
+    async function callMCPTool(toolName: string, args: Record<string, unknown>) {
+      const response = await fetch(`${MCP_URL}/tools/${toolName}`, {
+        method: 'POST',
+        headers: toolHeaders,
+        body: JSON.stringify(args)
+      });
+      if (!response.ok) {
+        throw new Error(`Tool ${toolName} failed: ${response.statusText}`);
+      }
+      const result = await response.json();
+      return result.result || result;
     }
 
     const userIdentifier = walletId || userEmail;
@@ -179,6 +212,16 @@ Be helpful, concise, and security-conscious.`;
       model: anthropic('claude-haiku-4-5-20251001'),
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
+      tools: {
+        get_owned_groups: tool({
+          description: 'List all groups owned by the current user',
+          inputSchema: z.object({}),  // ← Try 'inputSchema' instead of 'parameters'
+          execute: async () => {
+            return await callMCPTool('get_owned_groups', {});
+          },
+        }),
+      },
+      stopWhen: stepCountIs(5),
     });
 
     return result.toUIMessageStreamResponse();
