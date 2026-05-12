@@ -94,6 +94,8 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
     
     onFinish: ({ message }) => {
       console.log('Message finished:', message.id);
+      console.log('Message object:', message);
+      console.log('Message parts:', message.parts);
       scrollToBottom();
     },
   });
