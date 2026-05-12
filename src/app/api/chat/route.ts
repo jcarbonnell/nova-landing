@@ -182,9 +182,7 @@ Be helpful, concise, and security-conscious.`;
       messages: await convertToModelMessages(messages),
     });
 
-    console.log('Available methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(result)));
-
-    return result.toTextStreamResponse();
+    return result.toUIMessageStreamResponse();
 
   } catch (error) {
     console.error('Chat API error:', error);
