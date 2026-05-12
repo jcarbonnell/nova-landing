@@ -1,6 +1,4 @@
 import { streamText, convertToModelMessages, UIMessage, stepCountIs } from 'ai';
-import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { anthropic } from '@ai-sdk/anthropic';
 import { auth0 } from '@/lib/auth0';
 import { NextRequest } from 'next/server';
@@ -9,16 +7,14 @@ export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const MCP_URL = process.env.MCP_URL || 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network/mcp';
+const MCP_URL = process.env.MCP_URL || 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network';
 const NETWORK_ID = process.env.NEXT_PUBLIC_NEAR_NETWORK || 'mainnet';
 const ACCOUNT_SUFFIX = NETWORK_ID === 'mainnet' ? '.nova-sdk.near' : '.nova-sdk-6.testnet';
 
 export async function POST(req: NextRequest) {
-  let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
-  
   try {
     const body = await req.json();
-    const { messages, email }: { messages: UIMessage[]; email?: string } = body;
+    const { messages }: { messages: UIMessage[] } = body;
     
     const accountId = req.headers.get('x-account-id');
     const walletId = req.headers.get('x-wallet-id');
@@ -42,7 +38,6 @@ export async function POST(req: NextRequest) {
     let userEmail: string | undefined;
 
     if (walletId) {
-      userEmail = email;
       console.log('Wallet user detected');
     } else {
       const session = await auth0.getSession();
@@ -56,115 +51,182 @@ export async function POST(req: NextRequest) {
       userEmail = session.user.email;
     }
 
-    console.log('=== CHAT ROUTE DEBUG ===');
-    console.log('User type:', walletId ? 'wallet' : 'email');
-    console.log('MCP endpoint:', MCP_URL);
-
-    // Build MCP headers
-    const mcpHeaders: Record<string, string> = {
-      'x-account-id': accountId || '',
+    // Build headers for REST calls
+    const toolHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-account-id': accountId,
     };
 
     if (walletId) {
-      mcpHeaders['Authorization'] = `Bearer wallet:${walletId}`;
-      mcpHeaders['x-wallet-id'] = walletId;
+      toolHeaders['Authorization'] = `Bearer wallet:${walletId}`;
+      toolHeaders['x-wallet-id'] = walletId;
     } else if (accessToken) {
-      mcpHeaders['Authorization'] = `Bearer ${accessToken}`;
+      toolHeaders['Authorization'] = `Bearer ${accessToken}`;
       if (userEmail) {
-        mcpHeaders['x-user-email'] = userEmail;
+        toolHeaders['x-user-email'] = userEmail;
       }
     }
 
-    // Create MCP client with StreamableHTTPClientTransport
-    const mcpEndpoint = new URL(MCP_URL);
-    console.log('Connecting to MCP:', mcpEndpoint.toString());
-    
-    const transport = new StreamableHTTPClientTransport(mcpEndpoint, {
-      requestInit: {
-        headers: {
-          ...mcpHeaders,
-          'Accept': 'application/json, text/event-stream',  // ← Add this
-          'Content-Type': 'application/json',
+    // Define tools that call REST endpoints (like SDK does)
+    async function callMCPTool(toolName: string, args: any) {
+      console.log(`Calling tool: ${toolName}`, args);
+      const response = await fetch(`${MCP_URL}/tools/${toolName}`, {
+        method: 'POST',
+        headers: toolHeaders,
+        body: JSON.stringify(args)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Tool ${toolName} failed: ${errorText}`);
+      }
+
+      const result = await response.json();
+      return result.result || result;
+    }
+
+    const tools = {
+      register_group: {
+        description: 'Create a new group for secure file sharing',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string', description: 'Unique group identifier' }
+          },
+          required: ['group_id']
         },
+        execute: async (args: any) => callMCPTool('register_group', args)
       },
-    });
+      
+      add_group_member: {
+        description: 'Add a member to a group',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string' },
+            member_id: { type: 'string' }
+          },
+          required: ['group_id', 'member_id']
+        },
+        execute: async (args: any) => callMCPTool('add_group_member', args)
+      },
 
-    mcpClient = await createMCPClient({
-      transport,
-    });
+      revoke_group_member: {
+        description: 'Remove a member from a group',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string' },
+            member_id: { type: 'string' }
+          },
+          required: ['group_id', 'member_id']
+        },
+        execute: async (args: any) => callMCPTool('revoke_group_member', args)
+      },
 
-    // Get tools from MCP server (this uses the MCP protocol)
-    const mcpTools = await mcpClient.tools();
-    console.log('MCP tools loaded:', Object.keys(mcpTools));
+      get_owned_groups: {
+        description: 'List all groups owned by the current user',
+        parameters: { type: 'object', properties: {} },
+        execute: async () => callMCPTool('get_owned_groups', {})
+      },
 
-    // Convert UI messages to model messages
+      get_member_groups: {
+        description: 'List all groups the current user is a member of',
+        parameters: { type: 'object', properties: {} },
+        execute: async () => callMCPTool('get_member_groups', {})
+      },
+
+      get_group_members: {
+        description: 'List members of a specific group',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string' }
+          },
+          required: ['group_id']
+        },
+        execute: async (args: any) => callMCPTool('get_group_members', args)
+      },
+
+      get_group_transactions: {
+        description: 'List file transactions in a group',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string' }
+          },
+          required: ['group_id']
+        },
+        execute: async (args: any) => callMCPTool('get_group_transactions', args)
+      },
+
+      prepare_upload: {
+        description: 'Prepare file upload - returns encryption key',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string' },
+            filename: { type: 'string' }
+          },
+          required: ['group_id', 'filename']
+        },
+        execute: async (args: any) => callMCPTool('prepare_upload', args)
+      },
+
+      prepare_retrieve: {
+        description: 'Prepare file retrieval - returns decryption key',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string' },
+            ipfs_hash: { type: 'string' }
+          },
+          required: ['group_id', 'ipfs_hash']
+        },
+        execute: async (args: any) => callMCPTool('prepare_retrieve', args)
+      },
+
+      auth_status: {
+        description: 'Check authentication status',
+        parameters: {
+          type: 'object',
+          properties: {
+            group_id: { type: 'string' }
+          }
+        },
+        execute: async (args: any) => callMCPTool('auth_status', args || {})
+      }
+    };
+
     const modelMessages = convertToModelMessages(messages);
-
-    // Stream response with Anthropic + MCP tools
     const userIdentifier = walletId || userEmail;
 
     const result = streamText({
       model: anthropic('claude-haiku-4-5-20251001'),
-      system: `You are NOVA, a secure file-sharing assistant powered by the NOVA SDK.
-
+      system: `You are NOVA, a secure file-sharing assistant.
 Current user: ${userIdentifier}
-NEAR Account: ${accountId || 'Not connected'}
+NEAR Account: ${accountId}
 Network: ${NETWORK_ID}
 
-[Rest of your system prompt - keep it the same]`,
+[Keep your full system prompt here]`,
       messages: modelMessages,
-      tools: mcpTools,
+      tools: tools as any,
       stopWhen: stepCountIs(5),
-      onStepFinish: ({ finishReason, usage, response }) => {
-        console.log('Step finished:', { 
-          finishReason,
-          inputTokens: usage?.inputTokens || 0,
-          outputTokens: usage?.outputTokens || 0,
-        });
-      },
-      onFinish: async () => {
-        if (mcpClient) {
-          try {
-            await mcpClient.close();
-            mcpClient = null;
-          } catch (closeError) {
-            console.warn('Error closing MCP client:', closeError);
-          }
-        }
-      },
     });
 
     return result.toUIMessageStreamResponse({
       sendSources: true,
       sendReasoning: true,
-      onError: (error) => {
-        console.error('Stream error:', error);
-        return error instanceof Error ? error.message : 'An error occurred';
-      },
     });
 
   } catch (error) {
     console.error('Chat API error:', error);
-    
-    if (mcpClient) {
-      try {
-        await mcpClient.close();
-      } catch (closeError) {
-        console.warn('Error closing MCP client on error:', closeError);
-      }
-    }
-    
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
     return new Response(
       JSON.stringify({ 
         error: 'Chat processing failed', 
-        details: errorMessage,
+        details: error instanceof Error ? error.message : 'Unknown error',
       }), 
-      { 
-        status: 500, 
-        headers: { 'Content-Type': 'application/json' } 
-      }
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 }
