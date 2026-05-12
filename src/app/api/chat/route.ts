@@ -1,5 +1,6 @@
 // src/app/api/chat/route.ts
-import Anthropic from '@anthropic-ai/sdk';
+import { streamText, convertToModelMessages } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
 import { auth0 } from '@/lib/auth0';
 import { NextRequest } from 'next/server';
 
@@ -10,10 +11,6 @@ export const runtime = 'nodejs';
 const MCP_URL = process.env.MCP_URL || 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network';
 const NETWORK_ID = process.env.NEXT_PUBLIC_NEAR_NETWORK || 'mainnet';
 const ACCOUNT_SUFFIX = NETWORK_ID === 'mainnet' ? '.nova-sdk.near' : '.nova-sdk-6.testnet';
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,7 +34,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Get auth
     let accessToken: string | undefined;
     let userEmail: string | undefined;
 
@@ -53,208 +49,6 @@ export async function POST(req: NextRequest) {
       }
       accessToken = session.tokenSet?.accessToken;
       userEmail = session.user.email;
-    }
-
-    // Build headers for MCP REST calls
-    const toolHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'x-account-id': accountId,
-    };
-
-    if (walletId) {
-      toolHeaders['Authorization'] = `Bearer wallet:${walletId}`;
-      toolHeaders['x-wallet-id'] = walletId;
-    } else if (accessToken) {
-      toolHeaders['Authorization'] = `Bearer ${accessToken}`;
-      if (userEmail) {
-        toolHeaders['x-user-email'] = userEmail;
-      }
-    }
-
-    // Tool execution function
-    async function callMCPTool(toolName: string, args: any) {
-      console.log(`Calling tool: ${toolName}`, args);
-      const response = await fetch(`${MCP_URL}/tools/${toolName}`, {
-        method: 'POST',
-        headers: toolHeaders,
-        body: JSON.stringify(args)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Tool ${toolName} failed: ${errorText}`);
-      }
-
-      const result = await response.json();
-      return result.result || result;
-    }
-
-    // Define tools in Anthropic format
-    const tools: Anthropic.Tool[] = [
-      {
-        name: 'register_group',
-        description: 'Create a new group for secure file sharing',
-        input_schema: {
-          type: 'object',
-          properties: {
-            group_id: { type: 'string', description: 'Unique group identifier' }
-          },
-          required: ['group_id']
-        }
-      },
-      {
-        name: 'add_group_member',
-        description: 'Add a member to a group',
-        input_schema: {
-          type: 'object',
-          properties: {
-            group_id: { type: 'string', description: 'Group identifier' },
-            member_id: { type: 'string', description: 'Member account ID' }
-          },
-          required: ['group_id', 'member_id']
-        }
-      },
-      {
-        name: 'revoke_group_member',
-        description: 'Remove a member from a group',
-        input_schema: {
-          type: 'object',
-          properties: {
-            group_id: { type: 'string', description: 'Group identifier' },
-            member_id: { type: 'string', description: 'Member account ID' }
-          },
-          required: ['group_id', 'member_id']
-        }
-      },
-      {
-        name: 'get_owned_groups',
-        description: 'List all groups owned by the current user',
-        input_schema: {
-          type: 'object',
-          properties: {}
-        }
-      },
-      {
-        name: 'get_member_groups',
-        description: 'List all groups the current user is a member of',
-        input_schema: {
-          type: 'object',
-          properties: {}
-        }
-      },
-      {
-        name: 'get_group_members',
-        description: 'List members of a specific group',
-        input_schema: {
-          type: 'object',
-          properties: {
-            group_id: { type: 'string', description: 'Group ID to query' }
-          },
-          required: ['group_id']
-        }
-      },
-      {
-        name: 'get_group_transactions',
-        description: 'List file transactions in a group',
-        input_schema: {
-          type: 'object',
-          properties: {
-            group_id: { type: 'string', description: 'Group ID to query' }
-          },
-          required: ['group_id']
-        }
-      },
-      {
-        name: 'prepare_upload',
-        description: 'Prepare file upload - returns encryption key',
-        input_schema: {
-          type: 'object',
-          properties: {
-            group_id: { type: 'string', description: 'Group to upload to' },
-            filename: { type: 'string', description: 'Filename' }
-          },
-          required: ['group_id', 'filename']
-        }
-      },
-      {
-        name: 'prepare_retrieve',
-        description: 'Prepare file retrieval - returns decryption key',
-        input_schema: {
-          type: 'object',
-          properties: {
-            group_id: { type: 'string', description: 'Group containing file' },
-            ipfs_hash: { type: 'string', description: 'IPFS CID' }
-          },
-          required: ['group_id', 'ipfs_hash']
-        }
-      },
-      {
-        name: 'auth_status',
-        description: 'Check authentication status',
-        input_schema: {
-          type: 'object',
-          properties: {
-            group_id: { type: 'string', description: 'Optional group ID' }
-          }
-        }
-      }
-    ];
-
-    console.log('Tools defined:', tools.length);
-
-    // Convert messages to Anthropic format - handle AI SDK message structure
-    const anthropicMessages = messages
-      .filter((msg: any) => msg.role !== 'system')
-      .map((msg: any) => {
-        let content: string;
-        
-        // Handle parts array (AI SDK format)
-        if (msg.parts && Array.isArray(msg.parts)) {
-          content = msg.parts
-            .filter((part: any) => part.type === 'text')
-            .map((part: any) => part.text)
-            .join('\n');
-        }
-        // Handle direct content string
-        else if (typeof msg.content === 'string') {
-          content = msg.content;
-        }
-        // Handle content array
-        else if (Array.isArray(msg.content)) {
-          content = msg.content
-            .filter((part: any) => part.type === 'text')
-            .map((part: any) => part.text)
-            .join('\n');
-        }
-        // Handle content.text
-        else if (msg.content?.text) {
-          content = msg.content.text;
-        }
-        // Fallback
-        else {
-          console.log('Unknown message format:', msg);
-          content = JSON.stringify(msg);
-        }
-
-        return {
-          role: (msg.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
-          content: content
-        };
-      })
-      .filter((msg: any) => msg.content && msg.content.trim().length > 0);
-
-    console.log('Converted messages:', anthropicMessages.length);
-    if (anthropicMessages.length > 0) {
-      console.log('First message:', JSON.stringify(anthropicMessages[0]));
-    }
-
-    if (anthropicMessages.length === 0) {
-      console.error('No valid messages after conversion');
-      console.error('Original messages:', JSON.stringify(messages, null, 2));
-      return new Response(
-        JSON.stringify({ error: 'No valid messages' }), 
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
     }
 
     const userIdentifier = walletId || userEmail;
@@ -384,66 +178,13 @@ RESPONSE STYLE:
 Be helpful, concise, and security-conscious.`;
 
     // Create stream WITHOUT tools first (to test basic streaming)
-    const stream = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4096,
+    const result = streamText({
+      model: anthropic('claude-haiku-4-5-20251001'),
       system: systemPrompt,
-      messages: anthropicMessages,
-      tools: tools,
-      stream: true,
+      messages: convertToModelMessages(messages),
     });
 
-    // Convert Anthropic stream to AI SDK format
-    const encoder = new TextEncoder();
-    const readable = new ReadableStream({
-      async start(controller) {
-        try {
-          let textChunks = 0;
-          
-          for await (const chunk of stream) {
-            if (chunk.type === 'content_block_delta' && 
-                chunk.delta.type === 'text_delta') {
-              textChunks++;
-              
-              // AI SDK format: 0:"escaped text"\n
-              const escapedText = JSON.stringify(chunk.delta.text);
-              const line = `0:${escapedText}\n`;
-              controller.enqueue(encoder.encode(line));
-            }
-          }
-          
-          console.log(`Stream complete. Total text chunks: ${textChunks}`);
-          
-          // Send finish message - AI SDK format
-          const finishMessage = `d:${JSON.stringify({
-            finishReason: 'stop',
-            usage: {
-              promptTokens: 0,
-              completionTokens: textChunks
-            }
-          })}\n`;
-          
-          controller.enqueue(encoder.encode(finishMessage));
-          controller.close();
-          
-        } catch (error) {
-          console.error('Stream error:', error);
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          // AI SDK error format: 3:"error message"\n
-          controller.enqueue(encoder.encode(`3:${JSON.stringify(errorMessage)}\n`));
-          controller.close();
-        }
-      }
-    });
-
-    return new Response(readable, {
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'X-Vercel-AI-Data-Stream': 'v1',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      }
-    });
+    return result.toTextStreamResponse();
 
   } catch (error) {
     console.error('Chat API error:', error);
