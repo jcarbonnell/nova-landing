@@ -1,3 +1,4 @@
+// src/app/api/chat/route.ts
 import Anthropic from '@anthropic-ai/sdk';
 import { auth0 } from '@/lib/auth0';
 import { NextRequest } from 'next/server';

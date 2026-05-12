@@ -74,15 +74,6 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
           headers,
         });
 
-        // DEBUG: Log raw response
-        console.log('Response status:', response.status);
-        console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-        
-        // Clone and log body
-        const clone = response.clone();
-        const text = await clone.text();
-        console.log('Response body FULL:', text);
-
         return response;
       },
     }),
