@@ -213,12 +213,88 @@ Be helpful, concise, and security-conscious.`;
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
       tools: {
+        // ─── Query tools ───
         get_owned_groups: tool({
           description: 'List all groups owned by the current user',
-          inputSchema: z.object({}),  // ← Try 'inputSchema' instead of 'parameters'
-          execute: async () => {
-            return await callMCPTool('get_owned_groups', {});
-          },
+          inputSchema: z.object({}),
+          execute: async () => callMCPTool('get_owned_groups', {}),
+        }),
+        get_member_groups: tool({
+          description: 'List all groups the user is a member of (includes owned groups)',
+          inputSchema: z.object({}),
+          execute: async () => callMCPTool('get_member_groups', {}),
+        }),
+        get_group_members: tool({
+          description: 'List all members of a specific group',
+          inputSchema: z.object({
+            group_id: z.string().describe('The group identifier'),
+          }),
+          execute: async ({ group_id }) => callMCPTool('get_group_members', { group_id }),
+        }),
+        get_group_transactions: tool({
+          description: 'List all files/transactions in a specific group',
+          inputSchema: z.object({
+            group_id: z.string().describe('The group identifier'),
+          }),
+          execute: async ({ group_id }) => callMCPTool('get_group_transactions', { group_id }),
+        }),
+
+        // ─── Group management ───
+        register_group: tool({
+          description: 'Create a new group for secure file sharing. The caller becomes the owner.',
+          inputSchema: z.object({
+            group_id: z.string().describe('Unique group identifier (e.g., "my-team")'),
+          }),
+          execute: async ({ group_id }) => callMCPTool('register_group', { group_id }),
+        }),
+        add_group_member: tool({
+          description: 'Add a member to a group (owner only)',
+          inputSchema: z.object({
+            group_id: z.string().describe('The group identifier'),
+            member_id: z.string().describe('NEAR account ID of the member to add'),
+          }),
+          execute: async ({ group_id, member_id }) =>
+            callMCPTool('add_group_member', { group_id, member_id }),
+        }),
+        revoke_group_member: tool({
+          description: 'Remove a member from a group (owner only, automatically rotates encryption key)',
+          inputSchema: z.object({
+            group_id: z.string().describe('The group identifier'),
+            member_id: z.string().describe('NEAR account ID of the member to remove'),
+          }),
+          execute: async ({ group_id, member_id }) =>
+            callMCPTool('revoke_group_member', { group_id, member_id }),
+        }),
+
+        // ─── File operations ───
+        prepare_upload: tool({
+          description: 'Start an upload - returns encryption key and upload_id. Frontend handles encryption.',
+          inputSchema: z.object({
+            group_id: z.string().describe('The group to upload to'),
+            filename: z.string().describe('Name of the file being uploaded'),
+          }),
+          execute: async ({ group_id, filename }) =>
+            callMCPTool('prepare_upload', { group_id, filename }),
+        }),
+        finalize_upload: tool({
+          description: 'Complete an upload after encryption. Records transaction on blockchain.',
+          inputSchema: z.object({
+            group_id: z.string(),
+            upload_id: z.string(),
+            ipfs_hash: z.string().describe('IPFS CID of the encrypted file'),
+            filename: z.string(),
+            file_hash: z.string().optional().describe('SHA-256 hash of original file'),
+          }),
+          execute: async (args) => callMCPTool('finalize_upload', args),
+        }),
+        prepare_retrieve: tool({
+          description: 'Get encryption key and encrypted file data for download. Frontend handles decryption.',
+          inputSchema: z.object({
+            group_id: z.string().describe('The group containing the file'),
+            ipfs_hash: z.string().describe('IPFS CID of the file to retrieve'),
+          }),
+          execute: async ({ group_id, ipfs_hash }) =>
+            callMCPTool('prepare_retrieve', { group_id, ipfs_hash }),
         }),
       },
       stopWhen: stepCountIs(5),
