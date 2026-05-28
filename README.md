@@ -27,4 +27,4 @@ All heavy cryptography and key storage happens inside attested TEEs. The MCP ser
 **Live on mainnet**: https://nova-sdk.com  
 **Live on testnet**: https://testnet.nova-sdk.com  
 
-Built for the Agent Economy – your data, your vault, your rules.
+Built for the Agent Economy – your data, your agent, your rules.
