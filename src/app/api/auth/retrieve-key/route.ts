@@ -42,29 +42,23 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Wallet users: Retrieve by wallet_id
+  // Wallet users: DISABLED in v0.3.2.
+  // The wallet retrieve path accepted an unauthenticated wallet_id assertion —
+  // anyone knowing an on-chain account ID could retrieve that account's key.
+  // These accounts are currently custodial (NOVA holds the key). Rather than
+  // ship a cryptographically circular possession-proof, the path is disabled
+  // until v0.5 rebuilds wallet accounts as genuinely self-custodial (user brings
+  // their own NEAR wallet; NOVA never holds the key; NEP-413 challenge/response).
+  // Email login (Auth0-verified) is unaffected.
   else if (wallet_id) {
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_SHADE_API_URL}/api/user-keys/retrieve`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-Internal-Auth': process.env.INTERNAL_API_SECRET || '',
-        },
-        body: JSON.stringify({ account_id, wallet_id }),
-      });
-
-      if (!res.ok) {
-        return NextResponse.json({ error: 'Key not found' }, { status: 404 });
-      }
-
-      const data = await res.json();
-      return NextResponse.json({ private_key: data.private_key });
-    } catch (err) {
-      return NextResponse.json({ 
-        error: 'Failed to retrieve key',
-      }, { status: 500 });
-    }
+    return NextResponse.json(
+      {
+        error: 'Wallet login is temporarily unavailable',
+        detail: 'Wallet-based access is being migrated to self-custody and will return in a future release. Please use email login.',
+        code: 'WALLET_AUTH_PENDING_SELF_CUSTODY',
+      },
+      { status: 501 }
+    );
   }
 
   // No email or wallet_id provided
