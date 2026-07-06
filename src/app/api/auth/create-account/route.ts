@@ -111,7 +111,10 @@ export async function POST(req: NextRequest) {
 
         const res = await fetch(`${SHADE_API_URL}/api/user-keys/store`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Internal-Auth': process.env.INTERNAL_API_SECRET || '',
+          },
           body: JSON.stringify(storePayload),
         });
 

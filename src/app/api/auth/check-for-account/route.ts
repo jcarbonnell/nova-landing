@@ -32,7 +32,10 @@ export async function POST(req: NextRequest) {
       try {
         const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/check`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json', 
+            'X-Internal-Auth': process.env.INTERNAL_API_SECRET || '',
+          },
           body: JSON.stringify({ wallet_id }),
           signal: AbortSignal.timeout(10000),
         });
@@ -240,6 +243,7 @@ export async function POST(req: NextRequest) {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
+          'X-Internal-Auth': process.env.INTERNAL_API_SECRET || '',
         },
         body: JSON.stringify(shadePayload),
         signal: AbortSignal.timeout(10000),

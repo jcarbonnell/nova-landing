@@ -22,7 +22,10 @@ export async function POST(req: NextRequest) {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_SHADE_API_URL}/api/user-keys/retrieve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Internal-Auth': process.env.INTERNAL_API_SECRET || '',
+        },
         body: JSON.stringify({ email, auth_token: token, account_id }),
       });
 
@@ -44,7 +47,10 @@ export async function POST(req: NextRequest) {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_SHADE_API_URL}/api/user-keys/retrieve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Internal-Auth': process.env.INTERNAL_API_SECRET || '',
+        },
         body: JSON.stringify({ account_id, wallet_id }),
       });
 

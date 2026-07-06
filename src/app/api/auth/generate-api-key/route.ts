@@ -28,7 +28,10 @@ export async function POST(req: NextRequest) {
 
       const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/generate-api-key`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json', 
+          'X-Internal-Auth': process.env.INTERNAL_API_SECRET || '',
+        },
         body: JSON.stringify({ account_id }),
         signal: AbortSignal.timeout(15000),
       });
@@ -73,7 +76,10 @@ export async function POST(req: NextRequest) {
 
     const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/generate-api-key`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-Internal-Auth': process.env.INTERNAL_API_SECRET || '',
+      },
       body: JSON.stringify({ email, auth_token: authToken }),
       signal: AbortSignal.timeout(15000),
     });
