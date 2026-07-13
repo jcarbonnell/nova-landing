@@ -5,6 +5,7 @@ import { JsonRpcProvider } from '@near-js/providers';
 import { KeyPairSigner } from '@near-js/signers';
 import { KeyPair, KeyPairString } from '@near-js/crypto';
 import { actionCreators } from '@near-js/transactions';
+import { auth0 } from '@/lib/auth0';
 
 const NOVA_MASTER_ACCOUNT = 'nova-sdk-6.testnet';
 const FAUCET_CONTRACT = 'v2.faucet.nonofficial.testnet';
@@ -17,12 +18,23 @@ const VALID_NOVA_SUFFIXES = [
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    console.log('Raw request body:', JSON.stringify(body));
+    // GUARD 1 — testnet-only, checked EXPLICITLY.
+    const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN || '';
+    if (!parentDomain.includes('testnet')) {
+      return NextResponse.json(
+        { success: false, error: 'Faucet is testnet-only' },
+        { status: 404 }
+      );
+    }
+
+    // GUARD 2 — authenticated callers only.
+    const session = await auth0.getSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
+    }
     
+    const body = await req.json();
     const { accountId } = body;
-    console.log('Extracted accountId:', accountId);
-    console.log('accountId type:', typeof accountId);
 
     if (!accountId) {
       return NextResponse.json(

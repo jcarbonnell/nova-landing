@@ -77,42 +77,14 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
-    // Path 2: wallet_id provided (existing flow - keep for backwards compat)
+    // Path 2: wallet_id DISABLED (v0.4). Re-enable in v0.5 as NEP-413 challenge/response
     else if (wallet_id) {
-      const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL;
-      if (!shadeUrl) {
-        return NextResponse.json({ error: 'Shade URL not configured' }, { status: 500 });
-      }
+      return NextResponse.json({
+        error: 'Wallet auth disabled pending self-custody migration (v0.5)',
+        code: 'WALLET_AUTH_PENDING_SELF_CUSTODY',
+      }, { status: 501 });
+    }
 
-      // Lookup NOVA account for this wallet
-      const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/check`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-Internal-Auth': process.env.INTERNAL_API_SECRET || '',
-        },
-        body: JSON.stringify({ wallet_id }),
-        signal: AbortSignal.timeout(10000),
-      });
-
-      if (!shadeResponse.ok) {
-        return NextResponse.json({ 
-          error: 'No NOVA account found for this wallet' 
-        }, { status: 404 });
-      }
-
-      const shadeData = await shadeResponse.json();
-      if (!shadeData.exists || !shadeData.account_id) {
-        return NextResponse.json({ 
-          error: 'No NOVA account found. Create one at nova-sdk.com first.' 
-        }, { status: 404 });
-      }
-
-      accountId = shadeData.account_id;
-      subject = `wallet|${wallet_id}`;
-      
-      console.log('Issuing session token for wallet user:', wallet_id, '->', accountId);
-    } 
     // Path 3: Email user - verify Auth0 session
     else {
       const session = await auth0.getSession();
@@ -121,11 +93,6 @@ export async function POST(req: NextRequest) {
       }
 
       const email = session.user.email;
-      const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL;
-      
-      if (!shadeUrl) {
-        return NextResponse.json({ error: 'Shade URL not configured' }, { status: 500 });
-      }
 
       // Get Auth0 token for Shade verification
       let authToken: string | null = null;

@@ -22,38 +22,12 @@ export async function POST(req: NextRequest) {
 
     const { account_id } = body;
 
-    // Path 1: Wallet user (account_id provided)
+    // Path 1: account_id — DISABLED (v0.4)
     if (account_id) {
-      console.log('Generating API key for wallet user:', account_id);
-
-      const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/generate-api-key`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json', 
-          'X-Internal-Auth': process.env.INTERNAL_API_SECRET || '',
-        },
-        body: JSON.stringify({ account_id }),
-        signal: AbortSignal.timeout(15000),
-      });
-
-      if (!shadeResponse.ok) {
-        const errorText = await shadeResponse.text();
-        console.error('Shade generate-api-key failed:', shadeResponse.status, errorText);
-        return NextResponse.json(
-          { error: 'Failed to generate API key' },
-          { status: shadeResponse.status }
-        );
-      }
-
-      const data = await shadeResponse.json();
-      console.log('✅ API key generated for wallet user:', account_id);
-
       return NextResponse.json({
-        success: true,
-        api_key: data.api_key,
-        account_id: data.account_id,
-        message: data.message,
-      });
+        error: 'Wallet auth disabled pending self-custody migration (v0.5)',
+        code: 'WALLET_AUTH_PENDING_SELF_CUSTODY',
+      }, { status: 501 });
     }
 
     // Path 2: Email user (use Auth0 session)

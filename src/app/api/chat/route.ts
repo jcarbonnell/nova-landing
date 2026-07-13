@@ -1,7 +1,6 @@
 // src/app/api/chat/route.ts
 import { streamText, convertToModelMessages, tool, stepCountIs } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
-import { auth0 } from '@/lib/auth0';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 
@@ -18,7 +17,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { messages } = body;
     
-    const accountId = req.headers.get('x-account-id');
     const walletId = req.headers.get('x-wallet-id');
 
     if (!messages || !Array.isArray(messages)) {
@@ -28,45 +26,46 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (!accountId) {
-      return new Response(JSON.stringify({ error: 'Missing account ID' }), { 
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
+    // Wallet users: no working signing path since v0.3.2 Fix 5 (custodial wallet
+    // key retrieval disabled). Reject explicitly rather than fail deep in MCP.
+    if (walletId) {
+      return new Response(JSON.stringify({
+        error: 'Wallet auth disabled pending self-custody migration (v0.5)',
+        code: 'WALLET_AUTH_PENDING_SELF_CUSTODY',
+      }), { status: 501, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // Mint a nova_session token via the canonical route. It re-verifies the Auth0
+    // session server-side and resolves the AUTHORITATIVE account_id from Shade —
+    // so we never trust the client's x-account-id. (Previously this route
+    // forwarded the Auth0 RS256 access token, which MCP's HS256 verifier
+    // rejected with "alg not allowed", silently falling back to unauthenticated
+    // header auth.)
+    const origin = new URL(req.url).origin;
+    const tokenRes = await fetch(`${origin}/api/auth/session-token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        cookie: req.headers.get('cookie') ?? '',
+      },
+      body: '{}',
+    });
+
+    if (!tokenRes.ok) {
+      const err = await tokenRes.json().catch(() => ({}));
+      return new Response(JSON.stringify({ error: err.error || 'Unauthorized' }), {
+        status: tokenRes.status,
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    let userEmail: string | undefined;
-    let accessToken: string | undefined;
+    const { token: sessionToken, account_id: verifiedAccountId } = await tokenRes.json();
 
-    if (walletId) {
-      console.log('Wallet user detected');
-    } else {
-      const session = await auth0.getSession();
-      if (!session?.user?.email) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-      userEmail = session.user.email;
-      accessToken = session.tokenSet?.accessToken;
-    }
-
-    // Build headers for MCP REST calls
     const toolHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
-      'x-account-id': accountId,
+      'Authorization': `Bearer ${sessionToken}`,
+      'x-account-id': verifiedAccountId,
     };
-
-    if (walletId) {
-      toolHeaders['Authorization'] = `Bearer wallet:${walletId}`;
-      toolHeaders['x-wallet-id'] = walletId;
-    } else if (accessToken) {
-      toolHeaders['Authorization'] = `Bearer ${accessToken}`;
-      if (userEmail) {
-        toolHeaders['x-user-email'] = userEmail;
-      }
-    }
 
     // Helper to call MCP REST endpoints
     async function callMCPTool(toolName: string, args: Record<string, unknown>) {
@@ -82,7 +81,6 @@ export async function POST(req: NextRequest) {
       return result.result || result;
     }
 
-    const userIdentifier = walletId || userEmail;
     const systemPrompt = `You are NOVA, a secure file-sharing assistant powered by the NOVA SDK.
 
 Your capabilities include:
@@ -92,8 +90,8 @@ Your capabilities include:
 - Tracking file analytics
 - Retrieving shared files
 
-Current user: ${userIdentifier}
-NEAR Account: ${accountId || 'Not connected'}
+Current user: ${verifiedAccountId}
+NEAR Account: ${verifiedAccountId}
 Network: ${NETWORK_ID}
 
 ═══════════════════════════════════════════════════════════════════════════════
