@@ -158,7 +158,7 @@ export default function PaymentModal({
       const response = await fetch('/api/auth/generate-api-key', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account_id: accountId }),
+        body: JSON.stringify({}),
       });
 
       const data = await response.json();
