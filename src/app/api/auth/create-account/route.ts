@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
 
     // 11. Store key in Shade TEE
     try {
-      const res = await fetch(`${SHADE_API_URL}/api/user-keys/store`, {
+      const res = await fetch(`${SHADE_API_URL}/rpc/user-keys/store`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

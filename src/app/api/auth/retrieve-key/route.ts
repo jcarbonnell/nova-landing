@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_SHADE_API_URL}/api/user-keys/retrieve`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_SHADE_API_URL}/rpc/user-keys/retrieve`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

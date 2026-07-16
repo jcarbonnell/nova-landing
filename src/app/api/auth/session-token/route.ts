@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     // Path 0: API key provided (secure SDK flow)
     if (apiKey && requestedAccountId) {
       // Verify API key with Shade TEE
-      const verifyResponse = await fetch(`${shadeUrl}/api/user-keys/verify-api-key`, {
+      const verifyResponse = await fetch(`${shadeUrl}/rpc/user-keys/verify-api-key`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Lookup NOVA account for this email
-      const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/check`, {
+      const shadeResponse = await fetch(`${shadeUrl}/rpc/user-keys/check`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

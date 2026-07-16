@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     console.log('Generating API key for email user:', email);
 
-    const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/generate-api-key`, {
+    const shadeResponse = await fetch(`${shadeUrl}/rpc/user-keys/generate-api-key`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',

@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       console.log('Checking for NOVA account linked to wallet:', wallet_id);
 
       try {
-        const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/check`, {
+        const shadeResponse = await fetch(`${shadeUrl}/rpc/user-keys/check`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json', 
@@ -236,10 +236,10 @@ export async function POST(req: NextRequest) {
         shadePayload.auth_token = authToken;
       }
 
-      console.log('📤 Sending to Shade:', `${shadeUrl}/api/user-keys/check`);
+      console.log('📤 Sending to Shade:', `${shadeUrl}/rpc/user-keys/check`);
       console.log('📦 Payload:', { email, has_token: !!authToken });
         
-      const shadeResponse = await fetch(`${shadeUrl}/api/user-keys/check`, {
+      const shadeResponse = await fetch(`${shadeUrl}/rpc/user-keys/check`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
