@@ -46,43 +46,25 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   // Refs to prevent duplicate operations
   const verificationInProgressRef = useRef(false);
 
-  // Debugging: log flow state tracking
-  useEffect(() => {
-    console.log('🔍 Flow State Check:', {
-      user: !!user,
-      userEmail: user?.email,
-      loading,
-      isSignedIn,
-      accountId,
-      novaAccountVerified,
-      originalWalletId,
-      verificationInProgress: verificationInProgressRef.current,
-    });
-  }, [user, loading, isSignedIn, accountId, novaAccountVerified, originalWalletId]);
-
   // NOVA account verification and auto-connect
   const verifyAndConnectNovaAccount = useCallback(async (walletId?: string) => {
     const targetWalletId = walletId || originalWalletId || accountId;
     
     if (!targetWalletId) {
-      console.log('No wallet ID to verify');
       return;
     }
     
     if (verificationInProgressRef.current) {
-      console.log('Verification already in progress, skipping...');
       return;
     }
     
     // Check if current account is already a NOVA account (ends with parent domain)
     const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN || 'nova-sdk.near';
     if (accountId?.endsWith(`.${parentDomain}`)) {
-      console.log('Already connected with NOVA account:', accountId);
       setNovaAccountVerified(true);
       return;
     }
     
-    console.log('Verifying NOVA account for wallet:', targetWalletId);
     verificationInProgressRef.current = true;
     
     try {
@@ -94,7 +76,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       });
 
       if (!checkRes.ok) {
-        console.warn('NOVA account check failed');
         setNovaAccountVerified(true); // Mark as verified (no NOVA account exists)
         return;
       }
@@ -102,10 +83,8 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       const { exists, accountId: novaAccountId } = await checkRes.json();
 
       if (exists && novaAccountId) {
-        console.log('Found NOVA account:', novaAccountId, '- auto-connecting...');
         await autoSignInWithNovaAccount(novaAccountId, targetWalletId, user?.email);
       } else {
-        console.log('No NOVA account found for wallet');
         // Set user data with wallet info for account creation
         setUserData({ 
           email: `${targetWalletId}@wallet.nova`,  // Placeholder email for wallet users
@@ -114,8 +93,8 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         setIsCreateOpen(true);
         setNovaAccountVerified(true);
       }
-    } catch (err) {
-      console.error('NOVA account verification error:', err);
+    } catch {
+      console.error('NOVA account verification failed');
       setNovaAccountVerified(true);
     } finally {
       verificationInProgressRef.current = false;
@@ -129,8 +108,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     userEmail?: string
   ) => {
     const selector = (window as any).__nearWalletSelector;
-    
-    console.log('Auto-signing in with NOVA account:', novaAccountId);
 
     try {
       // Build request body based on user type
@@ -150,14 +127,12 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       });
 
       if (!keyRes.ok) {
-        console.warn('Failed to retrieve key from Shade');
         setNovaAccountVerified(true);
         return;
       }
     
       const { private_key } = await keyRes.json();
       if (!private_key) {
-        console.warn('No private key returned from Shade');
         setNovaAccountVerified(true);
         return;
       }
@@ -179,16 +154,14 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       
       setTimeout(() => setWelcomeMessage(''), 4000);
 
-    } catch (err) {
-      console.error('Auto sign-in failed:', err);
+    } catch {
+      console.error('Auto sign-in failed');
       setNovaAccountVerified(true);
     }
   }, []);
 
   // Handle new wallet connection (from wallet selector modal)
   const handleWalletConnect = useCallback(async (walletAccountId: string) => {
-    console.log('New wallet connected:', walletAccountId);
-    
     // Store the original wallet ID
     setOriginalWalletId(walletAccountId);
     setConnectedWalletId(walletAccountId);
@@ -210,19 +183,15 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   useEffect(() => {
     // Skip all verification during payment flow
     if (isPaymentOpen) {
-      console.log('Payment flow active - skipping NOVA verification');
       return;
     }
 
     if (loading) {
-      console.log('Waiting for wallet load...');
       return;
     }
 
     // If wallet is connected but NOVA not yet verified, verify it
     if (isSignedIn && accountId && !novaAccountVerified) {
-      console.log('Wallet loaded, verifying NOVA account...');
-      
       // Store original wallet ID if not already set
       if (!originalWalletId) {
         setOriginalWalletId(accountId);
@@ -238,13 +207,10 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const handleEmailUserFlow = useCallback(async () => {
     // Skip if payment flow is active
     if (isPaymentOpen) {
-      console.log('Payment flow active - skipping email user flow');
       return;
     }
 
     if (!user?.email || isSignedIn) return;
-    
-    console.log('Email user flow: checking for existing account...');
     
     try {
       // Verify session
@@ -252,12 +218,10 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
       // 204 means no session (wallet user or logged out) - not an error
       if (sessionRes.status === 204) {
-        console.log('No Auth0 session (204) - skipping email flow');
         return;
       }
 
       if (!sessionRes.ok) {
-        console.warn('Session invalid');
         setIsLoginOpen(true);
         return;
       }
@@ -270,7 +234,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       });
 
       if (!checkRes.ok) {
-        console.error('Account check failed');
         return;
       }
 
@@ -284,8 +247,8 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         setUserData({ email: user.email });
         setIsCreateOpen(true);
       }
-    } catch (err) {
-      console.error('Email user flow error:', err);
+    } catch {
+      console.error('Email user flow failed');
     }
   }, [user?.email, isSignedIn, autoSignInWithNovaAccount, isPaymentOpen]);
 
@@ -318,7 +281,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     const isCallback = params.has("code") || params.has("state") || params.has("token") || params.has("near");
     
     if (isCallback) {
-      console.log('OAuth callback detected, cleaning URL and resetting state...');
       window.history.replaceState({}, "", "/");
       setNovaAccountVerified(false);
       window.location.href = "/";
@@ -332,7 +294,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
     const timer = setTimeout(() => {
       if (window.location.search.includes("code=") || window.location.search.includes("token=")) {
-        console.log('Fallback: Cleaning OAuth params...');
         setNovaAccountVerified(false);
         window.location.href = "/";
       }
@@ -342,20 +303,17 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   // login success message
   const handleLoginSuccess = () => {
-    console.log('Login success, closing modal...');
     setIsLoginOpen(false);
     setNovaAccountVerified(false);
   };
 
   // created account message
   const handleAccountCreated = (newAccountId: string) => {
-    console.log('Account created');
     setIsCreateOpen(false);
     setWelcomeMessage(`Account ${newAccountId} created! You can now use NOVA.`);
     
     // Trigger auto-sign-in after account creation
     setTimeout(() => {
-      console.log('Triggering auto-sign-in after account creation...');
       autoSignInWithNovaAccount(newAccountId, originalWalletId, userData?.email);
       setWelcomeMessage('');
     }, 1500);
@@ -363,8 +321,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   // handle payment (from payment modal)
   const handlePayment = async (sessionId: string, amount: string) => {
-    console.log('Processing payment');
-    
     try {
       const res = await fetch('/api/auth/fund-account', {
         method: 'POST',
@@ -375,14 +331,12 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       if (!res.ok) throw new Error('Funding failed');
 
       const { fundedAmountNear, txHash } = await res.json();
-      console.log('Funding successful');
       
       setWelcomeMessage(`Funded ${fundedAmountNear} NEAR (tx: ${txHash})!`);
       setIsPaymentOpen(false);
       
       await createAccount(pendingId);
     } catch (err) {
-      console.error('Payment error:', err);
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
       setError(`Funding error: ${errMsg}`);
     }
@@ -390,15 +344,12 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
   // skip payments
   const handleSkipPayment = () => {
-    console.log('Skipping payment...');
     setIsPaymentOpen(false);
     createAccount(pendingId);
   };
 
   // createAccount (calls API)
-  const createAccount = async (fullId: string) => {
-    console.log('Creating account');
-    
+  const createAccount = async (fullId: string) => {    
     try {
       const res = await fetch('/api/auth/create-account', {
         method: 'POST',
@@ -416,25 +367,19 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       }
 
       const { accountId } = await res.json();
-      console.log('Account created successfully');
       
       handleAccountCreated(accountId);
 
     } catch (err) {
-      console.error('Account creation error:', err);
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
       setError(`Creation error: ${errMsg}`);
     }
   };
 
   const handleConnect = () => {
-    console.log('Connect button clicked');
-    
     if (!user) {
-      console.log('No user, opening login modal...');
       setIsLoginOpen(true);
     } else if (!isSignedIn) {
-      console.log('User exists but not signed in, opening wallet modal...');
       if (modal) modal.show();
     }
   };
