@@ -176,8 +176,7 @@ When a user wants to download a file:
 3. The frontend will automatically decrypt and download the file
 
 Available tools for files:
-- prepare_upload: Start an upload (returns key for encryption)
-- finalize_upload: Complete an upload (frontend calls this after encrypting)
+- prepare_upload: Start an upload (returns key for encryption). The frontend encrypts the file and completes the upload. You do NOT finalize it.
 - prepare_retrieve: Get encrypted file + key (frontend decrypts locally)
 - get_group_transactions: List files in a group
 
@@ -273,17 +272,6 @@ Be helpful, concise, and security-conscious.`;
           }),
           execute: async ({ group_id, filename }) =>
             callMCPTool('prepare_upload', { group_id, filename }),
-        }),
-        finalize_upload: tool({
-          description: 'Complete an upload after encryption. Records transaction on blockchain.',
-          inputSchema: z.object({
-            group_id: z.string(),
-            upload_id: z.string(),
-            ipfs_hash: z.string().describe('IPFS CID of the encrypted file'),
-            filename: z.string(),
-            file_hash: z.string().optional().describe('SHA-256 hash of original file'),
-          }),
-          execute: async (args) => callMCPTool('finalize_upload', args),
         }),
         prepare_retrieve: tool({
           description: 'Get encryption key and encrypted file data for download. Frontend handles decryption.',
