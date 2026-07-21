@@ -6,6 +6,7 @@ import { KeyPairSigner } from '@near-js/signers';
 import { KeyPair, KeyPairString } from '@near-js/crypto';
 import { actionCreators } from '@near-js/transactions';
 import { auth0 } from '@/lib/auth0';
+import { log, logError } from '@/lib/log';
 
 const NOVA_MASTER_ACCOUNT = 'nova-sdk-6.testnet';
 const FAUCET_CONTRACT = 'v2.faucet.nonofficial.testnet';
@@ -49,28 +50,27 @@ export async function POST(req: NextRequest) {
     );
 
     if (!isNovaSubaccount) {
-      console.log('Validation failed - accountId:', accountId);
-      console.log('Expected to end with one of:', VALID_NOVA_SUFFIXES);
+      log('faucet_validation_failed', { account_id: accountId });
       return NextResponse.json(
         { success: false, error: 'Can only fund NOVA subaccounts' },
         { status: 400 }
       );
     }
 
-    console.log('Validation passed, proceeding with funding for:', accountId);
+    log('faucet_validation_passed', { account_id: accountId });
 
     // Get master account private key from environment variable
     const privateKey = process.env.NEAR_CREATOR_PRIVATE_KEY;
 
     if (!privateKey) {
-      console.error('NEAR_CREATOR_PRIVATE_KEY not set');
+      logError('faucet_creator_key_missing');
       return NextResponse.json(
         { success: false, error: 'Server configuration error' },
         { status: 500 }
       );
     }
 
-    console.log(`Funding NOVA account: ${accountId}`);
+    log('faucet_funding_start', { account_id: accountId });
 
     // Setup using new @near-js/* packages
     const provider = new JsonRpcProvider({ url: 'https://rpc.testnet.near.org' });
@@ -98,21 +98,21 @@ export async function POST(req: NextRequest) {
           ),
         ],
       });
-      console.log('Faucet refill successful');
+      log('faucet_refill_success');
     } catch (faucetError) {
-      console.log('Faucet request error:', faucetError);
+      logError('faucet_refill_error', {
+        message: faucetError instanceof Error ? faucetError.message : String(faucetError),
+      });
     }
 
     // Step 2: Transfer 2 NEAR to the user's NOVA subaccount
-    console.log('About to transfer to receiverId:', accountId);
-    
     const result = await masterAccount.transfer({
-      receiverId: accountId, 
+      receiverId: accountId,
       amount: BigInt('2000000000000000000000000'), // 2 NEAR in yoctoNEAR
     });
 
-    console.log('Transfer result receiver:', result.transaction?.receiver_id);
-    console.log('Transfer successful:', JSON.stringify(result, null, 2));
+    const txHashForLog = result.transaction?.hash || result.transaction_outcome?.id || 'unknown';
+    log('faucet_transfer_success', { account_id: accountId, tx_hash: txHashForLog });
 
     // Extract transaction hash - result is FinalExecutionOutcome
     const txHash = result.transaction?.hash || result.transaction_outcome?.id || 'unknown';
@@ -126,11 +126,9 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Funding error:', error);
-
-    // Parse common faucet errors
     const errorMessage = error instanceof Error ? error.message : 'Failed to request tokens';
-    
+    logError('faucet_error', { message: errorMessage });
+
     // Check if master account is out of funds
     if (errorMessage.includes('NotEnoughBalance') || errorMessage.includes('LackBalanceForState')) {
       return NextResponse.json(
@@ -140,7 +138,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { success: false, error: errorMessage },
+      { success: false, error: 'Failed to request tokens' },
       { status: 500 }
     );
   }
