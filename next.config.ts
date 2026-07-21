@@ -29,10 +29,10 @@ const nextConfig: NextConfig = {
       default-src 'self';
       script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.auth0.com https://auth0.com;
       style-src 'self' 'unsafe-inline';
-      connect-src 'self' https://*.auth0.com https://auth0.com https://*.near.org https://rpc.mainnet.near.org https://rpc.testnet.near.org https://*.nearblocks.io https://near-faucet.io https://relayer.mainnet.near.org https://relayer.testnet.near.org;
+      connect-src 'self' https://*.auth0.com https://auth0.com https://*.near.org https://rpc.mainnet.near.org https://rpc.testnet.near.org https://*.nearblocks.io https://relayer.mainnet.near.org https://relayer.testnet.near.org;
       img-src 'self' data: https: blob:;
       font-src 'self' https:;
-      frame-src 'self' https://*.auth0.com https://walletselector.com https://crypto-js.stripe.com;
+      frame-src 'self' https://*.auth0.com https://walletselector.com;
       worker-src 'self' blob:;
     `.replace(/\s{2,}/g, ' ').trim();
 
@@ -44,6 +44,12 @@ const nextConfig: NextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
           { key: 'Cache-Control', value: 'no-store, max-age=0' },
+        ],
+      },
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
       },
     ];
