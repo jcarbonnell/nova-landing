@@ -235,45 +235,58 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
       if (message.role !== 'assistant') continue;
 
       for (const part of message.parts) {
-        console.log('PART DEBUG', part.type, (part as any).toolName, (part as any).state, JSON.stringify((part as any).output)?.slice(0, 300));
-        if (part.type === 'dynamic-tool' && part.state === 'output-available' && part.output) {
-          const toolCallId = `${message.id}-${part.toolName}`;
-          
-          if (processedToolCalls.has(toolCallId) || processingRef.current.has(toolCallId)) continue;
-          processingRef.current.add(toolCallId);
+        // AI SDK v6: statically-defined tools emit parts typed `tool-${name}`
+        // with `output` as a flat object; `dynamic-tool` is only for runtime-
+        // registered tools. Support both so the shape can't silently drift again.
+        let toolName: string | undefined;
+        if (part.type === 'dynamic-tool') {
+          toolName = (part as { toolName?: string }).toolName;
+        } else if (typeof part.type === 'string' && part.type.startsWith('tool-')) {
+          toolName = part.type.slice('tool-'.length);
+        }
+        if (!toolName) continue;
 
-          // Cast output to any to access nested properties
-          const rawOutput = part.output as {
-            structuredContent?: Record<string, unknown>;
-            content?: Array<{ text?: string; type?: string }>;
-          };
+        const state = (part as { state?: string }).state;
+        const rawOutput = (part as { output?: unknown }).output;
+        if (state !== 'output-available' || !rawOutput) continue;
 
-          // Extract the actual data - prioritize structuredContent
-          let output: Record<string, unknown> | null = null;
-          
-          if (rawOutput.structuredContent && typeof rawOutput.structuredContent === 'object') {
-            output = rawOutput.structuredContent;
-          } else if (rawOutput.content?.[0]?.text) {
-            try {
-              output = JSON.parse(rawOutput.content[0].text);
-            } catch {
-              // ignore parse error
-            }
+        const toolCallId = `${message.id}-${toolName}`;
+        if (processedToolCalls.has(toolCallId) || processingRef.current.has(toolCallId)) continue;
+        processingRef.current.add(toolCallId);
+
+        // Extract the payload. Static tools give a flat object; older/dynamic
+        // shapes nest it under structuredContent or content[0].text.
+        const wrapper = rawOutput as {
+          structuredContent?: Record<string, unknown>;
+          content?: Array<{ text?: string; type?: string }>;
+        };
+        let output: Record<string, unknown> | null = null;
+
+        if (wrapper.structuredContent && typeof wrapper.structuredContent === 'object') {
+          output = wrapper.structuredContent;
+        } else if (wrapper.content?.[0]?.text) {
+          try {
+            output = JSON.parse(wrapper.content[0].text);
+          } catch {
+            // ignore parse error
           }
+        } else if (typeof rawOutput === 'object') {
+          // Flat object (AI SDK v6 static tool): the output IS the payload.
+          output = rawOutput as Record<string, unknown>;
+        }
 
-          if (!output) continue;
+        if (!output) continue;
 
-          if (part.toolName === 'prepare_upload' && output.upload_id && output.key) {
-            setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
-            handlePrepareUpload(output as unknown as PrepareUploadResult);
-            return;
-          }
+        if (toolName === 'prepare_upload' && output.upload_id && output.key) {
+          setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
+          handlePrepareUpload(output as unknown as PrepareUploadResult);
+          return;
+        }
 
-          if (part.toolName === 'prepare_retrieve' && output.key && output.encrypted_b64) {
-            setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
-            handlePrepareRetrieve(output as unknown as PrepareRetrieveResult);
-            return;
-          }
+        if (toolName === 'prepare_retrieve' && output.key && output.encrypted_b64) {
+          setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
+          handlePrepareRetrieve(output as unknown as PrepareRetrieveResult);
+          return;
         }
       }
     }
@@ -398,38 +411,53 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
             <hr key={index} className="my-2 border-purple-700/50" />
           ) : null;
 
-        case 'dynamic-tool':
+        default: {
+          // AI SDK v6 tool parts: `dynamic-tool` or `tool-${name}`.
+          const isToolPart =
+            part.type === 'dynamic-tool' ||
+            (typeof part.type === 'string' && part.type.startsWith('tool-'));
+          if (!isToolPart) return null;
+
+          const tp = part as {
+            type: string;
+            state?: string;
+            output?: unknown;
+            errorText?: string;
+            toolName?: string;
+          };
+          const toolName =
+            tp.toolName ??
+            (tp.type.startsWith('tool-') ? tp.type.slice('tool-'.length) : 'tool');
+
           return (
             <div key={index} className="mt-2 p-3 bg-purple-900/40 rounded-lg border border-purple-700/50">
               <div className="flex items-center gap-2 text-sm font-medium text-purple-200">
-                {part.state === 'input-streaming' || part.state === 'input-available' ? (
+                {tp.state === 'input-streaming' || tp.state === 'input-available' ? (
                   <Loader2 size={14} className="animate-spin text-purple-400" />
-                ) : part.state === 'output-available' ? (
+                ) : tp.state === 'output-available' ? (
                   <CheckCircle size={14} className="text-green-400" />
-                ) : part.state === 'output-error' ? (
+                ) : tp.state === 'output-error' ? (
                   <AlertCircle size={14} className="text-red-400" />
                 ) : null}
-                <span>Tool: {part.toolName}</span>
+                <span>Tool: {toolName}</span>
               </div>
-              
-              {part.state === 'output-available' && part.toolName !== 'prepare_upload' && part.toolName !== 'prepare_retrieve' && (
+
+              {tp.state === 'output-available' && toolName !== 'prepare_upload' && toolName !== 'prepare_retrieve' && (
                 <div className="mt-2 text-sm text-green-300 overflow-x-auto">
                   <pre className="whitespace-pre-wrap">
-                    {typeof part.output === 'string' ? part.output : JSON.stringify(part.output, null, 2)}
+                    {typeof tp.output === 'string' ? tp.output : JSON.stringify(tp.output, null, 2)}
                   </pre>
                 </div>
               )}
-              
-              {part.state === 'output-error' && (
+
+              {tp.state === 'output-error' && (
                 <div className="mt-2 text-sm text-red-300">
-                  Error: {part.errorText}
+                  Error: {tp.errorText}
                 </div>
               )}
             </div>
           );
-
-        default:
-          return null;
+        }
       }
     });
   };
