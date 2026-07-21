@@ -235,6 +235,7 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
       if (message.role !== 'assistant') continue;
 
       for (const part of message.parts) {
+        console.log('PART DEBUG', part.type, (part as any).toolName, (part as any).state, JSON.stringify((part as any).output)?.slice(0, 300));
         if (part.type === 'dynamic-tool' && part.state === 'output-available' && part.output) {
           const toolCallId = `${message.id}-${part.toolName}`;
           
