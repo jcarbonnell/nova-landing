@@ -51,7 +51,7 @@ export default function Header({ onOpenLogin, onOpenPayment }: HeaderProps) {
   };
 
   // Detect network
-  const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK !== 'mainnet';
+  const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK !== 'testnnet';
   const networkUrl = isTestnet ? 'https://nova-sdk.com' : 'https://testnet.nova-sdk.com';
 
   return (

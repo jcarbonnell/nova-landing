@@ -1,6 +1,6 @@
 // src/app/api/auth/retrieve-key/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth0, getAuthToken, isWalletOnlyUser } from '@/lib/auth0';
+import { auth0, getAuthToken } from '@/lib/auth0';
 
 export async function POST(req: NextRequest) {
   const { email, account_id, wallet_id } = await req.json();

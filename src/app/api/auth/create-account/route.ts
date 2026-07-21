@@ -1,23 +1,23 @@
 // src/app/api/auth/create-account/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth0, getAuthToken } from '@/lib/auth0';
+import { log, logError } from '@/lib/log';
 import { Account } from '@near-js/accounts';
 import { KeyPair, type KeyPairString } from '@near-js/crypto';
 import { JsonRpcProvider } from '@near-js/providers';
 import { KeyPairSigner } from '@near-js/signers';
 
-const PARENT_DOMAIN = process.env.NEXT_PUBLIC_PARENT_DOMAIN!;
-const CREATOR_PRIVATE_KEY = process.env.NEAR_CREATOR_PRIVATE_KEY!;
-const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL!;
-const SHADE_API_URL = process.env.NEXT_PUBLIC_SHADE_API_URL!;
-const NETWORK_ID = PARENT_DOMAIN.includes('testnet') ? 'testnet' : 'mainnet';
-
-if (!PARENT_DOMAIN || !CREATOR_PRIVATE_KEY || !RPC_URL || !SHADE_API_URL) {
-  throw new Error('Missing required env vars for account creation');
-}
-
 export async function POST(req: NextRequest) {
   try {
+    const PARENT_DOMAIN = process.env.NEXT_PUBLIC_PARENT_DOMAIN;
+    const CREATOR_PRIVATE_KEY = process.env.NEAR_CREATOR_PRIVATE_KEY;
+    const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL;
+    const SHADE_API_URL = process.env.NEXT_PUBLIC_SHADE_API_URL;
+    if (!PARENT_DOMAIN || !CREATOR_PRIVATE_KEY || !RPC_URL || !SHADE_API_URL) {
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+    const NETWORK_ID = PARENT_DOMAIN.includes('testnet') ? 'testnet' : 'mainnet';
+
     const { username, email, wallet_id } = await req.json();
 
     // 1. Wallet branch DISABLED (v0.4).
@@ -85,9 +85,10 @@ export async function POST(req: NextRequest) {
       throw new Error(`TX failed: ${JSON.stringify(result.status.Failure)}`);
     }
 
-    console.log('Account created');
+    log('create_account_onchain', { account_id: fullId });
 
     // 11. Store key in Shade TEE
+    let keyBackedUp = false;
     try {
       const res = await fetch(`${SHADE_API_URL}/rpc/user-keys/store`, {
         method: 'POST',
@@ -105,12 +106,16 @@ export async function POST(req: NextRequest) {
         }),
       });
       if (res.ok) {
-        console.log('✅ Key securely stored in Shade TEE');
+        keyBackedUp = true;
+        log('create_account_key_stored', { account_id: fullId });
       } else {
-        console.error('⚠️ Shade backup failed:', res.status);
+        logError('create_account_shade_store_failed', { account_id: fullId, status: res.status });
       }
-    } catch {
-      console.error('❌ Shade backup error (network/timeout)');
+    } catch (storeError) {
+      logError('create_account_shade_store_error', {
+        account_id: fullId,
+        message: storeError instanceof Error ? storeError.message : String(storeError),
+      });
     }
 
     const explorerUrl = NETWORK_ID === 'testnet'
@@ -124,25 +129,15 @@ export async function POST(req: NextRequest) {
       transaction: result.transaction.hash,
       explorerUrl,
       message: 'Success!',
-      keyBackedUp: true,
+      keyBackedUp,
     });
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Account creation failed:', errorMessage);
-    console.error('Full error:', error);
-    console.error('Env vars:', {
-      PARENT_DOMAIN,
-      RPC_URL,
-      NETWORK_ID,
-      hasCreatorKey: !!CREATOR_PRIVATE_KEY,
-    });
+    logError('create_account_failed', { message: errorMessage });
     if (errorMessage.includes('already exists')) {
       return NextResponse.json({ error: 'Username taken' }, { status: 400 });
     }
-    return NextResponse.json(
-      { error: 'Failed', details: errorMessage },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

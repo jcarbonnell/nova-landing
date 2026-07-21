@@ -2,12 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SignJWT } from 'jose';
 import { auth0 } from '@/lib/auth0';
-
-// Secret for signing session tokens - must match MCP server's verification key
-const SESSION_TOKEN_SECRET = process.env.SESSION_TOKEN_SECRET;
-if (!SESSION_TOKEN_SECRET) {
-  throw new Error('SESSION_TOKEN_SECRET env var required');
-}
+import { log, logError } from '@/lib/log';
 
 const ISSUER = 'https://nova-sdk.com';
 const AUDIENCE = 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network';
@@ -35,8 +30,9 @@ export async function POST(req: NextRequest) {
     let accountId: string | null = null;
     let subject: string;
     const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL;
-    if (!shadeUrl) {
-      return NextResponse.json({ error: 'Shade URL not configured' }, { status: 500 });
+    const sessionSecret = process.env.SESSION_TOKEN_SECRET;
+    if (!shadeUrl || !sessionSecret) {
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
 
     // Path 0: API key provided (secure SDK flow)
@@ -68,7 +64,7 @@ export async function POST(req: NextRequest) {
       accountId = verifyData.account_id;
       subject = `apikey|${accountId}`;
       
-      console.log('Issuing session token via API key for:', accountId);
+      log('session_token_apikey', { account_id: accountId });
     }
     // Path 1: account_id provided without API key (INSECURE - reject)
     else if (requestedAccountId && !wallet_id && !apiKey) {
@@ -120,7 +116,10 @@ export async function POST(req: NextRequest) {
 
       if (!shadeResponse.ok) {
         const errorText = await shadeResponse.text();
-        console.error('Shade check failed:', shadeResponse.status, errorText);
+        logError('session_token_shade_check_failed', {
+          status: shadeResponse.status,
+          error: errorText.slice(0, 200),
+        });
         return NextResponse.json({ 
           error: 'No NOVA account found for this email' 
         }, { status: 404 });
@@ -136,7 +135,7 @@ export async function POST(req: NextRequest) {
       accountId = shadeData.account_id;
       subject = `email|${email}`;
       
-      console.log('Issuing session token for email user:', email, '->', accountId);
+      log('session_token_email', { email, account_id: accountId });
     }
 
     if (!accountId) {
@@ -144,7 +143,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create signed JWT
-    const secret = new TextEncoder().encode(SESSION_TOKEN_SECRET);
+    const secret = new TextEncoder().encode(sessionSecret);
     
     const token = await new SignJWT({
       account_id: accountId,
@@ -158,7 +157,7 @@ export async function POST(req: NextRequest) {
       .setExpirationTime(TOKEN_EXPIRY)
       .sign(secret);
 
-    console.log('Session token issued for:', accountId);
+    log('session_token_issued', { account_id: accountId });
 
     return NextResponse.json({
       token,
@@ -167,11 +166,8 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Session token error:', error);
-    return NextResponse.json({ 
-      error: 'Failed to issue session token',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    logError('session_token_error', { message: error instanceof Error ? error.message : 'Unknown error' });
+    return NextResponse.json({ error: 'Failed to issue session token' }, { status: 500 });
   }
 }
 

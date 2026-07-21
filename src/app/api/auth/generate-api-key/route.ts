@@ -1,6 +1,7 @@
 // src/app/api/auth/generate-api-key/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth0, getAuthToken } from '@/lib/auth0';
+import { log, logError } from '@/lib/log';
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('Generating API key for email user:', email);
+    log('generate_api_key_request', { email });
 
     const shadeResponse = await fetch(`${shadeUrl}/rpc/user-keys/generate-api-key`, {
       method: 'POST',
@@ -60,7 +61,10 @@ export async function POST(req: NextRequest) {
 
     if (!shadeResponse.ok) {
       const errorText = await shadeResponse.text();
-      console.error('Shade generate-api-key failed:', shadeResponse.status, errorText);
+      logError('generate_api_key_shade_failed', {
+        status: shadeResponse.status,
+        error: errorText.slice(0, 200),
+      });
       return NextResponse.json(
         { error: 'Failed to generate API key' },
         { status: shadeResponse.status }
@@ -68,7 +72,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await shadeResponse.json();
-    console.log('✅ API key generated for email user:', email, '->', data.account_id);
+    log('generate_api_key_issued', { email, account_id: data.account_id });
 
     return NextResponse.json({
       success: true,
@@ -78,13 +82,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Generate API key error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to generate API key',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    );
+    logError('generate_api_key_error', { message: error instanceof Error ? error.message : 'Unknown error' });
+    return NextResponse.json({ error: 'Failed to generate API key' }, { status: 500 });
   }
 }
