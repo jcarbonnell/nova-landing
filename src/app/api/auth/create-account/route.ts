@@ -10,7 +10,12 @@ import { KeyPairSigner } from '@near-js/signers';
 export async function POST(req: NextRequest) {
   try {
     const PARENT_DOMAIN = process.env.NEXT_PUBLIC_PARENT_DOMAIN;
-    const CREATOR_PRIVATE_KEY = process.env.NEAR_CREATOR_PRIVATE_KEY;
+    // Network-explicit — a mainnet build cannot pick up the testnet key, even if a guard fails.
+    const NETWORK_ID_EARLY = (process.env.NEXT_PUBLIC_PARENT_DOMAIN || '').includes('testnet')
+      ? 'testnet' : 'mainnet';
+    const CREATOR_PRIVATE_KEY = NETWORK_ID_EARLY === 'testnet'
+      ? process.env.NEAR_CREATOR_PRIVATE_KEY_TESTNET
+      : process.env.NEAR_CREATOR_PRIVATE_KEY_MAINNET;
     const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL;
     const SHADE_API_URL = process.env.NEXT_PUBLIC_SHADE_API_URL;
     if (!PARENT_DOMAIN || !CREATOR_PRIVATE_KEY || !RPC_URL || !SHADE_API_URL) {

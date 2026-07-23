@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     log('faucet_validation_passed', { account_id: accountId });
 
     // Get master account private key from environment variable
-    const privateKey = process.env.NEAR_CREATOR_PRIVATE_KEY;
+    const privateKey = process.env.NEAR_CREATOR_PRIVATE_KEY_TESTNET;
 
     if (!privateKey) {
       logError('faucet_creator_key_missing');
