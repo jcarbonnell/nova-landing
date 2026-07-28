@@ -183,10 +183,18 @@ export async function GET() {
       });
     }
 
+    // TEMPORARY debug — REVERT immediately after grabbing the token.
+    let dbgToken: string | null = null;
+    try {
+      const t = await auth0.getAccessToken();
+      dbgToken = t?.token || null;
+    } catch {
+      dbgToken = typeof session.idToken === 'string' ? session.idToken : null;
+    }
     return NextResponse.json({
       authenticated: true,
       email: session.user.email,
-      message: 'Use POST to get a session token for the SDK.'
+      access_token: dbgToken,
     });
 
   } catch (error) {
