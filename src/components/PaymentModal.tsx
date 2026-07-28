@@ -30,6 +30,9 @@ export default function PaymentModal({
   const [apiKeyLoading, setApiKeyLoading] = useState(false);
   const [apiKeyError, setApiKeyError] = useState('');
   const [apiKeyCopied, setApiKeyCopied] = useState(false);
+  const [rotateLoading, setRotateLoading] = useState(false);
+  const [rotateConfirm, setRotateConfirm] = useState(false);
+  const [apiKeyIsRotated, setApiKeyIsRotated] = useState(false);
 
   // Detect testnet
   const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK !== 'mainnet';
@@ -78,6 +81,9 @@ export default function PaymentModal({
       setApiKey(null);
       setApiKeyError('');
       setApiKeyCopied(false);
+      setRotateLoading(false);
+      setRotateConfirm(false);
+      setApiKeyIsRotated(false);
     }
   }, [isOpen]);
 
@@ -174,6 +180,39 @@ export default function PaymentModal({
       setApiKeyError(errMsg);
     } finally {
       setApiKeyLoading(false);
+    }
+  };
+
+  // Rotate API key — invalidates the current key and issues a new one.
+  const rotateApiKey = async () => {
+    if (!accountId) {
+      setApiKeyError('No account connected');
+      return;
+    }
+    setRotateLoading(true);
+    setApiKeyError('');
+
+    try {
+      const response = await fetch('/api/auth/rotate-api-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to rotate API key');
+      }
+
+      setApiKey(data.api_key);
+      setApiKeyIsRotated(true);
+      setRotateConfirm(false);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      console.error('API key rotation failed:', errMsg);
+      setApiKeyError(errMsg);
+    } finally {
+      setRotateLoading(false);
     }
   };
 
@@ -290,8 +329,9 @@ export default function PaymentModal({
                         <strong>🔑 SDK API Key</strong>
                       </p>
                       <p className="text-gray-300 text-sm">
-                        Generate an API key to use with the NOVA SDK in your applications.
-                        One key per account — generating a new key will invalidate the old one.
+                        Click generate to reveal your API key, whether you already have one or not.
+                        Then you will be able to click on rotate to generate a fresh key and
+                        permanently invalidate the old one.
                       </p>
                     </div>
 
@@ -304,7 +344,9 @@ export default function PaymentModal({
                     {apiKey ? (
                       <div className="mb-4">
                         <div className="p-3 bg-green-500/20 border border-green-500/50 rounded-lg mb-3">
-                          <p className="text-green-200 text-sm mb-2">✅ API Key Generated</p>
+                          <p className="text-green-200 text-sm mb-2">
+                            {apiKeyIsRotated ? '✅ API Key Rotated — previous key is now invalid' : '✅ API Key'}
+                          </p>
                           <p className="text-yellow-200 text-xs">⚠️ Save this key now — you won't see it again!</p>
                         </div>
                         <div className="flex items-center gap-2 p-3 bg-gray-800/50 rounded-lg">
@@ -328,6 +370,44 @@ export default function PaymentModal({
                               </svg>
                             )}
                           </button>
+                        </div>
+                        {/* Rotate control — destructive, requires confirm */}
+                        <div className="mt-3">
+                          {rotateConfirm ? (
+                            <div className="p-3 bg-red-500/10 border border-red-500/40 rounded-lg">
+                              <p className="text-red-200 text-xs mb-2">
+                                Rotating invalidates the key above. Any agent using it will stop working until you give it the new key. Continue?
+                              </p>
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  onClick={rotateApiKey}
+                                  disabled={rotateLoading}
+                                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                                  style={{ fontSize: '14px', padding: '8px 16px' }}
+                                >
+                                  {rotateLoading ? 'Rotating…' : 'Yes, rotate key'}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  onClick={() => setRotateConfirm(false)}
+                                  disabled={rotateLoading}
+                                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white"
+                                  style={{ fontSize: '14px', padding: '8px 16px' }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setRotateConfirm(true)}
+                              className="text-xs text-gray-400 hover:text-red-300 underline"
+                            >
+                              Rotate this key
+                            </button>
+                          )}
                         </div>
                       </div>
                     ) : (
@@ -462,8 +542,9 @@ export default function PaymentModal({
                         <strong>🔑 SDK API Key</strong>
                       </p>
                       <p className="text-gray-300 text-sm">
-                        Generate an API key to use with the NOVA SDK in your applications.
-                        One key per account — generating a new key will invalidate the old one.
+                        Click generate to reveal your API key, whether you already have one or not.
+                        Then you will be able to click on rotate to generate a fresh key and
+                        permanently invalidate the old one.
                       </p>
                     </div>
 
