@@ -1,14 +1,9 @@
 // nova-landing/src/app/api/auth/session-token/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { SignJWT } from 'jose';
 import { auth0 } from '@/lib/auth0';
+import { mintNovaSession } from '@/lib/session';
 import { log, logError } from '@/lib/log';
 
-const ISSUER = 'https://nova-sdk.com';
-const AUDIENCE = 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network';
-
-// Token validity (24 hours default, configurable)
-const TOKEN_EXPIRY = process.env.SESSION_TOKEN_EXPIRY || '24h';
 
 export async function POST(req: NextRequest) {
   try {
@@ -142,28 +137,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Could not determine account' }, { status: 400 });
     }
 
-    // Create signed JWT
-    const secret = new TextEncoder().encode(sessionSecret);
-    
-    const token = await new SignJWT({
-      account_id: accountId,
-      type: 'nova_session',
-    })
-      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-      .setSubject(subject)
-      .setIssuer(ISSUER)
-      .setAudience(AUDIENCE)
-      .setIssuedAt()
-      .setExpirationTime(TOKEN_EXPIRY)
-      .sign(secret);
+    const result = await mintNovaSession(accountId, subject);
 
     log('session_token_issued', { account_id: accountId });
 
-    return NextResponse.json({
-      token,
-      account_id: accountId,
-      expires_in: TOKEN_EXPIRY,
-    });
+    return NextResponse.json(result);
 
   } catch (error) {
     logError('session_token_error', { message: error instanceof Error ? error.message : 'Unknown error' });

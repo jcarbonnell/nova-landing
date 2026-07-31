@@ -116,6 +116,9 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         const { setupWalletSelector } = await import('@near-wallet-selector/core');
         const { setupModal } = await import('@near-wallet-selector/modal-ui');
         const { setupMyNearWallet } = await import('@near-wallet-selector/my-near-wallet');
+        const { setupMeteorWallet } = await import('@near-wallet-selector/meteor-wallet');
+        const { setupHereWallet } = await import('@near-wallet-selector/here-wallet');
+        const { setupNightly } = await import('@near-wallet-selector/nightly');
         // Add more wallets if you want: setupHereWallet(), setupMeteorWallet(), etc.
 
         const networkConfig = isMainnet ? NETWORK_CONFIG.mainnet : NETWORK_CONFIG.testnet;
@@ -124,6 +127,9 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
         const selector = await setupWalletSelector({
           network: networkConfig,
           modules: [
+            setupMeteorWallet(),
+            setupHereWallet(),
+            setupNightly(),
             setupMyNearWallet({
               walletUrl,
             }),
