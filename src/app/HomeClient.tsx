@@ -28,7 +28,21 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const selector = useWalletSelector();
   const { signIn: walletSignIn, error: walletError } = useWalletSignin(selector);
 
-  const isConnected = isSignedIn && !!accountId;
+  // Wallet SIWN gate: true once walletSignIn() mints a nova_session. Distinct
+  // from isSignedIn (selector connected) — a wallet can be connected WITHOUT a
+  // NOVA session (before the user clicks "Sign in with wallet"). The nova_session
+  // cookie is httpOnly (unreadable here by design), so we track success in state.
+  const [hasWalletSession, setHasWalletSession] = useState(false);
+  
+  // "Connected" = ready to use the chat.
+  //  - Email/custodial: __forceWalletConnect sets isSignedIn+accountId after the
+  //    key is injected; that IS the success signal (email users authenticate to
+  //    the chat via their Auth0 cookie, not a wallet session).
+  //  - Wallet/SIWN: selector connected AND a nova_session was minted (the cookie
+  //    the chat route reads). isSignedIn alone is not enough.
+  // We distinguish the two by whether the connected account is the user's own
+  // wallet (needs hasWalletSession) or a custodial NOVA account (email path).
+  const isConnected = isSignedIn && !!accountId && (user?.email ? true : hasWalletSession);
   const loading = authLoading || walletLoading;
 
   // States for modal flow
@@ -83,28 +97,23 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     }
   }, []);
 
-  // Handle new wallet connection (from wallet selector modal).
-  // SIWN: the connected wallet signs a NEP-413 challenge; wallet-verify sets the
-  // nova_session httpOnly cookie. No custodial substitution, no key retrieval.
-  const handleWalletConnect = useCallback(async () => {
+  // Wallet SIWN — triggered by an EXPLICIT user click (see the "Sign in with
+  // wallet" button), NEVER auto-fired off the connection event. Web-popup wallets
+  // (Meteor, HERE) open a signing popup inside signMessage(), which the browser
+  // blocks unless it happens within a direct user gesture. Auto-triggering off
+  // the async connection event loses that gesture → "Couldn't open popup window".
+  // A dedicated click preserves the gesture and works uniformly for extension
+  // and web-popup wallets.
+  const handleWalletSignIn = useCallback(async () => {
     const result = await walletSignIn();
     if (result) {
+      setHasWalletSession(true);
       const displayName = result.account_id.split('.')[0];
       setWelcomeMessage(`Signed in as ${displayName}!`);
       setTimeout(() => setWelcomeMessage(''), 4000);
     }
     // On failure, walletError surfaces the reason (rendered in the banner).
   }, [walletSignIn]);
-
-  // Register wallet connect callback. WalletProvider invokes this when a NEW
-  // wallet connection is detected; we ignore its accountId arg and trigger SIWN
-  // for the just-connected wallet.
-  useEffect(() => {
-    if (setOnWalletConnect) {
-      setOnWalletConnect(() => handleWalletConnect());
-      return () => setOnWalletConnect(undefined);
-    }
-  }, [setOnWalletConnect, handleWalletConnect]);
   
   const handleEmailUserFlow = useCallback(async () => {
     // Skip if payment flow is active
@@ -169,6 +178,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     if (new URLSearchParams(window.location.search).get('loggedOut') === '1') {
       setWelcomeMessage('Successfully logged out.');
       setNovaAccountVerified(false);
+      setHasWalletSession(false);
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -308,8 +318,9 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         </div>
       )}
 
-      {/* Loading indicator while verifying NOVA account */}
-      {isSignedIn && !novaAccountVerified && (
+      {/* Email/custodial only: shown while retrieving+injecting the custodial key.
+          Wallet users never see this — they sign in explicitly via the button. */}
+      {isSignedIn && !!user?.email && !novaAccountVerified && (
         <div className="p-2 text-center text-purple-300 bg-purple-500/10 border-b border-purple-400/20 text-sm">
           <span className="animate-pulse">Connecting NOVA account...</span>
         </div>
@@ -362,15 +373,35 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               /* Blur overlay when not connected */
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#280449]/80 backdrop-blur-sm rounded-lg border border-purple-600/50">
                 <MessageSquare size={64} className="text-gray-400 mb-4 animate-pulse" />
-                <p className="text-purple-200 mb-4 text-center px-4">
-                  Connect to unlock secure file-sharing
-                </p>
-                <Button 
-                  onClick={handleConnect} 
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded"
-                >
-                  Get Started
-                </Button>
+                {isSignedIn && !user?.email ? (
+                  <>
+                    {/* Wallet connected but not yet SIWN'd — explicit sign-in
+                        click (preserves the gesture the signing popup needs). */}
+                    <p className="text-purple-200 mb-4 text-center px-4">
+                      Wallet connected as{' '}
+                      <span className="font-medium text-purple-100">{accountId}</span>.
+                      <br />Sign a message to prove ownership — no transaction, no fees.
+                    </p>
+                    <Button
+                      onClick={handleWalletSignIn}
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded"
+                    >
+                      Sign in with wallet
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-purple-200 mb-4 text-center px-4">
+                      Connect to unlock secure, self-sovereign agent storage
+                    </p>
+                    <Button
+                      onClick={handleConnect}
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded"
+                    >
+                      Get Started
+                    </Button>
+                  </>
+                )}
               </div>
             )}
           </section>
