@@ -1,4 +1,4 @@
-// src/lib/session.ts
+// nova-landing/src/lib/session.ts
 //
 // The ONE place a nova_session token is minted. Extracted verbatim from
 // session-token/route.ts (v0.5 §5.11-A) so the wallet-verify route can mint the

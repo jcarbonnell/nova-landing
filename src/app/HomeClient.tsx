@@ -9,6 +9,7 @@ import { MessageSquare } from 'lucide-react';
 import { useWalletState, useWalletSelector, useWalletSelectorModal } from '@/providers/WalletProvider';
 import type { User } from '@/lib/auth0';
 import { connectWithPrivateKey } from '@/lib/nearWallet';
+import { useWalletSignin } from '@/hooks/useWalletSignin';
 import Image from 'next/image';
 import LoginModal from '../components/LoginModal';
 import CreateAccountModal from '../components/CreateAccountModal';
@@ -23,6 +24,9 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const user = serverUser || clientUser;
   const { isSignedIn, accountId, loading: walletLoading, setOnWalletConnect } = useWalletState();
   const { modal } = useWalletSelectorModal();
+  // Handle Auth0 email users (existing flow, simplified)
+  const selector = useWalletSelector();
+  const { signIn: walletSignIn, error: walletError } = useWalletSignin(selector);
 
   const isConnected = isSignedIn && !!accountId;
   const loading = authLoading || walletLoading;
@@ -36,173 +40,71 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [error, setError] = useState('');
 
-  // state tracking
+  // Email-flow gate (custodial). Wallet users don't use this — SIWN drives their
+  // signed-in state directly through the selector.
   const [novaAccountVerified, setNovaAccountVerified] = useState(false);
-  const [connectedWalletId, setConnectedWalletId] = useState<string | undefined>();
-  
-  // Track the original external wallet (before NOVA substitution)
-  const [originalWalletId, setOriginalWalletId] = useState<string | undefined>();
-  
-  // Refs to prevent duplicate operations
-  const verificationInProgressRef = useRef(false);
 
-  // NOVA account verification and auto-connect
-  const verifyAndConnectNovaAccount = useCallback(async (walletId?: string) => {
-    const targetWalletId = walletId || originalWalletId || accountId;
-    
-    if (!targetWalletId) {
-      return;
-    }
-    
-    if (verificationInProgressRef.current) {
-      return;
-    }
-    
-    // Check if current account is already a NOVA account (ends with parent domain)
-    const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN || 'nova-sdk.near';
-    if (accountId?.endsWith(`.${parentDomain}`)) {
-      setNovaAccountVerified(true);
-      return;
-    }
-    
-    verificationInProgressRef.current = true;
-    
-    try {
-      // Check if this wallet has a NOVA account in Shade
-      const checkRes = await fetch('/api/auth/check-for-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-wallet-id': targetWalletId },
-        body: JSON.stringify({ wallet_id: targetWalletId }),
-      });
-
-      if (!checkRes.ok) {
-        setNovaAccountVerified(true); // Mark as verified (no NOVA account exists)
-        return;
-      }
-
-      const { exists, accountId: novaAccountId } = await checkRes.json();
-
-      if (exists && novaAccountId) {
-        await autoSignInWithNovaAccount(novaAccountId, targetWalletId, user?.email);
-      } else {
-        // Set user data with wallet info for account creation
-        setUserData({ 
-          email: `${targetWalletId}@wallet.nova`,  // Placeholder email for wallet users
-          wallet_id: targetWalletId,
-        });
-        setIsCreateOpen(true);
-        setNovaAccountVerified(true);
-      }
-    } catch {
-      console.error('NOVA account verification failed');
-      setNovaAccountVerified(true);
-    } finally {
-      verificationInProgressRef.current = false;
-    }
-  }, [accountId, originalWalletId]);
-
-  // Auto sign-in with NOVA account from Shade
+  // Auto sign-in for EMAIL users (custodial, unchanged). Wallet users never
+  // reach this — they sign in via SIWN (walletSignIn) and NOVA never holds
+  // their key. The wallet branch (retrieve-key + connectWithPrivateKey +
+  // __forceWalletConnect substitution) is removed.
   const autoSignInWithNovaAccount = useCallback(async (
-    novaAccountId: string, 
-    walletId?: string,
-    userEmail?: string
+    novaAccountId: string,
+    userEmail?: string,
   ) => {
-    const selector = (window as any).__nearWalletSelector;
-
     try {
-      // Build request body based on user type
-      const requestBody: any = { account_id: novaAccountId };
-    
-      if (userEmail) {
-        requestBody.email = userEmail;
-      } else if (walletId) {
-        requestBody.wallet_id = walletId;
-      }
-
-      // Retrieve key from Shade
       const keyRes = await fetch('/api/auth/retrieve-key', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({ account_id: novaAccountId, email: userEmail }),
       });
 
       if (!keyRes.ok) {
         setNovaAccountVerified(true);
         return;
       }
-    
+
       const { private_key } = await keyRes.json();
       if (!private_key) {
         setNovaAccountVerified(true);
         return;
       }
 
-      // Inject key into localStorage
       await connectWithPrivateKey(private_key, novaAccountId);
-
-      // Force state update
       (window as any).__forceWalletConnect?.(novaAccountId);
-      
-      // Track the original wallet for reference
-      if (walletId) {
-        setConnectedWalletId(walletId);
-      }
 
       const displayName = novaAccountId.split('.')[0];
       setWelcomeMessage(`Signed in as ${displayName}!`);
       setNovaAccountVerified(true);
-      
       setTimeout(() => setWelcomeMessage(''), 4000);
-
     } catch {
       console.error('Auto sign-in failed');
       setNovaAccountVerified(true);
     }
   }, []);
 
-  // Handle new wallet connection (from wallet selector modal)
-  const handleWalletConnect = useCallback(async (walletAccountId: string) => {
-    // Store the original wallet ID
-    setOriginalWalletId(walletAccountId);
-    setConnectedWalletId(walletAccountId);
-    setNovaAccountVerified(false);
-    
-    // Immediately verify and potentially substitute with NOVA account
-    await verifyAndConnectNovaAccount(walletAccountId);
-  }, [verifyAndConnectNovaAccount]);
+  // Handle new wallet connection (from wallet selector modal).
+  // SIWN: the connected wallet signs a NEP-413 challenge; wallet-verify sets the
+  // nova_session httpOnly cookie. No custodial substitution, no key retrieval.
+  const handleWalletConnect = useCallback(async () => {
+    const result = await walletSignIn();
+    if (result) {
+      const displayName = result.account_id.split('.')[0];
+      setWelcomeMessage(`Signed in as ${displayName}!`);
+      setTimeout(() => setWelcomeMessage(''), 4000);
+    }
+    // On failure, walletError surfaces the reason (rendered in the banner).
+  }, [walletSignIn]);
 
-  // Register wallet connect callback
+  // Register wallet connect callback. WalletProvider invokes this when a NEW
+  // wallet connection is detected; we ignore its accountId arg and trigger SIWN
+  // for the just-connected wallet.
   useEffect(() => {
     if (setOnWalletConnect) {
-      setOnWalletConnect(handleWalletConnect);
+      setOnWalletConnect(() => handleWalletConnect());
       return () => setOnWalletConnect(undefined);
     }
   }, [setOnWalletConnect, handleWalletConnect]);
-
-  // Main effect: verify NOVA account on page load/refresh
-  useEffect(() => {
-    // Skip all verification during payment flow
-    if (isPaymentOpen) {
-      return;
-    }
-
-    if (loading) {
-      return;
-    }
-
-    // If wallet is connected but NOVA not yet verified, verify it
-    if (isSignedIn && accountId && !novaAccountVerified) {
-      // Store original wallet ID if not already set
-      if (!originalWalletId) {
-        setOriginalWalletId(accountId);
-      }
-      
-      verifyAndConnectNovaAccount(accountId);
-    }
-  }, [loading, isSignedIn, accountId, novaAccountVerified, originalWalletId, verifyAndConnectNovaAccount, isPaymentOpen]);
-
-  // Handle Auth0 email users (existing flow, simplified)
-  const selector = useWalletSelector();
   
   const handleEmailUserFlow = useCallback(async () => {
     // Skip if payment flow is active
@@ -241,7 +143,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
       if (exists && existingId) {
         // Auto sign-in
-        await autoSignInWithNovaAccount(existingId, undefined, user.email);
+        await autoSignInWithNovaAccount(existingId, user.email);
       } else {
         // New user - show account creation
         setUserData({ email: user.email });
@@ -267,7 +169,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     if (new URLSearchParams(window.location.search).get('loggedOut') === '1') {
       setWelcomeMessage('Successfully logged out.');
       setNovaAccountVerified(false);
-      setOriginalWalletId(undefined);
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -312,9 +213,9 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     setIsCreateOpen(false);
     setWelcomeMessage(`Account ${newAccountId} created! You can now use NOVA.`);
     
-    // Trigger auto-sign-in after account creation
+    // Trigger auto-sign-in after account creation (email/custodial only)
     setTimeout(() => {
-      autoSignInWithNovaAccount(newAccountId, originalWalletId, userData?.email);
+      autoSignInWithNovaAccount(newAccountId, userData?.email);
       setWelcomeMessage('');
     }, 1500);
   };
@@ -426,25 +327,25 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               />
             </div>
             <h2 className="font-museo text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 leading-[1.1] tracking-tight animate-slide-up">
-              Secure File Sharing for{' '}
+              Secure Communication for{' '}
               <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
-                User-Owned AI
+                Multi-Agent Systems
               </span>
             </h2>
             <p className="font-space text-lg md:text-xl lg:text-2xl text-purple-200 mb-8 leading-relaxed font-medium">
-              NOVA is a privacy-first, decentralized file-sharing primitive, empowering user-owned AI at scale with encrypted data persistence.
+              NOVA is a self-sovereign communication layer for AI agents — encrypted so only authorized parties can read, and auditable so every access is verifiable on-chain.
             </p>
 
-            {/* Optional: Feature Pills */}
+            {/* Feature Pills */}
             <div className="flex flex-wrap justify-center lg:justify-start gap-3 mb-6 animate-slide-up animation-delay-200">
               <div className="px-4 py-2 bg-purple-500/20 border border-purple-400/30 rounded-full text-purple-200 text-sm font-medium">
-                🔐 End-to-End Encrypted
+                🔐 Encrypted
               </div>
               <div className="px-4 py-2 bg-purple-500/20 border border-purple-400/30 rounded-full text-purple-200 text-sm font-medium">
-                ⛓️ Blockchain Verified
+                🔍 Auditable
               </div>
               <div className="px-4 py-2 bg-purple-500/20 border border-purple-400/30 rounded-full text-purple-200 text-sm font-medium">
-                🌐 IPFS Storage
+                🪪 Self-Sovereign
               </div>
             </div>
           </section>
@@ -456,7 +357,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               <ChatInterface 
                 accountId={accountId!} 
                 email={user?.email || ''} 
-                walletId={connectedWalletId || originalWalletId} 
               />
             ) : (
               /* Blur overlay when not connected */

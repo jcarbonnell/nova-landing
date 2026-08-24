@@ -11,7 +11,6 @@ import { importKey, encryptData, decryptData, hashData } from '@/lib/crypto';
 interface ChatInterfaceProps {
   accountId: string;
   email: string;
-  walletId?: string;
 }
 
 interface PrepareUploadResult {
@@ -28,7 +27,7 @@ interface PrepareRetrieveResult {
   group_id: string;
 }
 
-export default function ChatInterface({ accountId, email, walletId }: ChatInterfaceProps) {
+export default function ChatInterface({ accountId, email }: ChatInterfaceProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState('');
@@ -67,7 +66,6 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
         const headers = new Headers(options.headers);
         headers.set('x-account-id', accountId);
         if (email) headers.set('x-user-email', email);
-        if (walletId) headers.set('x-wallet-id', walletId);
 
         const response = await fetch(url, {
           ...options,
@@ -136,7 +134,6 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
           'Content-Type': 'application/json',
           'x-account-id': accountId,
           ...(email && { 'x-user-email': email }),
-          ...(walletId && { 'x-wallet-id': walletId }),
         },
         body: JSON.stringify({
           upload_id: result.upload_id,
@@ -169,7 +166,7 @@ export default function ChatInterface({ accountId, email, walletId }: ChatInterf
       setTimeout(() => setUploadProgress(null), 5000);
       sendMessage({ text: `❌ Upload failed: ${message}` });
     }
-  }, [accountId, email, walletId, pendingFiles, sendMessage]);
+  }, [accountId, email, pendingFiles, sendMessage]);
 
   // Handle prepare_retrieve tool result - decrypt and download
   const handlePrepareRetrieve = useCallback(async (result: PrepareRetrieveResult) => {

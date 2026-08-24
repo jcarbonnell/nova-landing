@@ -1,4 +1,4 @@
-// src/components/Providers.tsx
+// nova-landing/src/components/Providers.tsx
 'use client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NearWalletProvider } from '@/providers/WalletProvider';

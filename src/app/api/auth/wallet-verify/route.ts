@@ -1,4 +1,4 @@
-// src/app/api/auth/wallet-verify/route.ts
+// nova-landing/src/app/api/auth/wallet-verify/route.ts
 //
 // Step 2 of wallet SIWN (§5.11-A): verify the wallet's NEP-413 signature and, on
 // success, mint a nova_session — converging the wallet path onto the SAME session
@@ -91,7 +91,20 @@ export async function POST(req: NextRequest) {
     const result = await mintNovaSession(accountId, `wallet|${accountId}`);
 
     log('wallet_session_issued', { account_id: accountId });
-    return NextResponse.json(result);
+
+    // Transport B: set the token as an httpOnly cookie, symmetric with the Auth0
+    // session cookie. The chat/finalize routes read this instead of minting from
+    // an Auth0 session (which wallet users don't have). Not JS-readable → no
+    // sessionStorage XSS surface. SameSite=Lax + Secure; 24h to match the JWT.
+    const res = NextResponse.json(result);
+    res.cookies.set('nova_session', result.token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24, // 24h, matches SESSION_TOKEN_EXPIRY default
+    });
+    return res;
   } catch (error) {
     logError('wallet_verify_error', {
       message: error instanceof Error ? error.message : 'Unknown error',

@@ -20,18 +20,6 @@ function hashForLog(value: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  // Wallet users have no working signing path since v0.3.2 Fix 5. session-token
-  // 501s them anyway; reject at the boundary rather than mint-fail one hop deeper.
-  if (req.headers.get('x-wallet-id')) {
-    return NextResponse.json(
-      {
-        error: 'Wallet auth disabled pending self-custody migration (v0.5)',
-        code: 'WALLET_AUTH_PENDING_SELF_CUSTODY',
-      },
-      { status: 501 }
-    );
-  }
-
   let body;
   try {
     body = await req.json();
@@ -52,36 +40,53 @@ export async function POST(req: NextRequest) {
 
   // Mint a nova_session token server-side from the Auth0 cookie. The client's
   // x-account-id is deliberately NOT trusted or forwarded (v0.4 Fix A / §5.0):
-  // session-token resolves the authoritative account via Shade, and MCP enforces
-  // that upload_id was created by that same account during prepare_upload. Both
-  // prepare (chat/route.ts) and finalize (here) resolve from the same cookie, so
-  // the ownership check holds by construction.
-  const origin = new URL(req.url).origin;
+  // Transport B: wallet users present a nova_session cookie (set by
+  // wallet-verify); email users mint one from their Auth0 session. Both then
+  // carry the same Bearer token to MCP, which enforces upload_id ownership
+  // against the authenticated account.
   let sessionToken: string;
   let accountId: string;
-  try {
-    const tokenRes = await fetch(`${origin}/api/auth/session-token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        cookie: req.headers.get('cookie') ?? '',
-      },
-      body: '{}',
-    });
 
-    if (!tokenRes.ok) {
-      const err = await tokenRes.json().catch(() => ({}));
-      return NextResponse.json(
-        { error: err.error || 'Unauthorized' },
-        { status: tokenRes.status }
+  const walletSession = req.cookies.get('nova_session')?.value;
+  if (walletSession) {
+    sessionToken = walletSession;
+    try {
+      const claims = JSON.parse(
+        Buffer.from(walletSession.split('.')[1], 'base64').toString('utf8'),
       );
+      accountId = claims.account_id;
+    } catch {
+      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
+    if (!accountId) {
+      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+    }
+  } else {
+    const origin = new URL(req.url).origin;
+    try {
+      const tokenRes = await fetch(`${origin}/api/auth/session-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: req.headers.get('cookie') ?? '',
+        },
+        body: '{}',
+      });
 
-    const tokenData = await tokenRes.json();
-    sessionToken = tokenData.token;
-    accountId = tokenData.account_id;
-  } catch {
-    return NextResponse.json({ error: 'Failed to authenticate' }, { status: 500 });
+      if (!tokenRes.ok) {
+        const err = await tokenRes.json().catch(() => ({}));
+        return NextResponse.json(
+          { error: err.error || 'Unauthorized' },
+          { status: tokenRes.status }
+        );
+      }
+
+      const tokenData = await tokenRes.json();
+      sessionToken = tokenData.token;
+      accountId = tokenData.account_id;
+    } catch {
+      return NextResponse.json({ error: 'Failed to authenticate' }, { status: 500 });
+    }
   }
 
   console.log('finalize_upload', {

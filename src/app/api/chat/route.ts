@@ -1,4 +1,4 @@
-// src/app/api/chat/route.ts
+// nova-landing/src/app/api/chat/route.ts
 import { streamText, convertToModelMessages, tool, stepCountIs } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { NextRequest } from 'next/server';
@@ -17,8 +17,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { messages } = body;
     
-    const walletId = req.headers.get('x-wallet-id');
-
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: 'Messages required' }), { 
         status: 400,
@@ -26,40 +24,58 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Wallet users: no working signing path since v0.3.2 Fix 5 (custodial wallet
-    // key retrieval disabled). Reject explicitly rather than fail deep in MCP.
-    if (walletId) {
-      return new Response(JSON.stringify({
-        error: 'Wallet auth disabled pending self-custody migration (v0.5)',
-        code: 'WALLET_AUTH_PENDING_SELF_CUSTODY',
-      }), { status: 501, headers: { 'Content-Type': 'application/json' } });
-    }
+    // Resolve a nova_session two ways (transport B):
+    //   - Wallet users (SIWN): a nova_session httpOnly cookie set by
+    //     /api/auth/wallet-verify. Used directly; MCP re-verifies sig/aud/iss.
+    //   - Email users (Auth0): no nova_session cookie, so mint one via
+    //     session-token, which re-verifies the Auth0 session and resolves the
+    //     authoritative account_id from Shade. We never trust client x-account-id.
+    // The wallet token's `account_id` is decoded from its verified claims, not
+    // asserted by the client.
+    let sessionToken: string;
+    let verifiedAccountId: string;
 
-    // Mint a nova_session token via the canonical route. It re-verifies the Auth0
-    // session server-side and resolves the AUTHORITATIVE account_id from Shade —
-    // so we never trust the client's x-account-id. (Previously this route
-    // forwarded the Auth0 RS256 access token, which MCP's HS256 verifier
-    // rejected with "alg not allowed", silently falling back to unauthenticated
-    // header auth.)
-    const origin = new URL(req.url).origin;
-    const tokenRes = await fetch(`${origin}/api/auth/session-token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        cookie: req.headers.get('cookie') ?? '',
-      },
-      body: '{}',
-    });
-
-    if (!tokenRes.ok) {
-      const err = await tokenRes.json().catch(() => ({}));
-      return new Response(JSON.stringify({ error: err.error || 'Unauthorized' }), {
-        status: tokenRes.status,
-        headers: { 'Content-Type': 'application/json' },
+    const walletSession = req.cookies.get('nova_session')?.value;
+    if (walletSession) {
+      sessionToken = walletSession;
+      try {
+        const claims = JSON.parse(
+          Buffer.from(walletSession.split('.')[1], 'base64').toString('utf8'),
+        );
+        verifiedAccountId = claims.account_id;
+      } catch {
+        return new Response(JSON.stringify({ error: 'Invalid session' }), {
+          status: 401, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (!verifiedAccountId) {
+        return new Response(JSON.stringify({ error: 'Invalid session' }), {
+          status: 401, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    } else {
+      const origin = new URL(req.url).origin;
+      const tokenRes = await fetch(`${origin}/api/auth/session-token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: req.headers.get('cookie') ?? '',
+        },
+        body: '{}',
       });
-    }
 
-    const { token: sessionToken, account_id: verifiedAccountId } = await tokenRes.json();
+      if (!tokenRes.ok) {
+        const err = await tokenRes.json().catch(() => ({}));
+        return new Response(JSON.stringify({ error: err.error || 'Unauthorized' }), {
+          status: tokenRes.status,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      const tokenData = await tokenRes.json();
+      sessionToken = tokenData.token;
+      verifiedAccountId = tokenData.account_id;
+    }
 
     const toolHeaders: Record<string, string> = {
       'Content-Type': 'application/json',

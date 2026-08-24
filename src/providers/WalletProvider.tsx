@@ -1,4 +1,4 @@
-// src/providers/WalletProvider.tsx
+// nova-landing/src/providers/WalletProvider.tsx
 'use client';
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import type { WalletSelector } from '@near-wallet-selector/core';
