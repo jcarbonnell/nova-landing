@@ -194,28 +194,35 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
     }
   }, []);
 
-  // reload client-side after server-side redirect
+  // reload client-side after an AUTH0 redirect only. Meteor/HERE web-popup wallet
+  // connects return to the page with their own params (near/account_id/public_key/
+  // all_keys, and sometimes state), which the wallet selector consumes internally.
+  // Reloading on those wipes the just-connected wallet state (and the SIWN
+  // session), which is what broke the wallet sign-in flow. Restrict the reload to
+  // the genuine Auth0 callback signature: BOTH code AND state present.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (isPaymentOpen) return;
 
     const params = new URLSearchParams(window.location.search);
-    const isCallback = params.has("code") || params.has("state") || params.has("token") || params.has("near");
-    
-    if (isCallback) {
+    const isAuth0Callback = params.has("code") && params.has("state");
+
+    if (isAuth0Callback) {
       window.history.replaceState({}, "", "/");
       setNovaAccountVerified(false);
       window.location.href = "/";
     }
   }, [isPaymentOpen]);
 
-  // fallback timeout
+  // fallback timeout — Auth0 callback only (code+state together). Was also firing
+  // on token=, a custodial-redirect param that could appear in wallet flows.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (isPaymentOpen) return;
 
     const timer = setTimeout(() => {
-      if (window.location.search.includes("code=") || window.location.search.includes("token=")) {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has("code") && params.has("state")) {
         setNovaAccountVerified(false);
         window.location.href = "/";
       }
