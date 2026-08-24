@@ -79,6 +79,14 @@ export function useWalletSignin(
 
       const wallet = await selector.wallet();
 
+      // TEMP DIAGNOSTIC (remove after wiring confirmed): which wallet, and does
+      // it expose signMessage? Answers "is signIn reached + does the wallet
+      // support NEP-413" in one line.
+      console.log('[SIWN] wallet resolved:', {
+        id: (wallet as { id?: string }).id,
+        hasSignMessage: typeof wallet.signMessage === 'function',
+      });
+
       // Guard: the wallet must implement NEP-413 signMessage.
       if (typeof wallet.signMessage !== 'function') {
         setError('This wallet does not support message signing. Try Meteor, HERE, or Nightly.');

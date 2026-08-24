@@ -299,9 +299,9 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           {welcomeMessage}
         </div>
       )}
-      {error && (
+      {(error || walletError) && (
         <div className="p-4 text-center text-red-400 bg-red-500/20 border-b border-red-400/30">
-          {error} {' '}
+          {error || walletError} {' '}
           <Button variant="ghost" size="sm" onClick={() => setError('')}>
             Dismiss
           </Button>
