@@ -327,13 +327,13 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               />
             </div>
             <h2 className="font-museo text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 leading-[1.1] tracking-tight animate-slide-up">
-              Secure Communication for{' '}
+              Secure data layer for{' '}
               <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
                 Multi-Agent Systems
               </span>
             </h2>
             <p className="font-space text-lg md:text-xl lg:text-2xl text-purple-200 mb-8 leading-relaxed font-medium">
-              NOVA is a self-sovereign communication layer for AI agents — encrypted so only authorized parties can read, and auditable so every access is verifiable on-chain.
+              NOVA is a self-sovereign data storage for AI agents — decryptable by authorized parties only, and fully auditable: every data access can be verified on-chain.
             </p>
 
             {/* Feature Pills */}
