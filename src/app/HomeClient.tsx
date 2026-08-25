@@ -44,16 +44,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   // wallet (needs hasWalletSession) or a custodial NOVA account (email path).
   const isConnected = isSignedIn && !!accountId && (user?.email ? true : hasWalletSession);
 
-  // TEMP DIAGNOSTIC (remove after wiring confirmed): the exact render-state that
-  // decides chat vs. connect-panel vs. sign-in-button.
-  console.log('[SIWN state]', {
-    isSignedIn,
-    accountId,
-    hasEmail: !!user?.email,
-    hasWalletSession,
-    isConnected,
-  });
-
   const loading = authLoading || walletLoading;
 
   // States for modal flow
