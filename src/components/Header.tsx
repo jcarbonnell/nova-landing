@@ -8,9 +8,23 @@ import { LogIn, User, Wallet } from 'lucide-react';
 interface HeaderProps {
   onOpenLogin?: () => void;
   onOpenPayment?: () => void;
+  /** Wallet SIWN state, passed from HomeClient (the provider can't tell
+   *  "wallet connected" from "wallet signed in to NOVA"). */
+  hasWalletSession?: boolean;
+  /** True when the connected user is a wallet user (no Auth0 email). */
+  isWalletUser?: boolean;
+  /** Triggers NEP-413 sign-in; same handler the connect-panel button uses.
+   *  Must run in a click gesture (web-popup wallets need it — see HomeClient). */
+  onSignInWallet?: () => void;
 }
 
-export default function Header({ onOpenLogin, onOpenPayment }: HeaderProps) {  
+export default function Header({
+  onOpenLogin,
+  onOpenPayment,
+  hasWalletSession,
+  isWalletUser,
+  onSignInWallet,
+}: HeaderProps) {  
   const { user, isLoading: authLoading } = useUser();
   const { isSignedIn, accountId, loading: walletLoading } = useWalletState();
   const { modal } = useWalletSelectorModal();
@@ -79,15 +93,31 @@ export default function Header({ onOpenLogin, onOpenPayment }: HeaderProps) {
           </div>
         ) : isConnected ? (
           <div className="flex items-center space-x-2">
-            <div 
-              onClick={onOpenPayment}
-              className="flex items-center space-x-2 px-3 py-2 rounded-md bg-purple-900/50 border border-purple-500/30 cursor-pointer hover:bg-purple-800/50"
-            >
-               <Wallet size={16} className="text-purple-300" />
-               <span className="text-sm max-w-32 truncate text-purple-100">
-                 Manage Account
-               </span>
-            </div>
+            {isWalletUser && !hasWalletSession ? (
+              // Wallet connected but not yet SIWN'd: the sign-in gesture lives
+              // HERE (renders at every breakpoint, unlike the desktop-only
+              // connect panel). Clicking calls the same NEP-413 handler.
+              <Button
+                variant="default"
+                size="sm"
+                onClick={onSignInWallet}
+                className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                <Wallet size={16} />
+                <span>Sign in with wallet</span>
+              </Button>
+            ) : (
+              // Email users, and wallet users who HAVE signed in: full account UI.
+              <div
+                onClick={onOpenPayment}
+                className="flex items-center space-x-2 px-3 py-2 rounded-md bg-purple-900/50 border border-purple-500/30 cursor-pointer hover:bg-purple-800/50"
+              >
+                <Wallet size={16} className="text-purple-300" />
+                <span className="text-sm max-w-32 truncate text-purple-100">
+                  Manage Account
+                </span>
+              </div>
+            )}
             <Button 
               variant="default"
               size="sm"

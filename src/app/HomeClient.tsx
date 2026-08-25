@@ -311,6 +311,9 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           setPendingId(accountId || '');
           setIsPaymentOpen(true);
         }}
+        hasWalletSession={hasWalletSession}
+        isWalletUser={!user?.email}
+        onSignInWallet={handleWalletSignIn}
       /> 
       {welcomeMessage && (
         <div className="p-4 text-center text-green-400 bg-green-500/20 border-b border-green-400/30">
