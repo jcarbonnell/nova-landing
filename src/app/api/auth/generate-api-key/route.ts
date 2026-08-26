@@ -21,41 +21,53 @@ export async function POST(req: NextRequest) {
       // Empty body is OK for email users
     }
 
-    const { account_id } = body;
+    // Two authenticated identities resolve to the SAME Shade endpoint, which
+    // derives the account server-side. We never send a client account_id — Shade
+    // establishes identity by construction (§5.0):
+    //   - Wallet (SIWN): forward the nova_session cookie as `session_token`.
+    //     Shade verifies its HMAC (verifyNovaSession) and requires sub=wallet|…
+    //     before deriving the key. The frontend does NO crypto and trusts nothing
+    //     from the request body — the cookie is a bearer of a Shade-minted proof.
+    //   - Email (Auth0): the existing path — verify the Auth0 session, forward
+    //     { email, auth_token }; Shade verifies against Auth0's JWKS.
+    // The body `account_id` field is intentionally IGNORED (that was the disabled
+    // Fix E/F takeover branch; Shade still 501s it if ever sent).
+    const walletSession = req.cookies.get('nova_session')?.value;
 
-    // Path 1: account_id — DISABLED (v0.4)
-    if (account_id) {
-      return NextResponse.json({
-        error: 'Wallet auth disabled pending self-custody migration (v0.5)',
-        code: 'WALLET_AUTH_PENDING_SELF_CUSTODY',
-      }, { status: 501 });
+    let shadeBody: Record<string, string>;
+
+    if (walletSession) {
+      // Wallet path — pass the cookie through; Shade owns verification.
+      log('generate_api_key_request', { auth: 'wallet_session' });
+      shadeBody = { session_token: walletSession };
+    } else {
+      // Email path — Auth0 session required.
+      const session = await auth0.getSession();
+      if (!session?.user?.email) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      }
+
+      const email = session.user.email;
+      const authToken = await getAuthToken();
+
+      if (!authToken) {
+        return NextResponse.json(
+          { error: 'No authentication token available' },
+          { status: 401 }
+        );
+      }
+
+      log('generate_api_key_request', { email });
+      shadeBody = { email, auth_token: authToken };
     }
-
-    // Path 2: Email user (use Auth0 session)
-    const session = await auth0.getSession();
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-
-    const email = session.user.email;
-    const authToken = await getAuthToken();
-
-    if (!authToken) {
-      return NextResponse.json(
-        { error: 'No authentication token available' },
-        { status: 401 }
-      );
-    }
-
-    log('generate_api_key_request', { email });
 
     const shadeResponse = await fetch(`${shadeUrl}/rpc/user-keys/generate-api-key`, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         'X-Internal-Auth': process.env.INTERNAL_API_SECRET || '',
       },
-      body: JSON.stringify({ email, auth_token: authToken }),
+      body: JSON.stringify(shadeBody),
       signal: AbortSignal.timeout(15000),
     });
 
@@ -72,7 +84,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await shadeResponse.json();
-    log('generate_api_key_issued', { email, account_id: data.account_id });
+    log('generate_api_key_issued', { account_id: data.account_id });
 
     return NextResponse.json({
       success: true,
