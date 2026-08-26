@@ -349,7 +349,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               />
             </div>
             <h2 className="font-museo text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 leading-[1.1] tracking-tight animate-slide-up">
-              Encrypted memory for{' '}
+              Persistent memory for{' '}
               <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
                 Multi-Agent Systems
               </span>
