@@ -355,7 +355,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               </span>
             </h2>
             <p className="font-space text-lg md:text-xl lg:text-2xl text-purple-200 mb-8 leading-relaxed font-medium">
-              NOVA is a secure data layer for AI agents: encrypted, auditable, and self-sovereign. Decrypted by authorized parties only, every data access can be verified on the quantum-resistant ledger of the NEAR blockchain.
+              NOVA is a secure data layer for AI agents: encrypted, auditable, and self-sovereign. Decryptable by authorized parties only, every data access can be tracked on the quantum-resistant ledger of the NEAR blockchain.
             </p>
 
             {/* Feature Pills */}
