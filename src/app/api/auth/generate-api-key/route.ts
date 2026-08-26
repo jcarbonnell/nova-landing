@@ -21,51 +21,38 @@ export async function POST(req: NextRequest) {
       // Empty body is OK for email users
     }
 
-    // Two authenticated identities resolve to the SAME Shade endpoint, which
-    // derives the account server-side. We never send a client account_id — Shade
-    // establishes identity by construction (§5.0):
-    //   - Wallet (SIWN): forward the nova_session cookie as `session_token`.
-    //     Shade verifies its HMAC (verifyNovaSession) and requires sub=wallet|…
-    //     before deriving the key. The frontend does NO crypto and trusts nothing
-    //     from the request body — the cookie is a bearer of a Shade-minted proof.
-    //   - Email (Auth0): the existing path — verify the Auth0 session, forward
-    //     { email, auth_token }; Shade verifies against Auth0's JWKS.
-    // The body `account_id` field is intentionally IGNORED (that was the disabled
-    // Fix E/F takeover branch; Shade still 501s it if ever sent).
-    const walletSession = req.cookies.get('nova_session')?.value;
-
-    // TEMP DIAGNOSTIC — remove after tracing. Shows which branch we take and
-    // whether an email user carries a nova_session cookie.
-    log('generate_api_key_branch_debug', {
-      has_wallet_cookie: !!walletSession,
-      wallet_cookie_empty: walletSession === '',
-    });
+    // Discriminate on AUTH0 SESSION, not on cookie presence. An email user may
+    // carry a stale/empty nova_session cookie from a prior chat session; keying
+    // off the cookie sent them down the wallet path with an empty session_token,
+    // which Shade rejected as MISSING_FIELDS. The authoritative signal is: does
+    // an Auth0 session exist? If yes → email (custodial). If no but a wallet
+    // nova_session cookie exists → wallet (SIWN). Otherwise unauthenticated.
+    const session = await auth0.getSession();
 
     let shadeBody: Record<string, string>;
 
-    if (walletSession) {
-      // Wallet path — pass the cookie through; Shade owns verification.
-      log('generate_api_key_request', { auth: 'wallet_session' });
-      shadeBody = { session_token: walletSession };
-    } else {
-      // Email path — Auth0 session required.
-      const session = await auth0.getSession();
-      if (!session?.user?.email) {
-        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-      }
-
+    if (session?.user?.email) {
+      // Email path (Auth0). Unchanged from the original route.
       const email = session.user.email;
       const authToken = await getAuthToken();
-
       if (!authToken) {
         return NextResponse.json(
           { error: 'No authentication token available' },
           { status: 401 }
         );
       }
-
       log('generate_api_key_request', { email });
       shadeBody = { email, auth_token: authToken };
+    } else {
+      // Wallet path (SIWN): no Auth0 session, but a nova_session cookie. Forward
+      // it as session_token; Shade verifies (verifyNovaSession) and requires
+      // sub=wallet|…. A missing/empty cookie → the guard below → 401.
+      const walletSession = req.cookies.get('nova_session')?.value;
+      if (!walletSession) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      }
+      log('generate_api_key_request', { auth: 'wallet_session' });
+      shadeBody = { session_token: walletSession };
     }
 
     const shadeResponse = await fetch(`${shadeUrl}/rpc/user-keys/generate-api-key`, {
