@@ -34,6 +34,13 @@ export async function POST(req: NextRequest) {
     // Fix E/F takeover branch; Shade still 501s it if ever sent).
     const walletSession = req.cookies.get('nova_session')?.value;
 
+    // TEMP DIAGNOSTIC — remove after tracing. Shows which branch we take and
+    // whether an email user carries a nova_session cookie.
+    log('generate_api_key_branch_debug', {
+      has_wallet_cookie: !!walletSession,
+      wallet_cookie_empty: walletSession === '',
+    });
+
     let shadeBody: Record<string, string>;
 
     if (walletSession) {
