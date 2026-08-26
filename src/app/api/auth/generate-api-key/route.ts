@@ -28,6 +28,13 @@ export async function POST(req: NextRequest) {
     // an Auth0 session exist? If yes → email (custodial). If no but a wallet
     // nova_session cookie exists → wallet (SIWN). Otherwise unauthenticated.
     const session = await auth0.getSession();
+    const walletCookiePresent = !!req.cookies.get('nova_session')?.value;
+
+    // TEMP DIAGNOSTIC — remove after tracing. Which branch, and what's present.
+    log('gen_apikey_trace', {
+      has_auth0_session: !!session?.user?.email,
+      has_wallet_cookie: walletCookiePresent,
+    });
 
     let shadeBody: Record<string, string>;
 
