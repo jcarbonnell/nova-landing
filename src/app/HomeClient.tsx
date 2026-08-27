@@ -470,8 +470,11 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           </section>
         </div>
 
-          {/* Adoption surfaces — three ways to build with NOVA */}
-        <section className="w-full max-w-5xl mx-auto px-4 text-left">
+        {/* Adoption surfaces — three ways to build with NOVA */}
+        <section className="w-full max-w-6xl mx-auto px-4 text-left">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-8 lg:gap-12">
+            {/* Left column: title, description, tabs, and code card */}
+            <div className="w-full lg:w-1/2">
           <h2 className="font-museo text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4 tracking-tight">
             Three ways to build with{' '}
             <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">NOVA</span>
@@ -496,32 +499,59 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             ))}
           </div>
 
-          {/* Panels */}
-          <div>
-            {surface === 'sdks' && (
-              <div className="animate-fade-in">
-                <div className="inline-flex rounded-full border border-purple-500/30 bg-purple-900/30 p-1 gap-1 mb-4">
-                  {([['js', 'JavaScript'], ['rust', 'Rust']] as const).map(([key, label]) => (
-                    <button
-                      key={key}
-                      onClick={() => setCodeLang(key)}
-                      className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
-                        codeLang === key ? 'bg-purple-600 text-white' : 'text-purple-200 hover:text-white'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
+          {/* Left column continues: per-surface code card (demo has none) */}
+          {surface === 'sdks' && (
+            <div className="animate-fade-in">
+              <div className="inline-flex rounded-full border border-purple-500/30 bg-purple-900/30 p-1 gap-1 mb-4">
+                {([['js', 'JavaScript'], ['rust', 'Rust']] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setCodeLang(key)}
+                    className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+                      codeLang === key ? 'bg-purple-600 text-white' : 'text-purple-200 hover:text-white'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] overflow-hidden text-left">
+                <div className="px-4 py-2 border-b border-purple-500/20 text-xs font-mono text-purple-300">
+                  {codeLang === 'js' ? '$ npm install nova-sdk-js' : '$ cargo install nova-sdk-rs'}
                 </div>
-
-                <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] overflow-hidden text-left max-w-3xl">
-                  <div className="px-4 py-2 border-b border-purple-500/20 text-xs font-mono text-purple-300">
-                    {codeLang === 'js' ? '$ npm install nova-sdk-js' : '$ cargo install nova-sdk-rs'}
-                  </div>
-                  <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono text-purple-100 leading-relaxed"><code>{codeLang === 'js' ? jsSnippet : rustSnippet}</code></pre>
+                <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono text-purple-100 leading-relaxed"><code>{codeLang === 'js' ? jsSnippet : rustSnippet}</code></pre>
+              </div>
+            </div>
+          )}
+          {surface === 'plugin' && (
+            <div className="animate-fade-in">
+              <div className="inline-flex rounded-full border border-purple-500/30 bg-purple-900/30 p-1 gap-1 mb-4">
+                {([['claude', 'Claude'], ['codex', 'Codex']] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setPluginClient(key)}
+                    className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+                      pluginClient === key ? 'bg-purple-600 text-white' : 'text-purple-200 hover:text-white'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] overflow-hidden text-left">
+                <div className="px-4 py-2 border-b border-purple-500/20 text-xs font-mono text-purple-300">
+                  {pluginClient === 'claude' ? 'claude_desktop_config.json' : '~/.codex/config.toml'}
                 </div>
+                <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono text-purple-100 leading-relaxed"><code>{pluginClient === 'claude' ? claudeSnippet : codexSnippet}</code></pre>
+              </div>
+            </div>
+          )}
+            </div>
 
-                <ul className="mt-6 space-y-3 text-left max-w-md">
+            {/* Right column: per-surface supporting content */}
+            <div className="w-full lg:w-1/2">
+              {surface === 'sdks' && (
+                <ul className="space-y-3 text-left animate-fade-in">
                   {['Typed clients for JavaScript and Rust', 'Streaming writes for large payloads', 'Framework-agnostic — drop into any stack'].map((f) => (
                     <li key={f} className="flex items-start gap-3">
                       <span className="mt-2 h-1.5 w-1.5 rounded-full bg-gradient-to-r from-purple-400 to-orange-400 shrink-0" />
@@ -529,33 +559,9 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                     </li>
                   ))}
                 </ul>
-              </div>
-            )}
-
-            {surface === 'plugin' && (
-              <div className="animate-fade-in">
-                <div className="inline-flex rounded-full border border-purple-500/30 bg-purple-900/30 p-1 gap-1 mb-4">
-                  {([['claude', 'Claude'], ['codex', 'Codex']] as const).map(([key, label]) => (
-                    <button
-                      key={key}
-                      onClick={() => setPluginClient(key)}
-                      className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
-                        pluginClient === key ? 'bg-purple-600 text-white' : 'text-purple-200 hover:text-white'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] overflow-hidden text-left max-w-3xl">
-                  <div className="px-4 py-2 border-b border-purple-500/20 text-xs font-mono text-purple-300">
-                    {pluginClient === 'claude' ? 'claude_desktop_config.json' : '~/.codex/config.toml'}
-                  </div>
-                  <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono text-purple-100 leading-relaxed"><code>{pluginClient === 'claude' ? claudeSnippet : codexSnippet}</code></pre>
-                </div>
-
-                <div className="mt-6 max-w-md text-left">
+              )}
+              {surface === 'plugin' && (
+                <div className="text-left animate-fade-in">
                   <h3 className="font-museo text-lg font-bold text-white mb-2">NOVA inside your own agent</h3>
                   <p className="font-space text-purple-200 mb-4 leading-relaxed">
                     Give any MCP-compatible agent persistent, encrypted memory it can read and write — without leaving its own runtime.
@@ -569,25 +575,24 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                     ))}
                   </ul>
                 </div>
-              </div>
-            )}
-
-            {surface === 'demo' && (
-              <div className="animate-fade-in max-w-xl">
-                <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] p-8 text-left">
-                  <MessageSquare size={48} className="text-purple-400 mb-4" />
-                  <p className="font-space text-lg text-purple-200 mb-6 leading-relaxed">
-                    This minimal agent demonstrates NOVA&apos;s memory primitive in action—a live look at what you can build with the SDK.
-                  </p>
-                  <a
-                    href="#try-it"
-                    className="inline-flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-md font-medium transition-colors"
-                  >
-                    Try the live demo ↓
-                  </a>
+              )}
+              {surface === 'demo' && (
+                <div className="animate-fade-in">
+                  <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] p-8 text-left">
+                    <MessageSquare size={48} className="text-purple-400 mb-4" />
+                    <p className="font-space text-lg text-purple-200 mb-6 leading-relaxed">
+                      This minimal agent demonstrates NOVA&apos;s memory primitive in action—a live look at what you can build with the SDK.
+                    </p>
+                    <a
+                      href="#try-it"
+                      className="inline-flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-md font-medium transition-colors"
+                    >
+                      Try the live demo ↓
+                    </a>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </section>
 
