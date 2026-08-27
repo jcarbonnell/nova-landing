@@ -345,7 +345,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               <img
                 src="/logo-dark.svg"
                 alt="NOVA - Secure File Sharing"
-                className="w-56 h-56 md:w-64 md:h-64 lg:w-80 lg:h-80 object-contain drop-shadow-2xl hover:drop-shadow-[0_0_40px_rgba(168,85,247,0.5)] transition-all duration-300 hover:scale-105"
+                className="w-72 h-72 md:w-96 md:h-96 lg:w-[28rem] lg:h-[28rem] object-contain drop-shadow-2xl hover:drop-shadow-[0_0_40px_rgba(168,85,247,0.5)] transition-all duration-300 hover:scale-105"
               />
             </div>
             <h2 className="font-museo text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 leading-[1.1] tracking-tight animate-slide-up">
