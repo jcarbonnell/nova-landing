@@ -606,8 +606,15 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           </div>
         </section>
 
-        {/* Chat Section */}
-          <section className="chat-container relative w-full max-w-2xl lg:max-w-3xl h-[500px] md:h-[550px] lg:h-[600px] rounded-lg overflow-hidden shadow-lg mx-auto">
+        {/* Try it — live demo of the primitive */}
+        <section id="try-it" className="w-full max-w-2xl lg:max-w-3xl mx-auto px-4 text-center scroll-mt-24">
+          <h2 className="font-museo text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4 tracking-tight">
+            Try NOVA in action
+          </h2>
+          <p className="font-space text-base md:text-lg text-purple-200 mb-8 max-w-2xl mx-auto leading-relaxed">
+            Live demo of the persistent memory primitive.
+          </p>
+          <div className="relative w-full h-[500px] md:h-[550px] lg:h-[600px] rounded-lg overflow-hidden shadow-lg text-left">
             {isConnected ? (
               /* Show ChatInterface when connected */
               <ChatInterface 
@@ -615,16 +622,73 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                 email={user?.email || ''} 
               />
             ) : (
-              /* Blur overlay when not connected */
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#280449]/80 backdrop-blur-sm rounded-lg border border-purple-600/50">
-                <MessageSquare size={64} className="text-gray-400 mb-4 animate-pulse" />
-                {isSignedIn && !user?.email ? (
-                  <>
-                    {/* Wallet connected but not yet SIWN'd — explicit sign-in
-                        click (preserves the gesture the signing popup needs). */}
-                    <p className="text-purple-200 mb-4 text-center px-4">
+              /* Not connected: frozen mock demo. Wallet-connected-but-not-SIWN'd
+                 users see it blurred with a sign-in prompt; everyone else gets
+                 the "Get Started" banner (→ login modal). */
+              <>
+                {/* Frozen mock conversation — mirrors ChatInterface's rendering */}
+                <div
+                  className={`flex flex-col h-full bg-[#280449]/80 rounded-lg border border-purple-600/50${
+                    isSignedIn && !user?.email ? ' blur-sm pointer-events-none select-none' : ''
+                  }`}
+                >
+                  {/* Header */}
+                  <div className="flex-shrink-0 px-4 py-3 border-b border-purple-700/50 bg-purple-900/30">
+                    <h3 className="text-sm font-medium text-purple-200">NOVA Chat</h3>
+                    <p className="text-xs text-purple-400">Logged in as demo-account</p>
+                  </div>
+
+                  {/* Messages */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div className="flex justify-end">
+                      <div className="max-w-[85%] px-4 py-3 rounded-2xl shadow-md bg-purple-600 text-white">
+                        <div className="prose prose-invert prose-sm max-w-none">
+                          <div className="whitespace-pre-wrap">Which group do I own?</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex justify-start">
+                      <div className="max-w-[85%] px-4 py-3 rounded-2xl shadow-md bg-purple-900/60 text-purple-100 border border-purple-700/50">
+                        <div className="prose prose-invert prose-sm max-w-none">
+                          <div className="whitespace-pre-wrap">You own groups [software-engineering, market-research, personal-finance]</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <div className="max-w-[85%] px-4 py-3 rounded-2xl shadow-md bg-purple-600 text-white">
+                        <div className="prose prose-invert prose-sm max-w-none">
+                          <div className="whitespace-pre-wrap">Upload the following conversation to the group software-engineering.</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex justify-start">
+                      <div className="max-w-[85%] px-4 py-3 rounded-2xl shadow-md bg-purple-900/60 text-purple-100 border border-purple-700/50">
+                        <div className="prose prose-invert prose-sm max-w-none">
+                          <div className="whitespace-pre-wrap">File encrypted locally and uploaded to group software-engineering. Do you want me to authorize decryption rights to someone else?</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom banner */}
+                  <div className="flex-shrink-0 border-t border-purple-700/50 p-4 bg-purple-900/30 text-center">
+                    <p className="text-sm text-purple-300 mb-3">Sign in to try it with your own agent…</p>
+                    <Button
+                      onClick={handleConnect}
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded"
+                    >
+                      Get Started
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Wallet connected but not yet SIWN'd: overlay on the blurred mock */}
+                {isSignedIn && !user?.email && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#280449]/60 rounded-lg px-4 text-center">
+                    <MessageSquare size={64} className="text-purple-300 mb-4" />
+                    <p className="text-purple-100 mb-4">
                       Wallet connected as{' '}
-                      <span className="font-medium text-purple-100">{accountId}</span>.
+                      <span className="font-medium">{accountId}</span>.
                       <br />Sign a message to prove ownership — no transaction, no fees.
                     </p>
                     <Button
@@ -633,23 +697,12 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                     >
                       Sign in with wallet
                     </Button>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-purple-200 mb-4 text-center px-4">
-                      Try NOVA's secure agent storage. Use a wallet or an email to get started.
-                    </p>
-                    <Button
-                      onClick={handleConnect}
-                      className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded"
-                    >
-                      Get Started
-                    </Button>
-                  </>
+                  </div>
                 )}
-              </div>
+              </>
             )}
-          </section>
+          </div>
+        </section>
       </main>
 
       {/* Footer */}
