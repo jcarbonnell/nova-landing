@@ -464,9 +464,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
         {/* Adoption surfaces — three ways to build with NOVA */}
         <section className="w-full max-w-6xl mx-auto px-4 text-left">
-          <div className="flex flex-col lg:flex-row lg:items-center gap-8 lg:gap-12">
-            {/* Left column: title, description, tabs, and code card */}
-            <div className="w-full lg:w-1/2">
           <h2 className="font-museo text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4 tracking-tight">
             Three ways to build with{' '}
             <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">NOVA</span>
@@ -475,6 +472,9 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             A native SDK for custom apps, a drop-in plugin for existing agents, and a live playground in the following{' '}
             <a href="#try-it" className="text-purple-300 underline underline-offset-4 hover:text-white transition-colors">Try it out</a>{' '}section.
           </p>
+          <div className="flex flex-col lg:flex-row lg:items-center gap-8 lg:gap-12">
+            {/* Left column: tabs and code card */}
+            <div className="w-full lg:w-1/2">
 
           {/* Surface selector */}
           <div className="flex w-full max-w-md rounded-full border border-purple-500/30 bg-purple-900/30 p-1 gap-1 mb-8">
