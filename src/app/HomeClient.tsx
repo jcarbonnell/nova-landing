@@ -606,13 +606,14 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           </div>
         </section>
 
-        {/* Try it — live demo of the primitive */}
-        <section id="try-it" className="w-full max-w-2xl lg:max-w-3xl mx-auto px-4 text-center scroll-mt-24">
+        {/* Try it — live demo */}
+        <section id="try-it" className="w-full max-w-2xl lg:max-w-3xl mx-auto px-4 text-left scroll-mt-24">
           <h2 className="font-museo text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4 tracking-tight">
-            Try NOVA in action
+            Try{' '}
+            <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">NOVA</span>&apos;s persistent memory in action
           </h2>
-          <p className="font-space text-base md:text-lg text-purple-200 mb-8 max-w-2xl mx-auto leading-relaxed">
-            Live demo of the persistent memory primitive.
+          <p className="font-space text-base md:text-lg text-purple-200 mb-8 max-w-2xl leading-relaxed">
+            Sign in with email or wallet to test the persistent AI agent memory.
           </p>
           <div className="relative w-full h-[500px] md:h-[550px] lg:h-[600px] rounded-lg overflow-hidden shadow-lg text-left">
             {isConnected ? (
@@ -671,8 +672,8 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                   </div>
 
                   {/* Bottom banner */}
-                  <div className="flex-shrink-0 border-t border-purple-700/50 p-4 bg-purple-900/30 text-center">
-                    <p className="text-sm text-purple-300 mb-3">Sign in to try it with your own agent…</p>
+                  <div className="flex-shrink-0 border-t border-purple-700/50 p-4 bg-purple-900/30 flex items-center justify-center gap-4 flex-wrap">
+                    <p className="text-sm text-purple-300">Sign in to try it with your own agent…</p>
                     <Button
                       onClick={handleConnect}
                       className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded"
