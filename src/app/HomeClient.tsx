@@ -349,8 +349,8 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                 className="w-56 h-56 md:w-64 md:h-64 lg:w-80 lg:h-80 object-contain scale-150 drop-shadow-2xl hover:drop-shadow-[0_0_40px_rgba(168,85,247,0.5)] transition-all duration-300 hover:scale-[1.6]"
               />
             </div>
-            {/* Right column: baseline + description, centered */}
-            <div className="w-full lg:w-1/2 flex flex-col items-center justify-center text-center">
+            {/* Right column: baseline + description, left-aligned on desktop */}
+            <div className="w-full lg:w-1/2 flex flex-col items-center lg:items-start justify-center text-center lg:text-left">
               <h2 className="font-museo text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 leading-[1.1] tracking-tight animate-slide-up text-balance">
               <span className="block whitespace-nowrap">Persistent memory for</span>
               <span className="block whitespace-nowrap bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
@@ -362,7 +362,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             </p>
 
             {/* Hero CTAs */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 mb-6">
               <Button
                 onClick={handleConnect}
                 className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded"
