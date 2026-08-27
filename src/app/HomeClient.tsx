@@ -19,19 +19,15 @@ import PaymentModal from '../components/PaymentModal';
 // Display-only — the copyable source lives in the GitHub README.
 const jsSnippet = `import { NovaSdk } from 'nova-sdk-js';
 
-// Initialize with your account ID and API key
 const sdk = new NovaSdk('alice.nova-sdk.near', {
   apiKey: process.env.NOVA_API_KEY
 });
 
-// Register group (you become owner)
 await sdk.registerGroup('confidential-docs');
 
-// Upload a file
 const result = await sdk.upload('my-group', Buffer.from('Hello NOVA!'), 'hello.txt');
 console.log('Uploaded:', result.cid);
 
-// Retrieve the file
 const { data } = await sdk.retrieve('my-group', result.cid);
 console.log('Retrieved:', data.toString());`;
 
@@ -40,18 +36,14 @@ use std::fs;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize SDK with API key
     let config = NovaSdkConfig::default()
         .with_api_key(&std::env::var("NOVA_API_KEY")?);
     let sdk = NovaSdk::with_config("alice.nova-sdk.near", config)?;
 
-    // Verify connection
     println!("Network: {} | Contract: {}", sdk.network_id(), sdk.contract_id());
 
-    // Register group
     sdk.register_group("my-secure-files").await?;
 
-    // Upload file (client-side encryption)
     let file_data = fs::read("./confidential.pdf")?;
     let result = sdk.upload(
         "my-secure-files",
@@ -515,8 +507,8 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                   </button>
                 ))}
               </div>
-              <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] overflow-hidden text-left">
-                <div className="px-4 py-2 border-b border-purple-500/20 text-xs font-mono text-purple-300">
+              <div className="rounded-xl border border-purple-400/30 bg-purple-500/20 overflow-hidden text-left">
+                <div className="px-4 py-2 border-b border-purple-400/20 text-xs font-mono text-purple-200">
                   {codeLang === 'js' ? '$ npm install nova-sdk-js' : '$ cargo install nova-sdk-rs'}
                 </div>
                 <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono text-purple-100 leading-relaxed"><code>{codeLang === 'js' ? jsSnippet : rustSnippet}</code></pre>
@@ -538,8 +530,8 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                   </button>
                 ))}
               </div>
-              <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] overflow-hidden text-left">
-                <div className="px-4 py-2 border-b border-purple-500/20 text-xs font-mono text-purple-300">
+              <div className="rounded-xl border border-purple-400/30 bg-purple-500/20 overflow-hidden text-left">
+                <div className="px-4 py-2 border-b border-purple-400/20 text-xs font-mono text-purple-200">
                   {pluginClient === 'claude' ? 'claude_desktop_config.json' : '~/.codex/config.toml'}
                 </div>
                 <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono text-purple-100 leading-relaxed"><code>{pluginClient === 'claude' ? claudeSnippet : codexSnippet}</code></pre>
@@ -551,14 +543,25 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             {/* Right column: per-surface supporting content */}
             <div className="w-full lg:w-1/2">
               {surface === 'sdks' && (
-                <ul className="space-y-3 text-left animate-fade-in">
-                  {['Typed clients for JavaScript and Rust', 'Streaming writes for large payloads', 'Framework-agnostic — drop into any stack'].map((f) => (
-                    <li key={f} className="flex items-start gap-3">
-                      <span className="mt-2 h-1.5 w-1.5 rounded-full bg-gradient-to-r from-purple-400 to-orange-400 shrink-0" />
-                      <span className="text-purple-200 font-space">{f}</span>
-                    </li>
-                  ))}
-                </ul>
+                <div className="text-left animate-fade-in">
+                  <h3 className="font-museo text-lg font-bold text-white mb-4">One API, two runtimes</h3>
+                  <ul className="space-y-4">
+                    {[
+                      ['Zero-friction polyglot', 'Native, strongly-typed clients for JS/TS and Rust sharing identical cryptographic guarantees.'],
+                      ['Sub-session persistence', 'Stream writes in real-time so agents retain context during the flow, not just after turn completion.'],
+                      ['Universal compatibility', 'Drop the primitive into any custom agent backend or runtime without changing your core logic.'],
+                    ].map(([title, body]) => (
+                      <li key={title} className="flex items-start gap-3">
+                        <span className="mt-2 h-1.5 w-1.5 rounded-full bg-gradient-to-r from-purple-400 to-orange-400 shrink-0" />
+                        <span className="font-space text-purple-200">
+                          <span className="font-semibold text-white">{title}</span>
+                          {' — '}
+                          {body}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
               {surface === 'plugin' && (
                 <div className="text-left animate-fade-in">
