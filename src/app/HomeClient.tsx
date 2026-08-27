@@ -348,9 +348,9 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                 className="w-72 h-72 md:w-96 md:h-96 lg:w-[28rem] lg:h-[28rem] object-contain scale-150 drop-shadow-2xl hover:drop-shadow-[0_0_40px_rgba(168,85,247,0.5)] transition-all duration-300 hover:scale-[1.6]"
               />
             </div>
-            <h2 className="font-museo text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 leading-[1.1] tracking-tight animate-slide-up">
-              Persistent memory for{' '}
-              <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
+            <h2 className="font-museo text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 leading-[1.1] tracking-tight animate-slide-up text-balance">
+              <span className="block whitespace-nowrap">Persistent memory for</span>
+              <span className="block whitespace-nowrap bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
                 Multi-Agent Systems
               </span>
             </h2>
