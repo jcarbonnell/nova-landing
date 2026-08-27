@@ -538,6 +538,22 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               </div>
             </div>
           )}
+          {surface === 'demo' && (
+            <div className="animate-fade-in">
+              <div className="rounded-xl border border-purple-400/30 bg-purple-500/20 p-8 text-left">
+                <MessageSquare size={48} className="text-purple-400 mb-4" />
+                <p className="font-space text-lg text-purple-200 mb-6 leading-relaxed">
+                  This minimal agent demonstrates NOVA&apos;s memory primitive in action—a live look at what you can build with the SDK.
+                </p>
+                <a
+                  href="#try-it"
+                  className="inline-flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-md font-medium transition-colors"
+                >
+                  Try the live demo ↓
+                </a>
+              </div>
+            </div>
+          )}
             </div>
 
             {/* Right column: per-surface supporting content */}
@@ -584,22 +600,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                       </li>
                     ))}
                   </ul>
-                </div>
-              )}
-              {surface === 'demo' && (
-                <div className="animate-fade-in">
-                  <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] p-8 text-left">
-                    <MessageSquare size={48} className="text-purple-400 mb-4" />
-                    <p className="font-space text-lg text-purple-200 mb-6 leading-relaxed">
-                      This minimal agent demonstrates NOVA&apos;s memory primitive in action—a live look at what you can build with the SDK.
-                    </p>
-                    <a
-                      href="#try-it"
-                      className="inline-flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-md font-medium transition-colors"
-                    >
-                      Try the live demo ↓
-                    </a>
-                  </div>
                 </div>
               )}
             </div>
