@@ -86,6 +86,22 @@ export default function Header({
         </a>
       </div>
       <div className="flex items-center space-x-4 flex-1 justify-end">
+        <a
+          href="https://civictech-ou.gitbook.io/nova-docs/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-medium text-purple-100 hover:text-purple-300 transition-colors"
+        >
+          Docs
+        </a>
+        <a
+          href="https://github.com/jcarbonnell/nova"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-medium text-purple-100 hover:text-purple-300 transition-colors"
+        >
+          GitHub
+        </a>
         {loading ? (
           <div className="flex items-center space-x-2">
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-purple-300" />
