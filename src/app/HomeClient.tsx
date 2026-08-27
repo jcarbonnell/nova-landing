@@ -471,18 +471,18 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         </div>
 
           {/* Adoption surfaces — three ways to build with NOVA */}
-        <section className="w-full max-w-5xl mx-auto px-4 text-center">
+        <section className="w-full max-w-5xl mx-auto px-4 text-left">
           <h2 className="font-museo text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4 tracking-tight">
             Three ways to build with{' '}
             <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">NOVA</span>
           </h2>
-          <p className="font-space text-base md:text-lg text-purple-200 mb-8 max-w-2xl mx-auto leading-relaxed">
+          <p className="font-space text-base md:text-lg text-purple-200 mb-8 max-w-2xl leading-relaxed">
             A native SDK for custom apps, a drop-in plugin for existing agents, and a live playground in the following{' '}
             <a href="#try-it" className="text-purple-300 underline underline-offset-4 hover:text-white transition-colors">Try it out</a>{' '}section.
           </p>
 
           {/* Surface selector */}
-          <div className="flex w-full max-w-md mx-auto rounded-full border border-purple-500/30 bg-purple-900/30 p-1 gap-1 mb-8">
+          <div className="flex w-full max-w-md rounded-full border border-purple-500/30 bg-purple-900/30 p-1 gap-1 mb-8">
             {([['sdks', 'SDKs'], ['plugin', 'Agent Plugin'], ['demo', 'Live Demo']] as const).map(([key, label]) => (
               <button
                 key={key}
@@ -514,14 +514,14 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                   ))}
                 </div>
 
-                <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] overflow-hidden text-left max-w-3xl mx-auto">
+                <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] overflow-hidden text-left max-w-3xl">
                   <div className="px-4 py-2 border-b border-purple-500/20 text-xs font-mono text-purple-300">
-                    {codeLang === 'js' ? '$ npm install nova-sdk-js' : '$ cargo add nova-sdk-rs'}
+                    {codeLang === 'js' ? '$ npm install nova-sdk-js' : '$ cargo install nova-sdk-rs'}
                   </div>
                   <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono text-purple-100 leading-relaxed"><code>{codeLang === 'js' ? jsSnippet : rustSnippet}</code></pre>
                 </div>
 
-                <ul className="mt-6 space-y-3 text-left max-w-md mx-auto">
+                <ul className="mt-6 space-y-3 text-left max-w-md">
                   {['Typed clients for JavaScript and Rust', 'Streaming writes for large payloads', 'Framework-agnostic — drop into any stack'].map((f) => (
                     <li key={f} className="flex items-start gap-3">
                       <span className="mt-2 h-1.5 w-1.5 rounded-full bg-gradient-to-r from-purple-400 to-orange-400 shrink-0" />
@@ -548,14 +548,14 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                   ))}
                 </div>
 
-                <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] overflow-hidden text-left max-w-3xl mx-auto">
+                <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] overflow-hidden text-left max-w-3xl">
                   <div className="px-4 py-2 border-b border-purple-500/20 text-xs font-mono text-purple-300">
                     {pluginClient === 'claude' ? 'claude_desktop_config.json' : '~/.codex/config.toml'}
                   </div>
                   <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono text-purple-100 leading-relaxed"><code>{pluginClient === 'claude' ? claudeSnippet : codexSnippet}</code></pre>
                 </div>
 
-                <div className="mt-6 max-w-md mx-auto text-left">
+                <div className="mt-6 max-w-md text-left">
                   <h3 className="font-museo text-lg font-bold text-white mb-2">NOVA inside your own agent</h3>
                   <p className="font-space text-purple-200 mb-4 leading-relaxed">
                     Give any MCP-compatible agent persistent, encrypted memory it can read and write — without leaving its own runtime.
@@ -573,9 +573,9 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             )}
 
             {surface === 'demo' && (
-              <div className="animate-fade-in max-w-xl mx-auto">
-                <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] p-8 text-center">
-                  <MessageSquare size={48} className="text-purple-400 mx-auto mb-4" />
+              <div className="animate-fade-in max-w-xl">
+                <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] p-8 text-left">
+                  <MessageSquare size={48} className="text-purple-400 mb-4" />
                   <p className="font-space text-lg text-purple-200 mb-6 leading-relaxed">
                     This minimal agent demonstrates NOVA&apos;s memory primitive in action—a live look at what you can build with the SDK.
                   </p>
