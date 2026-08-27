@@ -18,7 +18,7 @@ const spaceGrotesk = Space_Grotesk({
 
 export const metadata: Metadata = {
   title: 'NOVA - Persistent memory for Multi-Agent Systems.',
-  description: 'NOVA is a secure data layer for AI agents: encrypted, auditable, and self-sovereign.',
+  description: 'NOVA is a secure memory layer for AI agents: encrypted, auditable, and self-sovereign.',
   icons: {
     icon: '/favicon.ico',
   },

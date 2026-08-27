@@ -349,8 +349,8 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                 className="w-56 h-56 md:w-64 md:h-64 lg:w-80 lg:h-80 object-contain scale-150 drop-shadow-2xl hover:drop-shadow-[0_0_40px_rgba(168,85,247,0.5)] transition-all duration-300 hover:scale-[1.6]"
               />
             </div>
-            {/* Right column: baseline + description, left-aligned on desktop */}
-            <div className="w-full lg:w-1/2 flex flex-col items-center lg:items-start justify-center text-center lg:text-left">
+            {/* Right column: baseline + description, left-aligned */}
+            <div className="w-full lg:w-1/2 flex flex-col items-start justify-center text-left">
               <div className="inline-block px-4 py-2 mb-6 bg-purple-500/20 border border-purple-400/30 rounded-full text-purple-200 text-sm font-medium">
                 Secure memory layer for AI agents
               </div>
@@ -365,7 +365,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             </p>
 
             {/* Hero CTAs */}
-            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 mb-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-start gap-3 mb-6">
               <Button
                 onClick={handleConnect}
                 className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded"
@@ -383,7 +383,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             </div>
 
             {/* Feature Pills */}
-            <div className="flex flex-wrap justify-center lg:justify-start gap-3 mb-6 animate-slide-up animation-delay-200">
+            <div className="flex flex-wrap justify-start gap-3 mb-6 animate-slide-up animation-delay-200">
               <div className="px-4 py-2 bg-purple-500/20 border border-purple-400/30 rounded-full text-purple-200 text-sm font-medium">
                 🔐 Encrypted
               </div>
