@@ -607,15 +607,15 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         </section>
 
         {/* Try it — live demo */}
-        <section id="try-it" className="w-full max-w-2xl lg:max-w-3xl mx-auto px-4 text-left scroll-mt-24">
+        <section id="try-it" className="w-full max-w-6xl mx-auto px-4 text-left scroll-mt-24">
           <h2 className="font-museo text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4 tracking-tight">
             Try{' '}
-            <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">NOVA</span>&apos;s persistent memory in action
+            <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">NOVA</span> in action
           </h2>
           <p className="font-space text-base md:text-lg text-purple-200 mb-8 max-w-2xl leading-relaxed">
             Sign in with email or wallet to test the persistent AI agent memory.
           </p>
-          <div className="relative w-full h-[500px] md:h-[550px] lg:h-[600px] rounded-lg overflow-hidden shadow-lg text-left">
+          <div className="relative w-full max-w-2xl lg:max-w-3xl mx-auto h-[500px] md:h-[550px] lg:h-[600px] rounded-lg overflow-hidden shadow-lg text-left">
             {isConnected ? (
               /* Show ChatInterface when connected */
               <ChatInterface 
