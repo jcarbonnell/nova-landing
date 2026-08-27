@@ -145,8 +145,7 @@ export default function Header({
           </div>
         ) : (
           <Button onClick={handleConnect} variant="default" size="default" className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white transition-all hover:scale-105">
-            {isSignedIn ? <LogIn size={18} /> : <Wallet size={18} />}
-            <span>Login</span>
+            <span>Get Started</span>
           </Button>
         )}
       </div>
