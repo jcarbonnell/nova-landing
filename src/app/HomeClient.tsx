@@ -339,16 +339,19 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
       <main className="flex-1 flex flex-col items-center p-4 lg:p-8 gap-16 lg:gap-24">
         <div className="w-full max-w-7xl mx-auto flex flex-col items-center">
-          {/* Hero — full row, pitch only */}
-          <section className="w-full text-center max-w-2xl lg:max-w-3xl mx-auto">
-            <div className="flex justify-center mb-6 lg:mb-8 overflow-hidden">
+          {/* Hero — two columns on desktop (logo | text), stacked on mobile/tablet */}
+          <section className="w-full max-w-2xl lg:max-w-7xl mx-auto flex flex-col lg:flex-row items-center">
+            {/* Left column: logo, centered */}
+            <div className="w-full lg:w-1/2 flex items-center justify-center mb-6 lg:mb-0 overflow-hidden">
               <img
                 src="/logo-dark.svg"
                 alt="NOVA - Secure File Sharing"
                 className="w-72 h-72 md:w-96 md:h-96 lg:w-[28rem] lg:h-[28rem] object-contain scale-150 drop-shadow-2xl hover:drop-shadow-[0_0_40px_rgba(168,85,247,0.5)] transition-all duration-300 hover:scale-[1.6]"
               />
             </div>
-            <h2 className="font-museo text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 leading-[1.1] tracking-tight animate-slide-up text-balance">
+            {/* Right column: baseline + description, centered */}
+            <div className="w-full lg:w-1/2 flex flex-col items-center justify-center text-center">
+              <h2 className="font-museo text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 leading-[1.1] tracking-tight animate-slide-up text-balance">
               <span className="block whitespace-nowrap">Persistent memory for</span>
               <span className="block whitespace-nowrap bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
                 Multi-Agent Systems
@@ -369,6 +372,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               <div className="px-4 py-2 bg-purple-500/20 border border-purple-400/30 rounded-full text-purple-200 text-sm font-medium">
                 🪪 Self-Sovereign
               </div>
+            </div>
             </div>
           </section>
         </div>
@@ -428,11 +432,11 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           <a href="https://github.com/jcarbonnell/nova" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
             GitHub
           </a>
-          <a href="https://x.com/nova_sdk" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
-            X
-          </a>
           <a href="https://t.me/nova_sdk" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
             Contact
+          </a>
+          <a href="https://x.com/nova_sdk" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
+            X
           </a>
         </div>
         <p className="mt-2 text-purple-300">&copy; 2026 CivicTech OÜ. All rights reserved.</p>
