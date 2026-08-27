@@ -91,53 +91,7 @@
   pointer-events: auto;
 }
 
-/* Responsive layout – compact, no-scroll design */
-@layer utilities {
-  /* Mobile: vertical stack, chat BELOW hero */
-  @media (max-width: 640px) {
-    main {
-      @apply flex flex-col min-h-screen p-3 justify-between;
-    }
-    .hero-section {
-      @apply order-1 text-center mb-4;
-    }
-    .chat-container {
-      @apply order-2 w-full h-80 mb-6;
-    }
-    .footer {
-      @apply order-3 mt-auto;
-    }
-  }
-
-  /* Tablet: slightly larger but vertical & compact */
-  @media (min-width: 641px) and (max-width: 880px) {
-    .page-container {
-      @apply flex-col items-center p-6 gap-8;
-    }
-    .hero-section {
-      @apply w-full text-center max-w-lg;
-    }
-    .chat-container {
-      @apply w-full max-w-2xl h-96;
-    }
-  }
-
-  /* Desktop: 16:9 side-by-side, perfect fit */
-  @media (min-width: 881px) {
-    .page-container {
-      @apply aspect-[16/9] flex-row items-center justify-center gap-12 p-8 max-w-7xl mx-auto;
-    }
-    .hero-section {
-      @apply flex-1 max-w-md;
-    }
-    .chat-container {
-      @apply flex-1 max-w-3xl h-full;
-    }
-    main {
-      @apply h-[calc(100vh-80px)] overflow-hidden;
-    }
-  }
-}
+/* Layout geometry lives in HomeClient (Tailwind utilities on the sections). */
 
 /* Blur effect for unauthenticated chat */
 .chat-blur {

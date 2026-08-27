@@ -337,10 +337,10 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         </div>
       )}
 
-      <main className="flex-1 flex items-center justify-center p-4 lg:p-8">
-        <div className="page-container w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-center">
-          {/* Hero */}
-          <section className="hero-section flex-1 text-center lg:text-left mb-8 lg:mb-0 lg:pr-8 max-w-md lg:max-w-lg">
+      <main className="flex-1 flex flex-col items-center p-4 lg:p-8 gap-16 lg:gap-24">
+        <div className="w-full max-w-7xl mx-auto flex flex-col items-center">
+          {/* Hero — full row, pitch only */}
+          <section className="w-full text-center max-w-2xl lg:max-w-3xl mx-auto">
             <div className="flex justify-center lg:justify-start mb-6 lg:mb-8">
               <img
                 src="/logo-dark.svg"
@@ -371,9 +371,10 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               </div>
             </div>
           </section>
+        </div>
 
           {/* Chat Section */}
-          <section className="chat-container flex-1 relative w-full max-w-2xl lg:max-w-3xl h-[500px] md:h-[550px] lg:h-[600px] rounded-lg overflow-hidden shadow-lg">
+          <section className="chat-container relative w-full max-w-2xl lg:max-w-3xl h-[500px] md:h-[550px] lg:h-[600px] rounded-lg overflow-hidden shadow-lg mx-auto">
             {isConnected ? (
               /* Show ChatInterface when connected */
               <ChatInterface 
@@ -416,7 +417,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               </div>
             )}
           </section>
-        </div>
       </main>
 
       {/* Footer */}
