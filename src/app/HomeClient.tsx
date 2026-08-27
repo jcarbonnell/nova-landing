@@ -341,7 +341,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         <div className="w-full max-w-7xl mx-auto flex flex-col items-center">
           {/* Hero — full row, pitch only */}
           <section className="w-full text-center max-w-2xl lg:max-w-3xl mx-auto">
-            <div className="flex justify-center lg:justify-start mb-6 lg:mb-8">
+            <div className="flex justify-center mb-6 lg:mb-8 overflow-hidden">
               <img
                 src="/logo-dark.svg"
                 alt="NOVA - Secure File Sharing"
