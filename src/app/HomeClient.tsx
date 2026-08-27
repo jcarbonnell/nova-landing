@@ -567,13 +567,20 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                 <div className="text-left animate-fade-in">
                   <h3 className="font-museo text-lg font-bold text-white mb-2">NOVA inside your own agent</h3>
                   <p className="font-space text-purple-200 mb-4 leading-relaxed">
-                    Give any MCP-compatible agent persistent, encrypted memory it can read and write — without leaving its own runtime.
+                    Point Claude, Claude Code, or any MCP-compatible client at NOVA, and give your agent access to a self-sovereign memory through a single config block.
                   </p>
-                  <ul className="space-y-3">
-                    {['Add one config block — no rebuild of your agent', 'Your agent reads and writes NOVA memory as native tools'].map((f) => (
-                      <li key={f} className="flex items-start gap-3">
+                  <ul className="space-y-4">
+                    {[
+                      ['Out-of-the-box integration', 'Works instantly with Claude Desktop, CLI tools, and custom environments.'],
+                      ['Zero learning curve', 'Memory reads and writes execute natively as standard tool calls.'],
+                    ].map(([title, body]) => (
+                      <li key={title} className="flex items-start gap-3">
                         <span className="mt-2 h-1.5 w-1.5 rounded-full bg-gradient-to-r from-purple-400 to-orange-400 shrink-0" />
-                        <span className="text-purple-200 font-space">{f}</span>
+                        <span className="font-space text-purple-200">
+                          <span className="font-semibold text-white">{title}</span>
+                          {' — '}
+                          {body}
+                        </span>
                       </li>
                     ))}
                   </ul>
