@@ -361,6 +361,24 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               NOVA is a secure data layer for AI agents: encrypted, auditable, and self-sovereign. Decryptable by authorized parties only, every data access can be tracked on the quantum-resistant ledger of the NEAR blockchain.
             </p>
 
+            {/* Hero CTAs */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
+              <Button
+                onClick={handleConnect}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded"
+              >
+                Get Started
+              </Button>
+              <a
+                href="https://civictech-ou.gitbook.io/nova-docs/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center px-6 py-2 rounded-md bg-purple-900/50 border border-purple-500/30 text-purple-100 hover:bg-purple-800/50 transition-colors"
+              >
+                Read the docs
+              </a>
+            </div>
+
             {/* Feature Pills */}
             <div className="flex flex-wrap justify-center lg:justify-start gap-3 mb-6 animate-slide-up animation-delay-200">
               <div className="px-4 py-2 bg-purple-500/20 border border-purple-400/30 rounded-full text-purple-200 text-sm font-medium">
