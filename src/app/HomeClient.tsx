@@ -15,6 +15,73 @@ import LoginModal from '../components/LoginModal';
 import CreateAccountModal from '../components/CreateAccountModal';
 import PaymentModal from '../components/PaymentModal';
 
+// Storefront code samples for the "Three ways to build" section.
+// Display-only — the copyable source lives in the GitHub README.
+const jsSnippet = `import { NovaSdk } from 'nova-sdk-js';
+
+// Initialize with your account ID and API key
+const sdk = new NovaSdk('alice.nova-sdk.near', {
+  apiKey: process.env.NOVA_API_KEY
+});
+
+// Register group (you become owner)
+await sdk.registerGroup('confidential-docs');
+
+// Upload a file
+const result = await sdk.upload('my-group', Buffer.from('Hello NOVA!'), 'hello.txt');
+console.log('Uploaded:', result.cid);
+
+// Retrieve the file
+const { data } = await sdk.retrieve('my-group', result.cid);
+console.log('Retrieved:', data.toString());`;
+
+const rustSnippet = `use nova_sdk_rs::{NovaSdk, NovaSdkConfig};
+use std::fs;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize SDK with API key
+    let config = NovaSdkConfig::default()
+        .with_api_key(&std::env::var("NOVA_API_KEY")?);
+    let sdk = NovaSdk::with_config("alice.nova-sdk.near", config)?;
+
+    // Verify connection
+    println!("Network: {} | Contract: {}", sdk.network_id(), sdk.contract_id());
+
+    // Register group
+    sdk.register_group("my-secure-files").await?;
+
+    // Upload file (client-side encryption)
+    let file_data = fs::read("./confidential.pdf")?;
+    let result = sdk.upload(
+        "my-secure-files",
+        &file_data,
+        "confidential.pdf"
+    ).await?;
+
+    println!("Uploaded: {}", result.cid);
+    println!("Transaction: {}", result.trans_id);
+
+    Ok(())
+}`;
+
+const claudeSnippet = `{
+  "mcpServers": {
+    "nova": {
+      "command": "npx",
+      "args": ["@nova-sdk/mcp"],
+      "env": {
+        "NOVA_API_KEY": "your-api-key"
+      }
+    }
+  }
+}`;
+
+const codexSnippet = `[mcp_servers.nova]
+command = "npx"
+args = ["@nova-sdk/mcp"]
+env = { NOVA_API_KEY = "your-api-key" }`;
+
 interface HomeClientProps {
   serverUser?: User | null;
 }
@@ -33,6 +100,11 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
   // NOVA session (before the user clicks "Sign in with wallet"). The nova_session
   // cookie is httpOnly (unreadable here by design), so we track success in state.
   const [hasWalletSession, setHasWalletSession] = useState(false);
+
+  // Adoption-surfaces section (presentation-only local state)
+  const [surface, setSurface] = useState<'sdks' | 'plugin' | 'demo'>('sdks');
+  const [codeLang, setCodeLang] = useState<'js' | 'rust'>('js');
+  const [pluginClient, setPluginClient] = useState<'claude' | 'codex'>('claude');
 
   // "Connected" = ready to use the chat.
   //  - Email/custodial: __forceWalletConnect sets isSignedIn+accountId after the
@@ -398,7 +470,128 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
           </section>
         </div>
 
-          {/* Chat Section */}
+          {/* Adoption surfaces — three ways to build with NOVA */}
+        <section className="w-full max-w-5xl mx-auto px-4 text-center">
+          <h2 className="font-museo text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4 tracking-tight">
+            Three ways to build with{' '}
+            <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">NOVA</span>
+          </h2>
+          <p className="font-space text-base md:text-lg text-purple-200 mb-8 max-w-2xl mx-auto leading-relaxed">
+            A native SDK for custom apps, a drop-in plugin for existing agents, and a live playground in the following{' '}
+            <a href="#try-it" className="text-purple-300 underline underline-offset-4 hover:text-white transition-colors">Try it out</a>{' '}section.
+          </p>
+
+          {/* Surface selector */}
+          <div className="flex w-full max-w-md mx-auto rounded-full border border-purple-500/30 bg-purple-900/30 p-1 gap-1 mb-8">
+            {([['sdks', 'SDKs'], ['plugin', 'Agent Plugin'], ['demo', 'Live Demo']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setSurface(key)}
+                className={`flex-1 px-3 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+                  surface === key ? 'bg-purple-600 text-white' : 'text-purple-200 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Panels */}
+          <div>
+            {surface === 'sdks' && (
+              <div className="animate-fade-in">
+                <div className="inline-flex rounded-full border border-purple-500/30 bg-purple-900/30 p-1 gap-1 mb-4">
+                  {([['js', 'JavaScript'], ['rust', 'Rust']] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setCodeLang(key)}
+                      className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+                        codeLang === key ? 'bg-purple-600 text-white' : 'text-purple-200 hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] overflow-hidden text-left max-w-3xl mx-auto">
+                  <div className="px-4 py-2 border-b border-purple-500/20 text-xs font-mono text-purple-300">
+                    {codeLang === 'js' ? '$ npm install nova-sdk-js' : '$ cargo add nova-sdk-rs'}
+                  </div>
+                  <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono text-purple-100 leading-relaxed"><code>{codeLang === 'js' ? jsSnippet : rustSnippet}</code></pre>
+                </div>
+
+                <ul className="mt-6 space-y-3 text-left max-w-md mx-auto">
+                  {['Typed clients for JavaScript and Rust', 'Streaming writes for large payloads', 'Framework-agnostic — drop into any stack'].map((f) => (
+                    <li key={f} className="flex items-start gap-3">
+                      <span className="mt-2 h-1.5 w-1.5 rounded-full bg-gradient-to-r from-purple-400 to-orange-400 shrink-0" />
+                      <span className="text-purple-200 font-space">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {surface === 'plugin' && (
+              <div className="animate-fade-in">
+                <div className="inline-flex rounded-full border border-purple-500/30 bg-purple-900/30 p-1 gap-1 mb-4">
+                  {([['claude', 'Claude'], ['codex', 'Codex']] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setPluginClient(key)}
+                      className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+                        pluginClient === key ? 'bg-purple-600 text-white' : 'text-purple-200 hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] overflow-hidden text-left max-w-3xl mx-auto">
+                  <div className="px-4 py-2 border-b border-purple-500/20 text-xs font-mono text-purple-300">
+                    {pluginClient === 'claude' ? 'claude_desktop_config.json' : '~/.codex/config.toml'}
+                  </div>
+                  <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono text-purple-100 leading-relaxed"><code>{pluginClient === 'claude' ? claudeSnippet : codexSnippet}</code></pre>
+                </div>
+
+                <div className="mt-6 max-w-md mx-auto text-left">
+                  <h3 className="font-museo text-lg font-bold text-white mb-2">NOVA inside your own agent</h3>
+                  <p className="font-space text-purple-200 mb-4 leading-relaxed">
+                    Give any MCP-compatible agent persistent, encrypted memory it can read and write — without leaving its own runtime.
+                  </p>
+                  <ul className="space-y-3">
+                    {['Add one config block — no rebuild of your agent', 'Your agent reads and writes NOVA memory as native tools'].map((f) => (
+                      <li key={f} className="flex items-start gap-3">
+                        <span className="mt-2 h-1.5 w-1.5 rounded-full bg-gradient-to-r from-purple-400 to-orange-400 shrink-0" />
+                        <span className="text-purple-200 font-space">{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {surface === 'demo' && (
+              <div className="animate-fade-in max-w-xl mx-auto">
+                <div className="rounded-xl border border-purple-500/20 bg-[#1a0330] p-8 text-center">
+                  <MessageSquare size={48} className="text-purple-400 mx-auto mb-4" />
+                  <p className="font-space text-lg text-purple-200 mb-6 leading-relaxed">
+                    This minimal agent demonstrates NOVA&apos;s memory primitive in action—a live look at what you can build with the SDK.
+                  </p>
+                  <a
+                    href="#try-it"
+                    className="inline-flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-md font-medium transition-colors"
+                  >
+                    Try the live demo ↓
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Chat Section */}
           <section className="chat-container relative w-full max-w-2xl lg:max-w-3xl h-[500px] md:h-[550px] lg:h-[600px] rounded-lg overflow-hidden shadow-lg mx-auto">
             {isConnected ? (
               /* Show ChatInterface when connected */
