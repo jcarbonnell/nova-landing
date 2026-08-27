@@ -337,7 +337,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
         </div>
       )}
 
-      <main className="flex-1 flex flex-col items-center p-4 lg:p-8 gap-16 lg:gap-24">
+      <main className="flex-1 flex flex-col items-center p-4 lg:p-8 pt-16 lg:pt-24 gap-16 lg:gap-24">
         <div className="w-full max-w-7xl mx-auto flex flex-col items-center">
           {/* Hero — two columns on desktop (logo | text), stacked on mobile/tablet */}
           <section className="w-full max-w-2xl lg:max-w-7xl mx-auto flex flex-col lg:flex-row items-center">
@@ -429,7 +429,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                 ) : (
                   <>
                     <p className="text-purple-200 mb-4 text-center px-4">
-                      Connect to unlock secure, self-sovereign agent storage
+                      Try NOVA's secure agent storage. Use a wallet or an email to get started.
                     </p>
                     <Button
                       onClick={handleConnect}
