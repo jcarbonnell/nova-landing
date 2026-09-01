@@ -583,7 +583,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                 <div className="text-left animate-fade-in">
                   <h3 className="font-museo text-lg font-bold text-white mb-2">NOVA inside your own agent</h3>
                   <p className="font-space text-purple-200 mb-4 leading-relaxed">
-                    Point Claude, Claude Code, or any MCP-compatible client at NOVA, and give your agent access to a self-sovereign memory through a single config block.
+                    Point Claude, Codex, or any MCP-compatible client at NOVA, and give your agent access to a self-sovereign memory through a single config block.
                   </p>
                   <ul className="space-y-4">
                     {[
@@ -673,7 +673,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
                   {/* Bottom banner */}
                   <div className="flex-shrink-0 border-t border-purple-700/50 p-4 bg-purple-900/30 flex items-center justify-center gap-4 flex-wrap">
-                    <p className="text-sm text-purple-300">Sign in to try it with your own agent…</p>
+                    <p className="text-sm text-purple-300">Sign in to try the agent memory demo</p>
                     <Button
                       onClick={handleConnect}
                       className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded"
