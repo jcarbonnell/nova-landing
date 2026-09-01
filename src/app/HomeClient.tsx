@@ -57,22 +57,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }`;
 
-const claudeSnippet = `{
-  "mcpServers": {
-    "nova": {
-      "command": "npx",
-      "args": ["@nova-sdk/mcp"],
-      "env": {
-        "NOVA_API_KEY": "your-api-key"
-      }
-    }
-  }
-}`;
+const claudeSnippet = `# In Claude Code, add the community marketplace, then install:
 
-const codexSnippet = `[mcp_servers.nova]
-command = "npx"
-args = ["@nova-sdk/mcp"]
-env = { NOVA_API_KEY = "your-api-key" }`;
+/plugin marketplace add anthropics/claude-plugins-community
+/plugin install nova-ai-memory@claude-community
+
+# On install, Claude Code prompts for your NOVA credentials
+# (stored securely in your OS keychain):
+#
+#   NOVA Account ID   e.g. alice.nova-sdk.near
+#   NOVA API Key      from nova-sdk.com -> Manage Account
+#
+# Then just ask your agent:
+#   "Which NOVA groups do I own?"
+#   "Store these notes in my software-engineering group."`;
+
+const codexSnippet = `# Codex / ChatGPT — coming soon.
+#
+# NOVA encrypts every file client-side, on your machine, so your
+# plaintext and keys never leave it. Codex and ChatGPT plugins run
+# as hosted, cloud-side servers, which isn't compatible with that
+# guarantee today.
+#
+# We're waiting on OpenAI to support local (stdio) plugins in their
+# public directory — the moment they do, NOVA ships there unchanged.
+#
+# In the meantime: use the SDKs or the Claude plugin.`;
 
 interface HomeClientProps {
   serverUser?: User | null;
@@ -532,7 +542,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               </div>
               <div className="rounded-xl border border-purple-400/30 bg-purple-500/20 overflow-hidden text-left">
                 <div className="px-4 py-2 border-b border-purple-400/20 text-xs font-mono text-purple-200">
-                  {pluginClient === 'claude' ? 'claude_desktop_config.json' : '~/.codex/config.toml'}
+                  {pluginClient === 'claude' ? 'nova-ai-memory — Claude community marketplace' : 'Codex / ChatGPT — on the roadmap'}
                 </div>
                 <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono text-purple-100 leading-relaxed"><code>{pluginClient === 'claude' ? claudeSnippet : codexSnippet}</code></pre>
               </div>
@@ -583,11 +593,12 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                 <div className="text-left animate-fade-in">
                   <h3 className="font-museo text-lg font-bold text-white mb-2">NOVA inside your own agent</h3>
                   <p className="font-space text-purple-200 mb-4 leading-relaxed">
-                    Point Claude, Codex, or any MCP-compatible client at NOVA, and give your agent access to a self-sovereign memory through a single config block.
+                    Install the NOVA plugin in Claude Code or Cowork and give your agent a self-sovereign memory — no wallet, no NEAR knowledge, just an API key. Codex/ChatGPT support is on the roadmap.
                   </p>
                   <ul className="space-y-4">
                     {[
-                      ['Out-of-the-box integration', 'Works instantly with Claude Desktop, CLI tools, and custom environments.'],
+                      ['One-command install', 'Add the community marketplace and install nova-ai-memory; credentials are entered once and stored in your keychain.'],
+                      ['Client-side encryption', 'Files are encrypted on your machine before upload — NOVA never sees plaintext or keys.'],
                       ['Zero learning curve', 'Memory reads and writes execute natively as standard tool calls.'],
                     ].map(([title, body]) => (
                       <li key={title} className="flex items-start gap-3">
