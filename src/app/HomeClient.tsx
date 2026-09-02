@@ -57,32 +57,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }`;
 
-const claudeSnippet = `# In Claude Code, add the community marketplace, then install:
+const claudeSnippet = `{
+  "mcpServers": {
+    "claude-plugins-community": {
+      "command": "npx",
+      "args": ["nova-ai-memory"],
+      "env": {
+        "NOVA_ACCOUNT_ID": "your-account.near",
+        "NOVA_API_KEY": "your-api-key"
+      }
+    }
+  }
+}`;
 
-/plugin marketplace add anthropics/claude-plugins-community
-/plugin install nova-ai-memory@claude-community
-
-# On install, Claude Code prompts for your NOVA credentials
-# (stored securely in your OS keychain):
+const codexSnippet = `# Codex/ChatGPT coming soon.
 #
-#   NOVA Account ID   e.g. alice.nova-sdk.near
-#   NOVA API Key      from nova-sdk.com -> Manage Account
+# NOVA encrypts files itself, so your data never leave your device. 
+# Codex and ChatGPT plugins run in their servers, making our promise impossible to keep.
 #
-# Then just ask your agent:
-#   "Which NOVA groups do I own?"
-#   "Store these notes in my software-engineering group."`;
-
-const codexSnippet = `# Codex / ChatGPT — coming soon.
+# We're waiting on OpenAI to support local (stdio) plugins, so we can run NOVA without compromising user privacy.
 #
-# NOVA encrypts every file client-side, on your machine, so your
-# plaintext and keys never leave it. Codex and ChatGPT plugins run
-# as hosted, cloud-side servers, which isn't compatible with that
-# guarantee today.
-#
-# We're waiting on OpenAI to support local (stdio) plugins in their
-# public directory — the moment they do, NOVA ships there unchanged.
-#
-# In the meantime: use the SDKs or the Claude plugin.`;
+# In the meantime: use the SDKs or the Claude plugin!`;
 
 interface HomeClientProps {
   serverUser?: User | null;
@@ -542,7 +537,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               </div>
               <div className="rounded-xl border border-purple-400/30 bg-purple-500/20 overflow-hidden text-left">
                 <div className="px-4 py-2 border-b border-purple-400/20 text-xs font-mono text-purple-200">
-                  {pluginClient === 'claude' ? 'nova-ai-memory — Claude community marketplace' : 'Codex / ChatGPT — on the roadmap'}
+                  {pluginClient === 'claude' ? 'Claude plugin:nova-ai-memory' : 'Codex / ChatGPT — on the roadmap'}
                 </div>
                 <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono text-purple-100 leading-relaxed"><code>{pluginClient === 'claude' ? claudeSnippet : codexSnippet}</code></pre>
               </div>
