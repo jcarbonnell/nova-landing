@@ -59,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 const claudeSnippet = `{
   "mcpServers": {
-    "claude-plugins-community": {
+    "claude-plugins": {
       "command": "npx",
       "args": ["nova-ai-memory"],
       "env": {
@@ -537,7 +537,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               </div>
               <div className="rounded-xl border border-purple-400/30 bg-purple-500/20 overflow-hidden text-left">
                 <div className="px-4 py-2 border-b border-purple-400/20 text-xs font-mono text-purple-200">
-                  {pluginClient === 'claude' ? 'Claude plugin:nova-ai-memory' : 'Codex / ChatGPT — on the roadmap'}
+                  {pluginClient === 'claude' ? 'Claude plugin : nova-ai-memory' : 'Codex / ChatGPT — on the roadmap'}
                 </div>
                 <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono text-purple-100 leading-relaxed"><code>{pluginClient === 'claude' ? claudeSnippet : codexSnippet}</code></pre>
               </div>
