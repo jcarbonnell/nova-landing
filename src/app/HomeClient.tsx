@@ -679,7 +679,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
 
                   {/* Bottom banner */}
                   <div className="flex-shrink-0 border-t border-purple-700/50 p-4 bg-purple-900/30 flex items-center justify-center gap-4 flex-wrap">
-                    <p className="text-sm text-purple-300">Sign in to try the agent memory demo</p>
+                    <p className="text-sm text-purple-300">Sign in to try yourself...</p>
                     <Button
                       onClick={handleConnect}
                       className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded"
