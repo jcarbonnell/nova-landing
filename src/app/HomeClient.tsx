@@ -414,23 +414,23 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             <div className="w-full lg:w-1/2 flex items-center justify-center mb-6 lg:mb-0 overflow-hidden">
               <img
                 src="/logo-dark.svg"
-                alt="NOVA - Secure File Sharing"
+                alt="NOVA - Secure AI memory"
                 className="w-56 h-56 md:w-64 md:h-64 lg:w-80 lg:h-80 object-contain scale-150 drop-shadow-2xl hover:drop-shadow-[0_0_40px_rgba(168,85,247,0.5)] transition-all duration-300 hover:scale-[1.6]"
               />
             </div>
             {/* Right column: baseline + description, left-aligned */}
             <div className="w-full lg:w-1/2 flex flex-col items-start justify-center text-left">
               <div className="inline-block px-4 py-2 mb-6 bg-purple-500/20 border border-purple-400/30 rounded-full text-purple-200 text-sm font-medium">
-                Secure memory layer for AI agents
+                The trust layer for AI agent memory
               </div>
               <h2 className="font-museo text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 leading-[1.1] tracking-tight animate-slide-up text-balance">
-              <span className="block whitespace-nowrap">Persistent memory for</span>
+              <span className="block whitespace-nowrap">Permissioned memory for</span>
               <span className="block whitespace-nowrap bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
                 Multi-Agent Systems
               </span>
             </h2>
             <p className="font-space text-lg md:text-xl lg:text-2xl text-purple-200 mb-8 leading-relaxed font-medium">
-              NOVA is a secure data layer for AI agents: encrypted, auditable, and self-sovereign. Decryptable by authorized parties only, every data access can be tracked on the quantum-resistant ledger of the NEAR blockchain.
+              NOVA is a shared memory layer for AI agents: encrypted, auditable, and self-sovereign. Decryptable by authorized parties only, every data access can be tracked on the quantum-resistant NEAR blockchain.
             </p>
 
             {/* Hero CTAs */}
