@@ -421,16 +421,16 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             {/* Right column: baseline + description, left-aligned */}
             <div className="w-full lg:w-1/2 flex flex-col items-start justify-center text-left">
               <div className="inline-block px-4 py-2 mb-6 bg-purple-500/20 border border-purple-400/30 rounded-full text-purple-200 text-sm font-medium">
-                The trust layer for AI agent memory
+                The trust layer for agent memory
               </div>
               <h2 className="font-museo text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 leading-[1.1] tracking-tight animate-slide-up text-balance">
-              <span className="block whitespace-nowrap">Permissioned memory for</span>
+              <span className="block whitespace-nowrap">Shared memory for</span>
               <span className="block whitespace-nowrap bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
                 Multi-Agent Systems
               </span>
             </h2>
             <p className="font-space text-lg md:text-xl lg:text-2xl text-purple-200 mb-8 leading-relaxed font-medium">
-              NOVA is a shared memory layer for AI agents: encrypted, auditable, and self-sovereign. Decryptable by authorized parties only, every data access can be tracked on the quantum-resistant NEAR blockchain.
+              NOVA is a permissioned memory layer for AI agents: encrypted, auditable, and self-sovereign. Decryptable by authorized parties only, every data access can be tracked on the quantum-resistant NEAR blockchain.
             </p>
 
             {/* Hero CTAs */}
