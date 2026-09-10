@@ -55,10 +55,25 @@ export interface Transaction {
 
 // Thrown for non-401 failures so the component can show an inline error. A 401
 // never reaches the caller — novaFetch redirects before returning.
+//
+// `walletSignerUnavailable` marks the specific, PERMANENT case where a wallet
+// (self-custody) user reads a PRIVATE group's members/transactions: those route
+// through MCP's signed call_contract path, which asks Shade for a custodial key
+// the wallet user does not have → Shade 501s → MCP wraps it as a 500 with a
+// "Failed to get signer … Shade key retrieval failed: 501" message. Retry is
+// futile (it's an architectural gap, not a transient error), so the UI shows a
+// distinct, retry-less explanation. Resolves when the deferred non-signed reader
+// path / client-side signing (§5.11-B) lands. Detected by message signature
+// because MCP does not surface a structured code here (the RuntimeError string
+// is all we get on the wire).
 export class DashboardFetchError extends Error {
+  public walletSignerUnavailable: boolean;
   constructor(public status: number, message: string) {
     super(message);
     this.name = 'DashboardFetchError';
+    this.walletSignerUnavailable =
+      /Shade key retrieval failed:\s*501/i.test(message) ||
+      /Failed to get signer/i.test(message);
   }
 }
 

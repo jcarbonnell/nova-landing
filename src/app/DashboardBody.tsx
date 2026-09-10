@@ -118,6 +118,17 @@ function Spinner({ label }: { label: string }) {
   );
 }
 
+// Permanent, non-retryable notice for the wallet + private-group read gap
+// (§5.11-B). Distinct from ErrorRow: no Retry (retrying can't help), calmer tone.
+function WalletUnavailableNotice() {
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-purple-500/30 bg-purple-900/30 px-3 py-2 text-sm text-purple-300">
+      <AlertCircle size={16} className="shrink-0 mt-0.5 text-purple-400" />
+      <span>Private-group details aren&apos;t available for wallet sign-in — coming with client-side signing.</span>
+    </div>
+  );
+}
+
 // ── main ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardBody({ accountId }: DashboardBodyProps) {
@@ -133,10 +144,12 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
   const [members, setMembers] = useState<string[] | null>(null);
   const [membersLoading, setMembersLoading] = useState(false);
   const [membersError, setMembersError] = useState<string | null>(null);
+  const [membersWalletUnavailable, setMembersWalletUnavailable] = useState(false);
 
   const [txs, setTxs] = useState<Transaction[] | null>(null);
   const [txsLoading, setTxsLoading] = useState(false);
   const [txsError, setTxsError] = useState<string | null>(null);
+  const [txsWalletUnavailable, setTxsWalletUnavailable] = useState(false);
 
   // Load the merged group list. (A 401 inside novaFetch navigates to '/' and
   // never resolves, so it won't surface here as an error.)
@@ -156,21 +169,42 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
     if (!selected) return;
     let cancelled = false;
 
-    setMembers(null); setMembersError(null); setMembersLoading(true);
-    setTxs(null); setTxsError(null); setTxsLoading(true);
+    setMembers(null); setMembersError(null); setMembersWalletUnavailable(false); setMembersLoading(true);
+    setTxs(null); setTxsError(null); setTxsWalletUnavailable(false); setTxsLoading(true);
 
     loadGroupMembers(selected)
       .then((m) => { if (!cancelled) { setMembers(m); setMembersLoading(false); } })
-      .catch((e) => { if (!cancelled) { setMembersError(errMessage(e)); setMembersLoading(false); } });
+      .catch((e) => {
+        if (cancelled) return;
+        setMembersWalletUnavailable(e instanceof DashboardFetchError && e.walletSignerUnavailable);
+        setMembersError(errMessage(e));
+        setMembersLoading(false);
+      });
 
     loadGroupTransactions(selected)
       .then((t) => { if (!cancelled) { setTxs(t); setTxsLoading(false); } })
-      .catch((e) => { if (!cancelled) { setTxsError(errMessage(e)); setTxsLoading(false); } });
+      .catch((e) => {
+        if (cancelled) return;
+        setTxsWalletUnavailable(e instanceof DashboardFetchError && e.walletSignerUnavailable);
+        setTxsError(errMessage(e));
+        setTxsLoading(false);
+      });
 
     return () => { cancelled = true; };
   }, [selected, detailReloadKey]);
 
   const retryDetail = () => setDetailReloadKey((k) => k + 1);
+
+  // Split each section's error into the wallet-gap notice (no retry) vs a genuine
+  // retryable error, so the JSX stays readable.
+  const membersErrorInfo = {
+    walletUnavailable: !!membersError && membersWalletUnavailable,
+    showError: !!membersError && !membersWalletUnavailable,
+  };
+  const txsErrorInfo = {
+    walletUnavailable: !!txsError && txsWalletUnavailable,
+    showError: !!txsError && !txsWalletUnavailable,
+  };
 
   return (
     <div className="flex flex-col md:flex-row gap-6">
@@ -242,8 +276,11 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
             <section>
               <h3 className="font-space text-sm font-semibold text-purple-200 mb-2">Members</h3>
               {membersLoading && <Spinner label="Loading members…" />}
-              {membersError && !membersLoading && (
-                <ErrorRow message={membersError} onRetry={retryDetail} />
+              {membersErrorInfo.walletUnavailable && !membersLoading && (
+                <WalletUnavailableNotice />
+              )}
+              {membersErrorInfo.showError && !membersLoading && (
+                <ErrorRow message={membersError!} onRetry={retryDetail} />
               )}
               {members && !membersLoading && !membersError && (
                 members.length === 0 ? (
@@ -273,8 +310,11 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
             <section>
               <h3 className="font-space text-sm font-semibold text-purple-200 mb-2">Files</h3>
               {txsLoading && <Spinner label="Loading files…" />}
-              {txsError && !txsLoading && (
-                <ErrorRow message={txsError} onRetry={retryDetail} />
+              {txsErrorInfo.walletUnavailable && !txsLoading && (
+                <WalletUnavailableNotice />
+              )}
+              {txsErrorInfo.showError && !txsLoading && (
+                <ErrorRow message={txsError!} onRetry={retryDetail} />
               )}
               {txs && !txsLoading && !txsError && (
                 txs.length === 0 ? (
