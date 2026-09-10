@@ -421,7 +421,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             {/* Right column: baseline + description, left-aligned */}
             <div className="w-full lg:w-1/2 flex flex-col items-start justify-center text-left">
               <div className="inline-block px-4 py-2 mb-6 bg-purple-500/20 border border-purple-400/30 rounded-full text-purple-200 text-sm font-medium">
-                The trust layer for agent memory
+                The trust layer for AI memory
               </div>
               <h2 className="font-museo text-4xl md:text-5xl lg:text-6xl font-black text-white mb-6 leading-[1.1] tracking-tight animate-slide-up text-balance">
               <span className="block whitespace-nowrap">Shared memory for</span>

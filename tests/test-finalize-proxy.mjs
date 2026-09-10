@@ -5,7 +5,7 @@
 
 import { NextRequest } from 'next/server';
 
-const ROUTE = './src/app/api/nova/finalize-upload/route.ts';
+const ROUTE = '../src/app/api/nova/finalize-upload/route.ts';
 
 let pass = 0;
 let fail = 0;

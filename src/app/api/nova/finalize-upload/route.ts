@@ -1,6 +1,7 @@
 // src/app/api/nova/finalize-upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { resolveNovaSession, NovaProxyAuthError } from '@/lib/nova-proxy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,23 @@ function hashForLog(value: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Legacy custodial-wallet guard (v0.3.2 Fix 5): reject a bare x-wallet-id
+  // assertion at the boundary. Preserved verbatim from the deployed route.
+  // NOTE (flagged, not changed in 2a): under SIWN, wallet users authenticate via
+  // the nova_session cookie (resolveNovaSession reads it first) and send NO
+  // x-wallet-id header, so this guard is now vestigial defense-in-depth. Whether
+  // to retire it is a deliberate decision to make on its own, not silently inside
+  // the proxy-helper extraction — so it stays exactly as deployed for now.
+  if (req.headers.get('x-wallet-id')) {
+    return NextResponse.json(
+      {
+        error: 'Wallet auth disabled pending self-custody migration (v0.5)',
+        code: 'WALLET_AUTH_PENDING_SELF_CUSTODY',
+      },
+      { status: 501 }
+    );
+  }
+
   let body;
   try {
     body = await req.json();
@@ -38,55 +56,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Mint a nova_session token server-side from the Auth0 cookie. The client's
-  // x-account-id is deliberately NOT trusted or forwarded (v0.4 Fix A / §5.0):
-  // Transport B: wallet users present a nova_session cookie (set by
-  // wallet-verify); email users mint one from their Auth0 session. Both then
-  // carry the same Bearer token to MCP, which enforces upload_id ownership
-  // against the authenticated account.
+  // Resolve identity via the shared proxy helper (§5.0 single point): wallet
+  // nova_session cookie first, else mint from the Auth0 session. The client's
+  // x-account-id is never trusted (v0.4 Fix A); MCP re-verifies the Bearer and
+  // enforces upload_id ownership against the authenticated account.
   let sessionToken: string;
   let accountId: string;
-
-  const walletSession = req.cookies.get('nova_session')?.value;
-  if (walletSession) {
-    sessionToken = walletSession;
-    try {
-      const claims = JSON.parse(
-        Buffer.from(walletSession.split('.')[1], 'base64').toString('utf8'),
-      );
-      accountId = claims.account_id;
-    } catch {
-      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+  try {
+    ({ sessionToken, accountId } = await resolveNovaSession(req));
+  } catch (e) {
+    if (e instanceof NovaProxyAuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
     }
-    if (!accountId) {
-      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
-    }
-  } else {
-    const origin = new URL(req.url).origin;
-    try {
-      const tokenRes = await fetch(`${origin}/api/auth/session-token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          cookie: req.headers.get('cookie') ?? '',
-        },
-        body: '{}',
-      });
-
-      if (!tokenRes.ok) {
-        const err = await tokenRes.json().catch(() => ({}));
-        return NextResponse.json(
-          { error: err.error || 'Unauthorized' },
-          { status: tokenRes.status }
-        );
-      }
-
-      const tokenData = await tokenRes.json();
-      sessionToken = tokenData.token;
-      accountId = tokenData.account_id;
-    } catch {
-      return NextResponse.json({ error: 'Failed to authenticate' }, { status: 500 });
-    }
+    return NextResponse.json({ error: 'Failed to authenticate' }, { status: 500 });
   }
 
   console.log('finalize_upload', {
