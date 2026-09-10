@@ -21,6 +21,8 @@
 
 'use client';
 
+import DashboardBody from './DashboardBody';
+
 interface DashboardShellProps {
   email: string;
   accountId: string;
@@ -81,19 +83,15 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
           intentionally empty of data logic in Phase 1: the milestone here is the
           gated shell itself, provable before any read exists. */}
       <main className="flex-1 flex flex-col items-center px-4 py-10 lg:py-16">
-        <div className="w-full max-w-5xl mx-auto">
+        <div className="w-full max-w-6xl mx-auto">
           <h1 className="font-museo text-2xl md:text-3xl font-black text-white mb-2 tracking-tight">
             Your groups
           </h1>
           <p className="font-space text-purple-300 mb-8">
             Signed in as <span className="text-purple-100">{accountId}</span>.
           </p>
-
-          <div className="rounded-xl border border-purple-500/30 bg-purple-900/20 p-10 text-center">
-            <p className="font-space text-purple-300">
-              Your owned and member groups will appear here.
-            </p>
-          </div>
+          
+          <DashboardBody accountId={accountId} />
         </div>
       </main>
     </div>
