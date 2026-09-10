@@ -24,7 +24,9 @@
 // passed as props (same shape as root page.tsx handing HomeClient `serverUser`).
 
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { getServerSession } from '@/lib/auth0';
+import { verifyNovaSession } from '@/lib/session';
 import DashboardShell from '../DashboardShell';
 
 export const dynamic = 'force-dynamic';
@@ -64,14 +66,44 @@ async function resolveNovaAccountId(
   return data?.exists && data?.account_id ? (data.account_id as string) : null;
 }
 
+// Derive a display email from a nova_session subject. Only `email|…` carries one;
+// `wallet|…` and `apikey|…` have none (the shell hides an empty email line).
+function emailFromSubject(subject: string): string {
+  return subject.startsWith('email|') ? subject.slice('email|'.length) : '';
+}
+
 export default async function AppPage() {
+  // ── Identity source 1: the nova_session cookie (wallet SIWN users, and any
+  // validly-minted session). Checked FIRST — it is self-contained (verify the
+  // signature → trust the account_id in the claim), needs no Shade round-trip,
+  // and is the self-sovereign path that must not touch Auth0. A present-but-
+  // INVALID cookie (expired, stale) is NOT a hard block: fall through to Auth0
+  // rather than lock the user out. Mirrors finalize-upload's cookie-first model.
+  const cookieStore = await cookies();
+  const novaSession = cookieStore.get('nova_session')?.value;
+  if (novaSession) {
+    try {
+      const claims = await verifyNovaSession(novaSession);
+      return (
+        <DashboardShell
+          email={emailFromSubject(claims.subject)}
+          accountId={claims.account_id}
+        />
+      );
+    } catch {
+      // Stale/invalid session cookie — ignore and fall through to Auth0.
+    }
+  }
+
+  // ── Identity source 2: the Auth0 session (email users).
   const session = await getServerSession();
 
-  // Outcome 1 — no Auth0 session. best-effort returnTo=/app; if the SDK's
-  // allow-list drops it, the user lands authed on / and navigates back — no
-  // broken screen either way. The invariant we control is the SEND target.
+  // Neither a valid cookie nor an Auth0 session → send to /, which offers BOTH
+  // email login and wallet SIWN. We deliberately do NOT redirect to /auth/login:
+  // that would force a wallet user into Auth0, and here we cannot tell wallet-
+  // intent from email-intent. / lets the user choose, then return to /app.
   if (!session?.user?.email) {
-    redirect('/auth/login?returnTo=/app');
+    redirect('/');
   }
 
   const email = session.user.email;
@@ -84,13 +116,13 @@ export default async function AppPage() {
 
   const accountId = await resolveNovaAccountId(email, authToken);
 
-  // Outcome 2 — authed but no NOVA account. The dashboard is viewer-only and
+  // Authed via Auth0 but no NOVA account — the dashboard is viewer-only and
   // cannot create accounts; / owns that flow (HomeClient → CreateAccountModal).
   if (!accountId) {
     redirect('/');
   }
 
-  // Outcome 3 — authed + has a NOVA account. Identity resolved server-side and
-  // handed down as props; the browser never receives a token here.
+  // Authed + has a NOVA account. Identity resolved server-side, handed down as
+  // props; the browser never receives a token here.
   return <DashboardShell email={email} accountId={accountId} />;
 }

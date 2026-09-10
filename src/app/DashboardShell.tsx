@@ -57,9 +57,11 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
             <span className="text-sm font-medium text-purple-100 max-w-[12rem] truncate" title={accountId}>
               {displayName}
             </span>
-            <span className="text-xs text-purple-400 max-w-[12rem] truncate" title={email}>
-              {email}
-            </span>
+            {email && (
+              <span className="text-xs text-purple-400 max-w-[12rem] truncate" title={email}>
+                {email}
+              </span>
+            )}
           </div>
           <button
             type="button"
