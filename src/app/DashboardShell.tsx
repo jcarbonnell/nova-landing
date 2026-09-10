@@ -30,11 +30,15 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
   // Same display-name derivation Header/ChatInterface use.
   const displayName = accountId.split('.')[0];
 
-  // Reuse the app's existing Auth0 logout route (the target Header uses). A full
-  // navigation clears the server session and returns to /. The dashboard sets no
-  // client storage of its own, so there is nothing extra to clear here.
+  // Sign out via the dashboard-logout route, which clears the httpOnly
+  // nova_session cookie (Auth0's /auth/logout does not) and THEN routes: email
+  // users continue to Auth0 logout, wallet users just return to /. Without
+  // clearing nova_session, the cookie-first /app gate would keep rendering a
+  // stale wallet session even after signing out / logging in as someone else.
+  // `email` present ⇒ email user; empty ⇒ wallet user.
   const handleSignOut = () => {
-    window.location.href = '/auth/logout';
+    const kind = email ? 'email' : 'wallet';
+    window.location.href = `/api/auth/dashboard-logout?kind=${kind}`;
   };
 
   return (
