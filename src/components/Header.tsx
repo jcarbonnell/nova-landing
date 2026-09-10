@@ -109,6 +109,18 @@ export default function Header({
           </div>
         ) : isConnected ? (
           <div className="flex items-center space-x-2">
+            {/* Dashboard link — only when /app is actually reachable: email users
+                always are; wallet users only once SIWN'd (a wallet cookie exists).
+                A not-yet-SIWN'd wallet user would be bounced to / by the gate, so
+                we don't show them the link. Styled like Docs/GitHub. */}
+            {(user?.email || hasWalletSession) && (
+              <a
+                href="/app"
+                className="text-sm font-medium text-purple-100 hover:text-purple-300 transition-colors"
+              >
+                Dashboard
+              </a>
+            )}
             {isWalletUser && !hasWalletSession ? (
               // Wallet connected but not yet SIWN'd: the sign-in gesture lives
               // HERE (renders at every breakpoint, unlike the desktop-only
