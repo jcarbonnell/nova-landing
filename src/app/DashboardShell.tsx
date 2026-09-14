@@ -49,14 +49,16 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
           wallet/login controls); this surface is only reached when already
           authed with a NOVA account. */}
       <header className="bg-[#280449]/90 shadow-sm border-b border-purple-900/50 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
+        {/* Logo → homepage. The /app side of the two-way link (/ has a Dashboard
+            link; /app's logo returns home). "Dashboard" text removed — redundant
+            here and it collided with the logo. */}
+        <a href="/" className="flex items-center shrink-0" title="NOVA home" aria-label="NOVA home">
           <img
             src="/logo-dark.svg"
             alt="NOVA"
-            className="w-8 h-8 object-contain"
+            className="h-8 w-auto object-contain"
           />
-          <span className="font-museo text-lg font-bold text-white">Dashboard</span>
-        </div>
+        </a>
 
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-end leading-tight">
