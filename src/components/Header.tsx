@@ -67,24 +67,22 @@ export default function Header({
 
   // Detect network
   const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK === 'testnnet';
-  const networkUrl = isTestnet ? 'https://nova-sdk.com' : 'https://testnet.nova-sdk.com';
-
+  
   return (
     <header className="bg-[#280449]/90 shadow-sm border-b border-purple-900/50 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm">
       {/* Network Indicator — hidden on mobile to de-clutter the bar */}
       <div className="hidden md:flex items-center">
-        <a
-        href={networkUrl}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+        <span
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
             isTestnet
-              ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/50'
-              : 'bg-green-500/20 text-green-300 hover:bg-green-500/30 border border-green-500/50'
+              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/50'
+              : 'bg-green-500/20 text-green-300 border border-green-500/50'
           }`}
-          title={`Switch to ${isTestnet ? 'Mainnet' : 'Testnet'}`}
+          title={`Current network: ${isTestnet ? 'Testnet' : 'Mainnet'}`}
         >
           <span className={`w-2 h-2 rounded-full ${isTestnet ? 'bg-purple-400' : 'bg-green-400'}`} />
           {isTestnet ? 'Testnet' : 'Mainnet'}
-        </a>
+        </span>
       </div>
       <div className="flex items-center space-x-4 flex-1 justify-end">
         <a
