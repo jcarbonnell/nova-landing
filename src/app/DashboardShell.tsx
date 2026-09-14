@@ -74,7 +74,7 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
             onClick={handleSignOut}
             className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium px-4 py-2 rounded-md transition-colors"
           >
-            Sign out
+            Logout
           </button>
         </div>
       </header>
