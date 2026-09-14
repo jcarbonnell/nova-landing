@@ -17,7 +17,7 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: 'NOVA - Shared memory for Multi-Agent Systems.',
+  title: 'NOVA - Shared memory for AI agents.',
   description: 'NOVA is a permissioned memory layer for AI agents: encrypted, auditable, and self-sovereign.',
   icons: {
     icon: '/favicon.ico',

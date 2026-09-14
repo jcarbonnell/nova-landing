@@ -70,8 +70,8 @@ export default function Header({
 
   return (
     <header className="bg-[#280449]/90 shadow-sm border-b border-purple-900/50 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm">
-      {/* Network Indicator */}
-      <div className="flex items-center">
+      {/* Network Indicator — hidden on mobile to de-clutter the bar */}
+      <div className="hidden md:flex items-center">
         <a
         href={networkUrl}
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
@@ -90,7 +90,7 @@ export default function Header({
           href="https://civictech-ou.gitbook.io/nova-docs/"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm font-medium text-purple-100 hover:text-purple-300 transition-colors"
+          className="hidden md:inline text-sm font-medium text-purple-100 hover:text-purple-300 transition-colors"
         >
           Docs
         </a>
@@ -98,7 +98,7 @@ export default function Header({
           href="https://github.com/jcarbonnell/nova"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm font-medium text-purple-100 hover:text-purple-300 transition-colors"
+          className="hidden md:inline text-sm font-medium text-purple-100 hover:text-purple-300 transition-colors"
         >
           GitHub
         </a>
