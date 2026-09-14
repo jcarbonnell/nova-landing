@@ -31,6 +31,7 @@ export default function Header({
 
   const isConnected = isSignedIn && !!accountId;
   const loading = authLoading || walletLoading;
+  const navLinkClass = `${isConnected ? 'hidden md:inline' : 'inline'} text-sm font-medium text-purple-100 hover:text-purple-300 transition-colors`;
 
   const handleConnect = () => {
     if (!user) {
@@ -90,7 +91,7 @@ export default function Header({
           href="https://civictech-ou.gitbook.io/nova-docs/"
           target="_blank"
           rel="noopener noreferrer"
-          className="hidden md:inline text-sm font-medium text-purple-100 hover:text-purple-300 transition-colors"
+          className={navLinkClass}
         >
           Docs
         </a>
@@ -98,7 +99,7 @@ export default function Header({
           href="https://github.com/jcarbonnell/nova"
           target="_blank"
           rel="noopener noreferrer"
-          className="hidden md:inline text-sm font-medium text-purple-100 hover:text-purple-300 transition-colors"
+          className={navLinkClass}
         >
           GitHub
         </a>
@@ -118,7 +119,7 @@ export default function Header({
                 href="/app"
                 className="text-sm font-medium text-purple-100 hover:text-purple-300 transition-colors"
               >
-                Dashboard
+                Dashboard  
               </a>
             )}
             {isWalletUser && !hasWalletSession ? (

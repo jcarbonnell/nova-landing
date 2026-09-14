@@ -3,6 +3,7 @@
 import { useUser } from '@auth0/nextjs-auth0/client';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import ChatInterface from '@/components/ChatInterface';
 import { MessageSquare } from 'lucide-react';
@@ -713,23 +714,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
       </main>
 
       {/* Footer */}
-      <footer className="footer w-full bg-[#280449]/90 border-t border-purple-900/50 p-4 text-center text-sm">
-        <div className="flex justify-center space-x-6">
-          <a href="https://civictech-ou.gitbook.io/nova-docs/" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
-            Docs
-          </a>
-          <a href="https://github.com/jcarbonnell/nova" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
-            GitHub
-          </a>
-          <a href="https://t.me/nova_sdk" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
-            Contact
-          </a>
-          <a href="https://x.com/nova_sdk" target="_blank" rel="noopener noreferrer" className="hover:text-purple-300 transition-colors text-purple-200">
-            X
-          </a>
-        </div>
-        <p className="mt-2 text-purple-300">&copy; 2026 CivicTech OÜ. All rights reserved.</p>
-      </footer>
+      <Footer />
 
       {/* Modals */}
       <LoginModal
