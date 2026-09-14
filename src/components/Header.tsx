@@ -66,7 +66,7 @@ export default function Header({
   };
 
   // Detect network
-  const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK === 'testnnet';
+  const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK === 'testnet';
   
   return (
     <header className="bg-[#280449]/90 shadow-sm border-b border-purple-900/50 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm">
