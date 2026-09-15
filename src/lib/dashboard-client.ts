@@ -173,3 +173,26 @@ export async function loadGroupTransactions(groupId: string): Promise<Transactio
   const q = new URLSearchParams({ group_id: groupId }).toString();
   return novaFetch<Transaction[]>(`/api/nova/group-transactions?${q}`);
 }
+
+// The material the browser needs to decrypt a file (Phase 3). `key` is the
+// wrapped per-file/group key, `encrypted_b64` the ciphertext, `format` the codec
+// descriptor (null ⇒ v0/legacy). The server brokers these; decryption happens in
+// the browser via nova-decode. `format` is left as unknown-ish here (the decode
+// module owns the FileFormat type) to avoid a type dependency cycle.
+export interface PrepareRetrieveResult {
+  key: string;
+  encrypted_b64: string;
+  ipfs_hash: string;
+  location: string;
+  group_id: string;
+  format: { version: 1; compression?: 'deflate' } | null;
+}
+
+/** Broker the key + ciphertext + format for one file (browser decrypts). */
+export async function prepareRetrieve(
+  groupId: string,
+  ipfsHash: string,
+): Promise<PrepareRetrieveResult> {
+  const q = new URLSearchParams({ group_id: groupId, ipfs_hash: ipfsHash }).toString();
+  return novaFetch<PrepareRetrieveResult>(`/api/nova/prepare-retrieve?${q}`);
+}

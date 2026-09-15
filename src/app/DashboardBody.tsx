@@ -18,15 +18,17 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw, ShieldCheck, ShieldAlert, Download } from 'lucide-react';
 import {
   loadGroups,
   loadGroupMembers,
   loadGroupTransactions,
+  prepareRetrieve,
   DashboardFetchError,
   type GroupSummary,
   type Transaction,
 } from '@/lib/dashboard-client';
+import { decodeFile, sha256Hex, NovaDecodeError, type FileFormat } from '@/lib/nova-decode';
 
 interface DashboardBodyProps {
   accountId: string;
@@ -56,9 +58,33 @@ function isFastFS(tx: Transaction): boolean {
 
 function errMessage(e: unknown): string {
   if (e instanceof DashboardFetchError) return e.message;
+  if (e instanceof NovaDecodeError) return e.message;
   if (e instanceof Error) return e.message;
   return 'Something went wrong';
 }
+
+// Best-effort type/extension sniff from magic bytes (mirrors ChatInterface's
+// detectMimeType). The original filename/content-type isn't returned by
+// prepare_retrieve, so we infer for the download name; unknown → .bin (honest).
+function sniffExt(bytes: Uint8Array): string {
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return 'png';
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'jpg';
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) return 'gif';
+  if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) return 'pdf';
+  if (bytes[0] === 0x50 && bytes[1] === 0x4b) return 'zip';
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, 1000));
+    return 'txt';
+  } catch {
+    return 'bin';
+  }
+}
+
+// Per-file verify/decrypt outcome, keyed by trans_id.
+type VerifyState =
+  | { status: 'verifying' }
+  | { status: 'verified'; match: boolean; bytes: Uint8Array; ext: string }
+  | { status: 'error'; message: string; walletUnavailable: boolean };
 
 // ── badges ───────────────────────────────────────────────────────────────────
 
@@ -129,6 +155,88 @@ function WalletUnavailableNotice() {
   );
 }
 
+// ── integrity cell (per file row): Verify → decode+hash → pill (+ download) ────
+
+function IntegrityCell({
+  tx,
+  state,
+  onVerify,
+  onDownload,
+}: {
+  tx: Transaction;
+  state: VerifyState | undefined;
+  onVerify: () => void;
+  onDownload: (tx: Transaction, bytes: Uint8Array, ext: string) => void;
+}) {
+  // A tombstoned file has no retrievable ciphertext — don't offer verify.
+  if (tx.deleted) {
+    return <span className="text-purple-600 text-xs">—</span>;
+  }
+
+  if (!state) {
+    return (
+      <button
+        type="button"
+        onClick={onVerify}
+        className="px-2.5 py-1 rounded-md text-xs font-medium bg-purple-600/80 hover:bg-purple-600 text-white transition-colors"
+      >
+        Verify
+      </button>
+    );
+  }
+
+  if (state.status === 'verifying') {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-purple-300">
+        <Loader2 size={13} className="animate-spin" /> Verifying…
+      </span>
+    );
+  }
+
+  if (state.status === 'error') {
+    // The wallet + private-group gap (same as members/files sections): retry
+    // won't help, so show the calm notice, not a retry.
+    if (state.walletUnavailable) {
+      return (
+        <span className="text-xs text-purple-400" title="Coming with client-side signing">
+          Unavailable on wallet
+        </span>
+      );
+    }
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-red-300" title={state.message}>
+        <AlertCircle size={13} /> Failed
+        <button type="button" onClick={onVerify} className="underline hover:text-white">retry</button>
+      </span>
+    );
+  }
+
+  // verified — the integrity pill (dot + word), matching the network-pill style.
+  return (
+    <span className="flex items-center gap-2">
+      {state.match ? (
+        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-green-500/20 text-green-300 border border-green-500/50">
+          <span className="w-2 h-2 rounded-full bg-green-400" />
+          byte-identical
+        </span>
+      ) : (
+        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-red-500/20 text-red-300 border border-red-500/50">
+          <span className="w-2 h-2 rounded-full bg-red-400" />
+          byte-mismatched
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => onDownload(tx, state.bytes, state.ext)}
+        title="Download decrypted file"
+        className="text-purple-300 hover:text-white transition-colors"
+      >
+        <Download size={14} />
+      </button>
+    </span>
+  );
+}
+
 // ── main ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardBody({ accountId }: DashboardBodyProps) {
@@ -171,6 +279,7 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
 
     setMembers(null); setMembersError(null); setMembersWalletUnavailable(false); setMembersLoading(true);
     setTxs(null); setTxsError(null); setTxsWalletUnavailable(false); setTxsLoading(true);
+    setVerify({}); // drop any decrypted bytes from the previously-selected group
 
     loadGroupMembers(selected)
       .then((m) => { if (!cancelled) { setMembers(m); setMembersLoading(false); } })
@@ -194,6 +303,47 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
   }, [selected, detailReloadKey]);
 
   const retryDetail = () => setDetailReloadKey((k) => k + 1);
+
+  // Per-file verify state, keyed by trans_id. Cleared when the selected group
+  // changes (below) so no decrypted bytes linger across groups.
+  const [verify, setVerify] = useState<Record<string, VerifyState>>({});
+
+  // Retrieve → decode (browser) → hash → compare to the on-chain file_hash.
+  // Plaintext and key never leave the browser; the server only brokered the
+  // ciphertext + wrapped key.
+  const verifyFile = useCallback(async (tx: Transaction) => {
+    setVerify((v) => ({ ...v, [tx.trans_id]: { status: 'verifying' } }));
+    try {
+      const { key, encrypted_b64, format } = await prepareRetrieve(tx.group_id, tx.ipfs_hash);
+      const plaintext = await decodeFile(encrypted_b64, key, format as FileFormat | null);
+      const recomputed = await sha256Hex(plaintext);
+      const match = recomputed.toLowerCase() === tx.file_hash.toLowerCase();
+      setVerify((v) => ({
+        ...v,
+        [tx.trans_id]: { status: 'verified', match, bytes: plaintext, ext: sniffExt(plaintext) },
+      }));
+    } catch (e) {
+      const walletUnavailable = e instanceof DashboardFetchError && e.walletSignerUnavailable;
+      setVerify((v) => ({
+        ...v,
+        [tx.trans_id]: { status: 'error', message: errMessage(e), walletUnavailable },
+      }));
+    }
+  }, []);
+
+  // Download decrypted bytes (already in memory from a successful verify).
+  const downloadFile = useCallback((tx: Transaction, bytes: Uint8Array, ext: string) => {
+    const copy = bytes.slice();
+    const blob = new Blob([copy], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nova-${tx.trans_id.slice(0, 8)}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, []);
 
   // Split each section's error into the wallet-gap notice (no retry) vs a genuine
   // retryable error, so the JSX stays readable.
@@ -329,6 +479,7 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
                           <th className="px-3 py-2 font-medium">Backend</th>
                           <th className="px-3 py-2 font-medium">Date</th>
                           <th className="px-3 py-2 font-medium">Status</th>
+                          <th className="px-3 py-2 font-medium">Integrity</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -357,6 +508,14 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
                               ) : (
                                 <span className="text-purple-500 text-xs">active</span>
                               )}
+                            </td>
+                            <td className="px-3 py-2">
+                              <IntegrityCell
+                                tx={tx}
+                                state={verify[tx.trans_id]}
+                                onVerify={() => verifyFile(tx)}
+                                onDownload={downloadFile}
+                              />
                             </td>
                           </tr>
                         ))}
