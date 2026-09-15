@@ -17,8 +17,8 @@
 
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Loader2, AlertCircle, RefreshCw, ShieldCheck, ShieldAlert, Download } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Loader2, AlertCircle, RefreshCw, ShieldCheck, ShieldAlert, Download, ChevronDown, ChevronRight } from 'lucide-react';
 import {
   loadGroups,
   loadGroupMembers,
@@ -54,6 +54,17 @@ function formatDate(ts: string | null): string {
 
 function isFastFS(tx: Transaction): boolean {
   return tx.backend === 'FastFS';
+}
+
+// DeletionReason enum → human label (the regulator-facing wording).
+function reasonLabel(reason: string): string {
+  switch (reason) {
+    case 'MemberRevocation': return 'Member revoked';
+    case 'OwnerRequest': return 'Owner request';
+    case 'RetentionPolicy': return 'Retention policy';
+    case 'ComplianceRequest': return 'Compliance request';
+    default: return reason; // unknown future enum value — show it raw, don't hide it
+  }
 }
 
 function errMessage(e: unknown): string {
@@ -280,6 +291,7 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
     setMembers(null); setMembersError(null); setMembersWalletUnavailable(false); setMembersLoading(true);
     setTxs(null); setTxsError(null); setTxsWalletUnavailable(false); setTxsLoading(true);
     setVerify({}); // drop any decrypted bytes from the previously-selected group
+    setExpanded({});
 
     loadGroupMembers(selected)
       .then((m) => { if (!cancelled) { setMembers(m); setMembersLoading(false); } })
@@ -307,6 +319,11 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
   // Per-file verify state, keyed by trans_id. Cleared when the selected group
   // changes (below) so no decrypted bytes linger across groups.
   const [verify, setVerify] = useState<Record<string, VerifyState>>({});
+
+  // Which deleted rows have their audit detail expanded (keyed by trans_id).
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const toggleExpanded = (id: string) =>
+    setExpanded((e) => ({ ...e, [id]: !e[id] }));
 
   // Retrieve → decode (browser) → hash → compare to the on-chain file_hash.
   // Plaintext and key never leave the browser; the server only brokered the
@@ -484,8 +501,8 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
                       </thead>
                       <tbody>
                         {txs.map((tx) => (
+                          <Fragment key={tx.trans_id}>
                           <tr
-                            key={tx.trans_id}
                             className="border-t border-purple-700/30 text-purple-100"
                           >
                             <td className="px-3 py-2 truncate" title={tx.user_id}>
@@ -502,9 +519,16 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
                             </td>
                             <td className="px-3 py-2">
                               {tx.deleted ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/20 border border-red-400/30 text-red-300">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpanded(tx.trans_id)}
+                                  className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/20 border border-red-400/30 text-red-300 hover:bg-red-500/30 transition-colors"
+                                  title="Show deletion details"
+                                  aria-expanded={!!expanded[tx.trans_id]}
+                                >
+                                  {expanded[tx.trans_id] ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
                                   deleted
-                                </span>
+                                </button>
                               ) : (
                                 <span className="text-purple-500 text-xs">active</span>
                               )}
@@ -518,6 +542,25 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
                               />
                             </td>
                           </tr>
+                          {tx.deleted && expanded[tx.trans_id] && (
+                            <tr className="bg-red-950/20">
+                              <td colSpan={6} className="px-3 py-3 border-t border-red-700/20">
+                                <div className="flex flex-col gap-1.5 text-xs text-purple-200">
+                                  <div className="font-semibold text-red-300 mb-0.5">Deletion record</div>
+                                  <div className="flex flex-wrap gap-x-8 gap-y-1.5">
+                                    <span><span className="text-purple-400">Reason: </span>{reasonLabel(tx.deleted.reason)}</span>
+                                    <span><span className="text-purple-400">Deleted by: </span><span title={tx.deleted.deleted_by}>{displayName(tx.deleted.deleted_by)}</span></span>
+                                    <span><span className="text-purple-400">Deleted at: </span>{formatDate(tx.deleted.deleted_at)}</span>
+                                    <span><span className="text-purple-400">Uploaded: </span>{formatDate(tx.timestamp)}</span>
+                                  </div>
+                                  <div className="text-purple-500 mt-1">
+                                    The encrypted content and its key were destroyed; this on-chain record is retained as a permanent, tamper-evident audit entry.
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </Fragment>
                         ))}
                       </tbody>
                     </table>
