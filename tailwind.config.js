@@ -10,14 +10,14 @@ module.exports = {
     extend: {
       // Dashboard-scoped theme tokens
       colors: {
-        'nova-bg': 'var(--nova-bg)',
-        'nova-surface': 'var(--nova-surface)',
-        'nova-surface-2': 'var(--nova-surface-2)',
-        'nova-border': 'var(--nova-border)',
-        'nova-text': 'var(--nova-text)',
-        'nova-text-dim': 'var(--nova-text-dim)',
-        'nova-purple': 'var(--nova-accent-purple)',
-        'nova-orange': 'var(--nova-accent-orange)',
+        'nova-bg': 'var(--novadash-bg)',
+        'nova-surface': 'var(--novadash-surface)',
+        'nova-surface-2': 'var(--novadash-surface-2)',
+        'nova-border': 'var(--novadash-border)',
+        'nova-text': 'var(--novadash-text)',
+        'nova-text-dim': 'var(--novadash-text-dim)',
+        'nova-purple': 'var(--novadash-accent-purple)',
+        'nova-orange': 'var(--novadash-accent-orange)',
       },
       fontFamily: {
         // `font-mono` → IBM Plex Mono (via the --font-mono token). Titles keep

@@ -37,33 +37,28 @@
     font-family: var(--font-space);
   }
 
-  /* ── Dashboard-scoped theme tokens (Path 1) ─────────────────────────────────
-     Consumed ONLY by /app dashboard components (bg-[var(--nova-*)] etc.).
-     The existing shadcn --background/.dark vars and the marketing page do NOT
-     read these, so this attribute on <html> cannot leak into marketing.
-     Neutral technical ground; purple+orange as accents only. Values are the
-     INITIAL cut — dialed in via the build-and-judge loop. */
+  /* ── Dashboard-scoped theme tokens -- */
   [data-nova-theme='dark'] {
-    --nova-bg: #0e0e11;            /* near-black neutral ground */
-    --nova-surface: #17171c;       /* panels / cards */
-    --nova-surface-2: #1e1e25;     /* rows / raised */
-    --nova-border: #2c2c36;        /* hairline separators */
-    --nova-text: #e7e7ea;          /* primary text */
-    --nova-text-dim: #9a9aa6;      /* secondary text */
-    --nova-accent-purple: #a855f7; /* identity thread (titles/accents) */
-    --nova-accent-orange: #fb923c; /* identity thread (titles/accents) */
+    --novadash-bg: #0e0e11;
+    --novadash-surface: #17171c;
+    --novadash-surface-2: #1e1e25;
+    --novadash-border: #2c2c36;
+    --novadash-text: #e7e7ea;
+    --novadash-text-dim: #9a9aa6;
+    --novadash-accent-purple: #a855f7;
+    --novadash-accent-orange: #fb923c;
     --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
   }
 
   [data-nova-theme='light'] {
-    --nova-bg: #f4f4f2;            /* near-white paper ground */
-    --nova-surface: #ffffff;
-    --nova-surface-2: #ebebe8;
-    --nova-border: #d6d6d0;
-    --nova-text: #1a1a1f;
-    --nova-text-dim: #5f5f6b;
-    --nova-accent-purple: #7c3aed;
-    --nova-accent-orange: #ea580c;
+    --novadash-bg: #f4f4f2;
+    --novadash-surface: #ffffff;
+    --novadash-surface-2: #ebebe8;
+    --novadash-border: #d6d6d0;
+    --novadash-text: #1a1a1f;
+    --novadash-text-dim: #5f5f6b;
+    --novadash-accent-purple: #7c3aed;
+    --novadash-accent-orange: #ea580c;
     --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
   }
 
