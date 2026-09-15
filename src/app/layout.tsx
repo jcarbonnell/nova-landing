@@ -2,7 +2,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import Providers from '@/components/Providers';
-import { MuseoModerno, Space_Grotesk } from 'next/font/google';
+import { MuseoModerno, Space_Grotesk, IBM_Plex_Mono } from 'next/font/google';
 
 const museoModerno = MuseoModerno({ 
   subsets: ['latin'],
@@ -14,6 +14,13 @@ const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
   variable: '--font-space'
+});
+
+// Dashboard data font
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-mono-loader',
 });
 
 export const metadata: Metadata = {
@@ -41,9 +48,22 @@ export default function RootLayout({
   `.replace(/\s{2,}/g, ' ').trim();
 
   return (
-    <html lang="en" className={`${museoModerno.variable} ${spaceGrotesk.variable}`}>
+    <html
+      lang="en"
+      className={`${museoModerno.variable} ${spaceGrotesk.variable} ${ibmPlexMono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <meta httpEquiv="Content-Security-Policy" content={csp} />
+        {/* No-flash dashboard theme: set data-nova-theme on <html> BEFORE paint,
+            from the nova-theme cookie, falling back to prefers-color-scheme.
+            Marketing ignores --nova-* tokens, so this is inert on /. Runs once,
+            pre-hydration. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var m=document.cookie.match(/(?:^|; )nova-theme=(dark|light)/);var t=m?m[1]:(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-nova-theme',t);}catch(e){document.documentElement.setAttribute('data-nova-theme','dark');}})();`,
+          }}
+        />
       </head>
       <body>
           <Providers>

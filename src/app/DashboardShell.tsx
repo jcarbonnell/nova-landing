@@ -43,8 +43,18 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
     window.location.href = `/api/auth/dashboard-logout?kind=${kind}`;
   };
 
+  // TEMPORARY theme toggle for the build-and-judge loop. Flips data-nova-theme on
+  // <html> + persists the nova-theme cookie. The REAL toggle lands in the Account
+  // section (§8); REMOVE this block + the button below when that ships.
+  const toggleTheme = () => {
+    const cur = document.documentElement.getAttribute('data-nova-theme') === 'light' ? 'light' : 'dark';
+    const next = cur === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-nova-theme', next);
+    document.cookie = `nova-theme=${next}; path=/; max-age=31536000; samesite=lax`;
+  };
+
   return (
-    <div className="flex flex-col min-h-screen bg-[#280449]">
+    <div className="flex flex-col min-h-screen bg-[var(--nova-bg)] text-[var(--nova-text)]">
       {/* Topbar — identity + sign-out. Distinct from the marketing Header (no
           wallet/login controls); this surface is only reached when already
           authed with a NOVA account. */}
@@ -71,6 +81,15 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
               </span>
             )}
           </div>
+          {/* TEMPORARY — remove when the Account-section theme toggle ships (§8). */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="text-xs font-mono px-2 py-1 rounded border border-[var(--nova-border)] text-[var(--nova-text-dim)] hover:text-[var(--nova-text)] transition-colors"
+            title="Toggle theme (temporary)"
+          >
+            theme
+          </button>
           <button
             type="button"
             onClick={handleSignOut}
