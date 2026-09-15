@@ -54,7 +54,7 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[var(--nova-bg)] text-[var(--nova-text)]">
+    <div className="flex flex-col min-h-screen bg-nova-bg text-nova-text">
       {/* Topbar — identity + sign-out. Distinct from the marketing Header (no
           wallet/login controls); this surface is only reached when already
           authed with a NOVA account. */}
@@ -85,7 +85,7 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
           <button
             type="button"
             onClick={toggleTheme}
-            className="text-xs font-mono px-2 py-1 rounded border border-[var(--nova-border)] text-[var(--nova-text-dim)] hover:text-[var(--nova-text)] transition-colors"
+            className="text-xs font-mono px-2 py-1 rounded border border-nova-border text-nova-text-dim hover:text-nova-text transition-colors"
             title="Toggle theme (temporary)"
           >
             theme

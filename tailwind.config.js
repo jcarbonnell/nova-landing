@@ -7,7 +7,25 @@ module.exports = {
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      // Dashboard-scoped theme tokens
+      colors: {
+        'nova-bg': 'var(--nova-bg)',
+        'nova-surface': 'var(--nova-surface)',
+        'nova-surface-2': 'var(--nova-surface-2)',
+        'nova-border': 'var(--nova-border)',
+        'nova-text': 'var(--nova-text)',
+        'nova-text-dim': 'var(--nova-text-dim)',
+        'nova-purple': 'var(--nova-accent-purple)',
+        'nova-orange': 'var(--nova-accent-orange)',
+      },
+      fontFamily: {
+        // `font-mono` → IBM Plex Mono (via the --font-mono token). Titles keep
+        // `font-museo`, labels/prose keep `font-space` (both already defined as
+        // utilities in globals.css).
+        mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
+      },
+    },
   },
   plugins: [],
   safelist: [
