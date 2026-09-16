@@ -173,7 +173,7 @@ function ApiKeySection({
   setRotateConfirm: (v: boolean) => void;
 }) {
   return (
-    <div className="mt-6 pt-6 border-t border-purple-500/30">
+    <div className="mt-6 pt-6 border-t border-nova-border">
       <div className="mb-4 p-4 bg-nova-surface-2 border border-nova-border rounded-lg text-center">
         <p className="text-nova-text text-sm mb-2"><strong>🔑 SDK API Key</strong></p>
         <p className="text-nova-text-dim text-sm">
@@ -193,8 +193,8 @@ function ApiKeySection({
             <p className="text-green-200 text-sm mb-2">{apiKeyIsRotated ? '✅ API Key Rotated — previous key is now invalid' : '✅ API Key'}</p>
             <p className="text-yellow-200 text-xs">⚠️ Save this key now — you won&apos;t see it again!</p>
           </div>
-          <div className="flex items-center gap-2 p-3 bg-gray-800/50 rounded-lg">
-            <code className="text-purple-200 text-xs font-mono flex-1 truncate">{apiKey}</code>
+          <div className="flex items-center gap-2 p-3 bg-nova-surface-2 border border-nova-border rounded-lg">
+            <code className="text-nova-text text-xs font-mono flex-1 truncate">{apiKey}</code>
             <button type="button" onClick={onCopy} className="text-gray-400 hover:text-purple-300 transition-colors p-1 rounded hover:bg-gray-700/50" title="Copy API key">
               {apiKeyCopied ? (
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><polyline points="20 6 9 17 4 12" /></svg>
