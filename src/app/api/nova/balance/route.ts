@@ -28,9 +28,8 @@ export const dynamic = 'force-dynamic';
 const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || 'https://rpc.mainnet.near.org';
 
 // yoctoNEAR (10^24) → NEAR, 4 decimals, no rounding surprises for display.
-function formatNear(yocto: bigint): string {
-  // Exact BigInt math — Number()/1e24 would lose precision on 24-digit values.
-  const y = yocto;
+function formatNear(yocto: bigint | string): string {
+  const y = BigInt(yocto);
   const base = BigInt('1000000000000000000000000'); // 10^24 (yoctoNEAR per NEAR)
   const whole = y / base;
   const frac = y % base;
@@ -59,15 +58,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       account_id: accountId,
-      balance_yocto: account.amount.toString(),
+      balance_yocto: account.amount,
       balance_near: formatNear(account.amount),
     });
-  } catch (e) {
-    // TEMPORARY diagnostic — surface the real RPC error so we fix the actual
-    // cause, not a guess. Revert to an opaque message before this ships for real.
-    return NextResponse.json(
-      { error: 'Failed to read balance', detail: e instanceof Error ? e.message : String(e) },
-      { status: 502 },
-    );
+  } catch {
+    return NextResponse.json({ error: 'Failed to read balance' }, { status: 502 });
   }
 }
