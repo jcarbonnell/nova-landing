@@ -62,7 +62,12 @@ export async function GET(req: NextRequest) {
       balance_yocto: account.amount.toString(),
       balance_near: formatNear(account.amount),
     });
-  } catch {
-    return NextResponse.json({ error: 'Failed to read balance' }, { status: 502 });
+  } catch (e) {
+    // TEMPORARY diagnostic — surface the real RPC error so we fix the actual
+    // cause, not a guess. Revert to an opaque message before this ships for real.
+    return NextResponse.json(
+      { error: 'Failed to read balance', detail: e instanceof Error ? e.message : String(e) },
+      { status: 502 },
+    );
   }
 }
