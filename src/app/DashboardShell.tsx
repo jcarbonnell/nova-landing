@@ -21,6 +21,7 @@
 
 'use client';
 
+import { useState, useEffect } from 'react';
 import DashboardBody from './DashboardBody';
 import Footer from '@/components/Footer';
 
@@ -44,14 +45,18 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
     window.location.href = `/api/auth/dashboard-logout?kind=${kind}`;
   };
 
-  // TEMPORARY theme toggle for the build-and-judge loop. Flips data-nova-theme on
-  // <html> + persists the nova-theme cookie. The REAL toggle lands in the Account
-  // section (§8); REMOVE this block + the button below when that ships.
+  // theme toggle
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  useEffect(() => {
+    const cur = document.documentElement.getAttribute('data-nova-theme');
+    setTheme(cur === 'light' ? 'light' : 'dark');
+  }, []);
+
   const toggleTheme = () => {
-    const cur = document.documentElement.getAttribute('data-nova-theme') === 'light' ? 'light' : 'dark';
-    const next = cur === 'light' ? 'dark' : 'light';
+    const next = theme === 'light' ? 'dark' : 'light';
     document.documentElement.setAttribute('data-nova-theme', next);
     document.cookie = `nova-theme=${next}; path=/; max-age=31536000; samesite=lax`;
+    setTheme(next);
   };
 
   return (
@@ -82,15 +87,6 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
               </span>
             )}
           </div>
-          {/* TEMPORARY — remove when the Account-section theme toggle ships (§8). */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="text-xs font-mono px-2 py-1 rounded border border-nova-border text-nova-text-dim hover:text-nova-text transition-colors"
-            title="Toggle theme (temporary)"
-          >
-            theme
-          </button>
           <button
             type="button"
             onClick={handleSignOut}
@@ -117,7 +113,18 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
         </div>
       </main>
 
-      <Footer />
+      <Footer
+        rightSlot={
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="text-xs font-mono px-2 py-1 rounded border border-nova-border text-nova-text-dim hover:text-nova-text transition-colors"
+            title="Toggle theme (temporary)"
+          >
+            {theme === 'light' ? 'dark' : 'light'}
+          </button>
+        }
+      />
     </div>
   );
 }

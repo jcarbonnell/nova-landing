@@ -13,13 +13,15 @@
 
 'use client';
 
-export default function Footer() {
+import type { ReactNode } from 'react';
+
+export default function Footer({ rightSlot }: { rightSlot?: ReactNode }) {
   const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK === 'testnet';
   const destinationUrl = isTestnet ? 'https://nova-sdk.com' : 'https://testnet.nova-sdk.com';
   const destinationLabel = isTestnet ? 'Mainnet' : 'Testnet'; // where the link goes
 
   return (
-    <footer className="footer w-full bg-[#280449]/90 border-t border-purple-900/50 p-4 text-center text-sm">
+    <footer className="footer relative w-full bg-[#280449]/90 border-t border-purple-900/50 p-4 text-center text-sm">
       <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2">
         {/* Network swap — a navigation link to the OTHER network. The Header hides
             its pill on mobile, so this lives here for all devices. Label + color
@@ -72,6 +74,8 @@ export default function Footer() {
         </a>
       </div>
       <p className="mt-2 text-purple-300">&copy; 2026 CivicTech OÜ. All rights reserved.</p>
+
+      {rightSlot && <div className="absolute right-4 bottom-3">{rightSlot}</div>}
     </footer>
   );
 }
