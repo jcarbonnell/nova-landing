@@ -29,8 +29,11 @@ import styles from '@/styles/modal.module.css';
 
 interface AccountControlsProps {
   accountId: string;
-  onSubmit: (sessionId: string, amount: string) => void;
-  onClose: () => void;
+  // Transitional (modal-only): supplied by PaymentModal, omitted on the
+  // standalone /app/account page. 2b replaces the PingPay completion behaviour
+  // with an inline success state and removes these entirely.
+  onSubmit?: (sessionId: string, amount: string) => void;
+  onClose?: () => void;
 }
 
 export default function AccountControls({ accountId, onSubmit, onClose }: AccountControlsProps) {
@@ -99,8 +102,8 @@ export default function AccountControls({ accountId, onSubmit, onClose }: Accoun
           onProcessComplete: (result: unknown) => {
             console.log('PingPay: Process complete', result);
             const data = (result as { data?: { depositAddress?: string; amount?: string } })?.data;
-            onSubmit(data?.depositAddress || 'pingpay-complete', data?.amount || amount);
-            onClose();
+            onSubmit?.(data?.depositAddress || 'pingpay-complete', data?.amount || amount);
+            onClose?.();
           },
           onProcessFailed: (errorInfo: unknown) => {
             console.error('PingPay: Process failed', errorInfo);
