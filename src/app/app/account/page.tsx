@@ -11,7 +11,7 @@ import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { getServerSession } from '@/lib/auth0';
 import { verifyNovaSession } from '@/lib/session';
-import DashboardChrome from '../DashboardChrome';
+import DashboardChrome from '../../DashboardChrome';
 import AccountControls from '@/components/AccountControls';
 
 export const dynamic = 'force-dynamic';
