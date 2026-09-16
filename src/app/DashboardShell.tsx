@@ -22,6 +22,7 @@
 'use client';
 
 import DashboardBody from './DashboardBody';
+import Footer from '@/components/Footer';
 
 interface DashboardShellProps {
   email: string;
@@ -115,6 +116,8 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
           <DashboardBody accountId={accountId} />
         </div>
       </main>
+
+      <Footer />
     </div>
   );
 }
