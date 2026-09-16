@@ -190,8 +190,8 @@ function ApiKeySection({
       {apiKey ? (
         <div className="mb-4">
           <div className="p-3 bg-green-500/20 border border-green-500/50 rounded-lg mb-3">
-            <p className="text-green-200 text-sm mb-2">{apiKeyIsRotated ? '✅ API Key Rotated — previous key is now invalid' : '✅ API Key'}</p>
-            <p className="text-yellow-200 text-xs">⚠️ Save this key now — you won&apos;t see it again!</p>
+            <p className="text-green-700 text-sm mb-2 font-medium">{apiKeyIsRotated ? '✅ API Key Rotated — previous key is now invalid' : '✅ API Key'}</p>
+            <p className="text-amber-700 text-xs font-medium">⚠️ Save this key now — you won&apos;t see it again!</p>
           </div>
           <div className="flex items-center gap-2 p-3 bg-nova-surface-2 border border-nova-border rounded-lg">
             <code className="text-nova-text text-xs font-mono flex-1 truncate">{apiKey}</code>
