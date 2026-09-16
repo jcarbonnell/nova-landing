@@ -75,7 +75,9 @@ export default function Footer({ rightSlot }: { rightSlot?: ReactNode }) {
       </div>
       <p className="mt-2 text-purple-300">&copy; 2026 CivicTech OÜ. All rights reserved.</p>
 
-      {rightSlot && <div className="absolute right-4 bottom-3">{rightSlot}</div>}
+      {rightSlot && (
+        <div className="absolute right-4 top-1/2 -translate-y-1/2">{rightSlot}</div>
+      )}
     </footer>
   );
 }
