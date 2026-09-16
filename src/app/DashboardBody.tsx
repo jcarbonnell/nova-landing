@@ -378,7 +378,7 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
       {/* ── Group list ─────────────────────────────────────────────────────── */}
       <div className="w-full md:w-1/3 shrink-0">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-museo text-lg font-bold text-white">Groups</h2>
+          <h2 className="font-museo text-lg font-bold text-nova-text">Groups</h2>
           {groups && !groupsLoading && (
             <span className="text-xs text-purple-400">{groups.length}</span>
           )}
@@ -411,7 +411,7 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
                         : 'border-purple-500/30 bg-purple-900/20 hover:bg-purple-800/30'
                     }`}
                   >
-                    <span className="font-space text-sm text-purple-100 truncate" title={g.group_id}>
+                    <span className="font-space text-sm text-nova-text truncate" title={g.group_id}>
                       {g.group_id}
                     </span>
                     <RoleBadges roles={g.roles} />
@@ -427,21 +427,21 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
       <div className="w-full md:flex-1 min-w-0">
         {!selected ? (
           <div className="rounded-xl border border-purple-500/30 bg-purple-900/20 p-10 text-center">
-            <p className="font-space text-purple-300">
+            <p className="font-space text-nova-text-dim">
               Select a group to view its members and files.
             </p>
           </div>
         ) : (
           <div className="flex flex-col gap-6">
             <div>
-              <h2 className="font-museo text-lg font-bold text-white mb-1 truncate" title={selected}>
+              <h2 className="font-museo text-lg font-bold text-nova-text mb-1 truncate" title={selected}>
                 {selected}
               </h2>
             </div>
 
             {/* Members */}
             <section>
-              <h3 className="font-space text-sm font-semibold text-purple-200 mb-2">Members</h3>
+              <h3 className="font-space text-sm font-semibold text-nova-purple mb-2">Members</h3>
               {membersLoading && <Spinner label="Loading members…" />}
               {membersErrorInfo.walletUnavailable && !membersLoading && (
                 <WalletUnavailableNotice />
@@ -457,7 +457,7 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
                     {members.map((m) => (
                       <li
                         key={m}
-                        className="flex items-center gap-1.5 rounded-full border border-purple-500/30 bg-purple-900/30 px-3 py-1 text-sm text-purple-100"
+                        className="flex items-center gap-1.5 rounded-full border border-purple-500/30 bg-purple-900/30 px-3 py-1 text-sm text-nova-text"
                         title={m}
                       >
                         {displayName(m)}
@@ -475,7 +475,7 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
 
             {/* Transactions */}
             <section>
-              <h3 className="font-space text-sm font-semibold text-purple-200 mb-2">Files</h3>
+              <h3 className="font-space text-sm font-semibold text-nova-purple mb-2">Files</h3>
               {txsLoading && <Spinner label="Loading files…" />}
               {txsErrorInfo.walletUnavailable && !txsLoading && (
                 <WalletUnavailableNotice />
@@ -489,7 +489,7 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
                 ) : (
                   <div className="overflow-x-auto rounded-xl border border-purple-500/30">
                     <table className="w-full text-left text-sm">
-                      <thead className="bg-purple-900/40 text-purple-300">
+                      <thead className="bg-nova-surface-2 text-nova-purple">
                         <tr>
                           <th className="px-3 py-2 font-medium">Uploader</th>
                           <th className="px-3 py-2 font-medium">File hash</th>
@@ -505,7 +505,7 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
                           <tr
                             className="border-t border-purple-700/30 text-purple-100"
                           >
-                            <td className="px-3 py-2 truncate" title={tx.user_id}>
+                            <td className="px-3 py-2 truncate text-nova-purple" title={tx.user_id}>
                               {displayName(tx.user_id)}
                             </td>
                             <td className="px-3 py-2 font-mono text-xs text-purple-300" title={tx.file_hash}>

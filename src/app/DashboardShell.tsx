@@ -70,7 +70,7 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
             here and it collided with the logo. */}
         <a href="/" className="flex items-center shrink-0" title="NOVA home" aria-label="NOVA home">
           <img
-            src="/logo-dark.svg"
+            src={theme === 'light' ? '/logo.svg' : '/logo-dark.svg'}
             alt="NOVA"
             className="h-8 w-auto object-contain"
           />

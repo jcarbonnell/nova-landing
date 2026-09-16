@@ -46,8 +46,8 @@ export default function Footer({ rightSlot, themed = false }: { rightSlot?: Reac
           href={destinationUrl}
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
             isTestnet
-              ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30 border border-green-500/50'
-              : 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/50'
+              ? `bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 ${themed ? 'text-green-700' : 'text-green-300'}`
+              : `bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 ${themed ? 'text-nova-purple' : 'text-purple-300'}`
           }`}
           title={`Switch to ${destinationLabel}`}
         >
