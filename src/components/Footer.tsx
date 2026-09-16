@@ -15,13 +15,28 @@
 
 import type { ReactNode } from 'react';
 
-export default function Footer({ rightSlot }: { rightSlot?: ReactNode }) {
+// `themed` switches the footer's own chrome (background, border, text) from the
+// hardcoded marketing purple to the dashboard `nova-*` tokens. Default = false so
+// the marketing page (/) is byte-identical to before; /app passes themed. This is
+// needed because the nova-* tokens are ONLY defined under [data-nova-theme] (set
+// on /app, not on /), so tokens on / would resolve to undefined vars.
+export default function Footer({ rightSlot, themed = false }: { rightSlot?: ReactNode; themed?: boolean }) {
   const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK === 'testnet';
   const destinationUrl = isTestnet ? 'https://nova-sdk.com' : 'https://testnet.nova-sdk.com';
   const destinationLabel = isTestnet ? 'Mainnet' : 'Testnet'; // where the link goes
 
+  // Link + copyright colors: nova tokens when themed (/app, both themes), else the
+  // marketing purples (/). The network-swap pill keeps its own green/purple styling
+  // in both — it's a status color, not chrome.
+  const linkClass = themed
+    ? 'hover:opacity-80 transition-opacity text-nova-text-dim'
+    : 'hover:text-purple-300 transition-colors text-purple-200';
+  const copyrightClass = themed ? 'mt-2 text-nova-text-dim' : 'mt-2 text-purple-300';
+
   return (
-    <footer className="footer relative w-full bg-[#280449]/90 border-t border-purple-900/50 p-4 text-center text-sm">
+    <footer className={`footer relative w-full border-t p-4 text-center text-sm ${
+      themed ? 'bg-nova-surface border-nova-border' : 'bg-[#280449]/90 border-purple-900/50'
+    }`}>
       <div className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2">
         {/* Network swap — a navigation link to the OTHER network. The Header hides
             its pill on mobile, so this lives here for all devices. Label + color
@@ -44,7 +59,7 @@ export default function Footer({ rightSlot }: { rightSlot?: ReactNode }) {
           href="https://civictech-ou.gitbook.io/nova-docs/"
           target="_blank"
           rel="noopener noreferrer"
-          className="hover:text-purple-300 transition-colors text-purple-200"
+          className={linkClass}
         >
           Docs
         </a>
@@ -52,7 +67,7 @@ export default function Footer({ rightSlot }: { rightSlot?: ReactNode }) {
           href="https://github.com/jcarbonnell/nova"
           target="_blank"
           rel="noopener noreferrer"
-          className="hover:text-purple-300 transition-colors text-purple-200"
+          className={linkClass}
         >
           GitHub
         </a>
@@ -60,20 +75,20 @@ export default function Footer({ rightSlot }: { rightSlot?: ReactNode }) {
           href="https://t.me/nova_sdk"
           target="_blank"
           rel="noopener noreferrer"
-          className="hover:text-purple-300 transition-colors text-purple-200"
+          className={linkClass}
         >
           Contact
         </a>
-        <a
+        <a 
           href="https://x.com/nova_sdk"
           target="_blank"
           rel="noopener noreferrer"
-          className="hover:text-purple-300 transition-colors text-purple-200"
+          className={linkClass}
         >
           X
         </a>
       </div>
-      <p className="mt-2 text-purple-300">&copy; 2026 CivicTech OÜ. All rights reserved.</p>
+      <p className={copyrightClass}>&copy; 2026 CivicTech OÜ. All rights reserved.</p>
 
       {rightSlot && (
         <div className="absolute right-4 top-1/2 -translate-y-1/2">{rightSlot}</div>

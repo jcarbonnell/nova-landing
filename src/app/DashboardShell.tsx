@@ -64,7 +64,7 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
       {/* Topbar — identity + sign-out. Distinct from the marketing Header (no
           wallet/login controls); this surface is only reached when already
           authed with a NOVA account. */}
-      <header className="bg-[#280449]/90 shadow-sm border-b border-purple-900/50 px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm">
+        <header className="bg-nova-surface shadow-sm border-b border-nova-border px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm">
         {/* Logo → homepage. The /app side of the two-way link (/ has a Dashboard
             link; /app's logo returns home). "Dashboard" text removed — redundant
             here and it collided with the logo. */}
@@ -78,11 +78,11 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
 
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-end leading-tight">
-            <span className="text-sm font-medium text-purple-100 max-w-[12rem] truncate" title={accountId}>
+            <span className="text-sm font-medium text-nova-text max-w-[12rem] truncate" title={accountId}>
               {displayName}
             </span>
             {email && (
-              <span className="text-xs text-purple-400 max-w-[12rem] truncate" title={email}>
+              <span className="text-xs text-nova-text-dim max-w-[12rem] truncate" title={email}>
                 {email}
               </span>
             )}
@@ -102,11 +102,11 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
           gated shell itself, provable before any read exists. */}
       <main className="flex-1 flex flex-col items-center px-4 py-10 lg:py-16">
         <div className="w-full max-w-6xl mx-auto">
-          <h1 className="font-museo text-2xl md:text-3xl font-black text-white mb-2 tracking-tight">
+          <h1 className="font-museo text-2xl md:text-3xl font-black text-nova-text mb-2 tracking-tight">
             Your groups
           </h1>
-          <p className="font-space text-purple-300 mb-8">
-            Signed in as <span className="text-purple-100">{accountId}</span>.
+          <p className="font-space text-nova-text-dim mb-8">
+            Signed in as <span className="text-nova-text">{accountId}</span>.
           </p>
           
           <DashboardBody accountId={accountId} />
@@ -114,6 +114,7 @@ export default function DashboardShell({ email, accountId }: DashboardShellProps
       </main>
 
       <Footer
+        themed
         rightSlot={
           <button
             type="button"
