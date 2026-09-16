@@ -208,18 +208,18 @@ export default function AccountControls({ accountId }: AccountControlsProps) {
       {isTestnet && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0' }}>
           <div style={{ width: '100%', maxWidth: '540px' }}>
-            <div className="mb-4 p-4 bg-purple-500/20 border border-purple-500/50 rounded-lg text-center">
-              <p className="text-purple-200 text-sm mb-2"><strong>🧪 Testnet Mode</strong></p>
-              <p className="text-gray-300 text-sm">
+            <div className="mb-4 p-4 bg-nova-surface-2 border border-nova-border rounded-lg text-center">
+              <p className="text-nova-text text-sm mb-2"><strong>🧪 Testnet Mode</strong></p>
+              <p className="text-nova-text-dim text-sm">
                 Testnet accounts are free and can be funded automatically by clicking the &quot;Request Tokens&quot; button below.
               </p>
             </div>
 
             {accountId && (
-              <div className="mb-4 p-3 bg-gray-800/50 rounded-lg">
-                <p className="text-gray-400 text-xs mb-1">Connected Account</p>
+              <div className="mb-4 p-3 bg-nova-surface-2 border border-nova-border rounded-lg">
+                <p className="text-nova-text-dim text-xs mb-1">Connected Account</p>
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-purple-200 text-sm font-mono truncate flex-1">{accountId}</p>
+                  <p className="text-nova-text text-sm font-mono truncate flex-1">{accountId}</p>
                   <button type="button" onClick={copyToClipboard} className="text-gray-400 hover:text-purple-300 transition-colors p-1 rounded hover:bg-gray-700/50" title="Copy to clipboard">
                     {copied ? (
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><polyline points="20 6 9 17 4 12" /></svg>
@@ -250,9 +250,9 @@ export default function AccountControls({ accountId }: AccountControlsProps) {
             </Button>
 
             <div className="mt-6 pt-6 border-t border-purple-500/30">
-              <div className="mb-4 p-4 bg-blue-500/20 border border-blue-500/50 rounded-lg text-center">
-                <p className="text-blue-200 text-sm mb-2"><strong>🔑 SDK API Key</strong></p>
-                <p className="text-gray-300 text-sm">
+              <div className="mb-4 p-4 bg-nova-surface-2 border border-nova-border rounded-lg text-center">
+                <p className="text-nova-text text-sm mb-2"><strong>🔑 SDK API Key</strong></p>
+                <p className="text-nova-text-dim text-sm">
                   Click generate to reveal your API key, whether you already have one or not.
                   Then you will be able to click on rotate to generate a fresh key and
                   permanently invalidate the old one.
@@ -322,19 +322,19 @@ export default function AccountControls({ accountId }: AccountControlsProps) {
             <div className={styles.alertDanger} style={{ width: '100%', maxWidth: '540px', marginBottom: '16px' }}>{error}</div>
           )}
           <div style={{ width: '100%', maxWidth: '540px' }}>
-            <div className="mb-4 p-4 bg-purple-500/20 border border-purple-500/50 rounded-lg text-center">
-              <p className="text-purple-200 text-sm mb-2"><strong>💳 Get NEAR coins with a card payment</strong></p>
-              <p className="text-gray-300 text-sm">
+            <div className="mb-4 p-4 bg-nova-surface-2 border border-nova-border rounded-lg text-center">
+              <p className="text-nova-text text-sm mb-2"><strong>💳 Get NEAR coins with a card payment</strong></p>
+              <p className="text-nova-text-dim text-sm">
                 Click the button below to purchase NEAR credits with your
                 credit/debit card via PingPay. These tokens will be burned through your file sharing operations.
               </p>
             </div>
 
             {accountId && (
-              <div className="mb-4 p-3 bg-gray-800/50 rounded-lg" style={{ width: '100%', maxWidth: '540px' }}>
-                <p className="text-gray-400 text-xs mb-1">Connected Account</p>
+              <div className="mb-4 p-3 bg-nova-surface-2 border border-nova-border rounded-lg" style={{ width: "100%", maxWidth: "540px" }}>
+                <p className="text-nova-text-dim text-xs mb-1">Connected Account</p>
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-purple-200 text-sm font-mono truncate flex-1">{accountId}</p>
+                  <p className="text-nova-text text-sm font-mono truncate flex-1">{accountId}</p>
                   <button type="button" onClick={copyToClipboard} className="text-gray-400 hover:text-purple-300 transition-colors p-1 rounded hover:bg-gray-700/50" title="Copy to clipboard">
                     {copied ? (
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><polyline points="20 6 9 17 4 12" /></svg>
@@ -359,9 +359,9 @@ export default function AccountControls({ accountId }: AccountControlsProps) {
             </Button>
 
             <div className="mt-6 pt-6 border-t border-purple-500/30">
-              <div className="mb-4 p-4 bg-blue-500/20 border border-blue-500/50 rounded-lg text-center">
-                <p className="text-blue-200 text-sm mb-2"><strong>🔑 SDK API Key</strong></p>
-                <p className="text-gray-300 text-sm">
+              <div className="mb-4 p-4 bg-nova-surface-2 border border-nova-border rounded-lg text-center">
+                <p className="text-nova-text text-sm mb-2"><strong>🔑 SDK API Key</strong></p>
+                <p className="text-nova-text-dim text-sm">
                   Click generate to reveal your API key, whether you already have one or not.
                   Then you will be able to click on rotate to generate a fresh key and
                   permanently invalidate the old one.
