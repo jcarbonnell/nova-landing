@@ -32,7 +32,7 @@ export default function PaymentModal({ isOpen, onClose, onSubmit, accountId }: P
             </button>
           </div>
           <div className={styles.modalBody}>
-            <AccountControls accountId={accountId} onSubmit={onSubmit} onClose={onClose} />
+            <AccountControls accountId={accountId} />
           </div>
         </div>
       </div>

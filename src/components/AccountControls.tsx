@@ -29,17 +29,14 @@ import styles from '@/styles/modal.module.css';
 
 interface AccountControlsProps {
   accountId: string;
-  // Transitional (modal-only): supplied by PaymentModal, omitted on the
-  // standalone /app/account page. 2b replaces the PingPay completion behaviour
-  // with an inline success state and removes these entirely.
-  onSubmit?: (sessionId: string, amount: string) => void;
-  onClose?: () => void;
 }
 
-export default function AccountControls({ accountId, onSubmit, onClose }: AccountControlsProps) {
+export default function AccountControls({ accountId }: AccountControlsProps) {
   const [amount] = useState('10.00');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  // Standalone PingPay completion - inline confirmation instead.
+  const [fundedAmount, setFundedAmount] = useState<string | null>(null);
   const [faucetLoading, setFaucetLoading] = useState(false);
   const [faucetSuccess, setFaucetSuccess] = useState('');
   const [copied, setCopied] = useState(false);
@@ -102,8 +99,8 @@ export default function AccountControls({ accountId, onSubmit, onClose }: Accoun
           onProcessComplete: (result: unknown) => {
             console.log('PingPay: Process complete', result);
             const data = (result as { data?: { depositAddress?: string; amount?: string } })?.data;
-            onSubmit?.(data?.depositAddress || 'pingpay-complete', data?.amount || amount);
-            onClose?.();
+            setFundedAmount(data?.amount || amount);
+            setIsLoading(false);
           },
           onProcessFailed: (errorInfo: unknown) => {
             console.error('PingPay: Process failed', errorInfo);
@@ -349,10 +346,16 @@ export default function AccountControls({ accountId, onSubmit, onClose }: Accoun
               </div>
             )}
 
+            {fundedAmount && (
+              <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
+                <p className="text-green-200 text-sm">✅ Payment complete{fundedAmount ? ` — ${fundedAmount} NEAR on its way to your account` : ''}.</p>
+              </div>
+            )}
+
             <Button type="button" onClick={handleStartOnramp} disabled={isLoading} className="w-full bg-purple-600 hover:bg-purple-700 text-white" style={{ fontSize: '16px', padding: '12px 24px' }}>
               {isLoading ? (
                 <span className="flex items-center justify-center"><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />Processing...</span>
-              ) : ('Buy NEAR tokens')}
+              ) : (fundedAmount ? 'Buy more NEAR' : 'Buy NEAR tokens')}
             </Button>
 
             <div className="mt-6 pt-6 border-t border-purple-500/30">
