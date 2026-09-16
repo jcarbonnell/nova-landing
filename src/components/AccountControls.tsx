@@ -1,31 +1,242 @@
 // src/components/AccountControls.tsx
 //
-// §8 step 1 — the account operations (faucet / PingPay funding + API-key
-// generate/rotate/copy), extracted VERBATIM from PaymentModal so they no longer
-// live inside the modal. HomeClient-independent: takes accountId as a prop and
-// owns all its own state. Rendered two ways: interim inside PaymentModal (the
-// old "Manage Account" modal, proving parity), and — in step 2 — directly at
-// /app/account.
+// §8 step 2c-ii — account operations, restructured into §4.1 subsections.
 //
-// TRANSITIONAL props: onSubmit/onClose are used only by the PingPay completion
-// callback (the modal closes + reports the deposit on success). Step 2 drops
-// them for the standalone page (nothing to close; show a success state instead),
-// and the signature becomes { accountId, email } per design-spec §4.1.
+// Was a top-level isTestnet split with the API-key block DUPLICATED in each
+// branch (and the mainnet copy missing rotate — both warts). Now: three
+// presentational subsections — Identity, Funding (the ONLY network-dependent
+// part, switching internally), API keys (ONE definition, always with rotate) —
+// with all state + handlers owned by AccountControls and passed down as props.
+// De-dup is structural: one ApiKeySection can't drift from a twin or lose a
+// control.
 //
-// Styling is left as-is (hardcoded purple/gray/blue) for exact parity with the
-// current modal on the (un-themeable) marketing page. Theming to the nova-*
-// tokens happens in step 2 when this lands on the themed /app surface.
+// Behaviour is byte-identical to 2c-i: every handler and every piece of state is
+// unchanged; only the JSX arrangement moved. Mainnet GAINS the rotate control by
+// construction (it now renders the same ApiKeySection as testnet).
 //
-// KNOWN WARTS carried verbatim, fixed in step 2's redesign (do NOT fix here —
-// step 1 is a faithful move): (1) the API-key block is duplicated across the
-// testnet and mainnet branches; (2) the mainnet branch is missing the rotate
-// control. Both vanish when step 2 makes the API-key block one shared subsection.
+// Theming crumbs left for 2c-iii (do NOT fix here — this slice is pure
+// structure): the bg-gray-800/50 key-reveal box, the copy buttons, the
+// bg-blue-600 generate button, the border-purple-500/30 dividers. Semantic
+// green/red/yellow states stay as-is (they read on both themes).
 
 'use client';
 
 import { useState } from 'react';
 import { Button } from './ui/button';
-import styles from '@/styles/modal.module.css';
+
+// ── Identity ──────────────────────────────────────────────────────────────
+// The connected-account display (account id + copy). Network-independent, so it
+// renders once. 2d turns this into the full identity subsection (+ NEAR balance).
+
+function Identity({
+  accountId,
+  copied,
+  onCopy,
+}: {
+  accountId: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  if (!accountId) return null;
+  return (
+    <div className="mb-4 p-3 bg-nova-surface-2 border border-nova-border rounded-lg">
+      <p className="text-nova-text-dim text-xs mb-1">Connected Account</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-nova-text text-sm font-mono truncate flex-1">{accountId}</p>
+        <button type="button" onClick={onCopy} className="text-gray-400 hover:text-purple-300 transition-colors p-1 rounded hover:bg-gray-700/50" title="Copy to clipboard">
+          {copied ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><polyline points="20 6 9 17 4 12" /></svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Funding ───────────────────────────────────────────────────────────────
+// The ONLY network-dependent subsection. Testnet → faucet (free tokens);
+// mainnet → PingPay purchase (credits are required to pay for operations).
+
+function FundingSection({
+  isTestnet,
+  accountId,
+  error,
+  faucetLoading,
+  faucetSuccess,
+  onRequestFaucet,
+  isLoading,
+  fundedAmount,
+  onStartOnramp,
+}: {
+  isTestnet: boolean;
+  accountId: string;
+  error: string;
+  faucetLoading: boolean;
+  faucetSuccess: string;
+  onRequestFaucet: () => void;
+  isLoading: boolean;
+  fundedAmount: string | null;
+  onStartOnramp: () => void;
+}) {
+  if (isTestnet) {
+    return (
+      <div>
+        <div className="mb-4 p-4 bg-nova-surface-2 border border-nova-border rounded-lg text-center">
+          <p className="text-nova-text text-sm mb-2"><strong>🧪 Testnet Mode</strong></p>
+          <p className="text-nova-text-dim text-sm">
+            Testnet accounts are free — click below to fund yours with test tokens and try NOVA out.
+          </p>
+        </div>
+
+        {faucetSuccess && (
+          <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
+            <p className="text-green-200 text-sm">✅ {faucetSuccess}</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+            <p className="text-red-200 text-sm">❌ {error}</p>
+          </div>
+        )}
+
+        <Button type="button" onClick={onRequestFaucet} disabled={faucetLoading || !accountId} className="w-full bg-purple-600 hover:bg-purple-700 text-white" style={{ fontSize: '16px', padding: '12px 24px' }}>
+          {faucetLoading ? (
+            <span className="flex items-center justify-center"><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />Requesting Tokens...</span>
+          ) : ('🚰 Request Testnet Tokens')}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-4 p-4 bg-nova-surface-2 border border-nova-border rounded-lg text-center">
+        <p className="text-nova-text text-sm mb-2"><strong>💳 NEAR credits</strong></p>
+        <p className="text-nova-text-dim text-sm">
+          Purchase NEAR coins with PingPay — you need credits to pay for your file-sharing operations.
+        </p>
+      </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+          <p className="text-red-200 text-sm">❌ {error}</p>
+        </div>
+      )}
+
+      {fundedAmount && (
+        <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
+          <p className="text-green-200 text-sm">✅ Payment complete{fundedAmount ? ` — ${fundedAmount} NEAR on its way to your account` : ''}.</p>
+        </div>
+      )}
+
+      <Button type="button" onClick={onStartOnramp} disabled={isLoading} className="w-full bg-purple-600 hover:bg-purple-700 text-white" style={{ fontSize: '16px', padding: '12px 24px' }}>
+        {isLoading ? (
+          <span className="flex items-center justify-center"><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />Processing...</span>
+        ) : (fundedAmount ? 'Buy more NEAR' : 'Buy NEAR tokens')}
+      </Button>
+    </div>
+  );
+}
+
+// ── ApiKeySection ─────────────────────────────────────────────────────────
+// ONE definition, network-independent, ALWAYS includes rotate. Mainnet gains
+// rotate by construction here (previously only testnet rendered it).
+
+function ApiKeySection({
+  accountId,
+  apiKey,
+  apiKeyLoading,
+  apiKeyError,
+  apiKeyCopied,
+  rotateLoading,
+  rotateConfirm,
+  apiKeyIsRotated,
+  onGenerate,
+  onRotate,
+  onCopy,
+  setRotateConfirm,
+}: {
+  accountId: string;
+  apiKey: string | null;
+  apiKeyLoading: boolean;
+  apiKeyError: string;
+  apiKeyCopied: boolean;
+  rotateLoading: boolean;
+  rotateConfirm: boolean;
+  apiKeyIsRotated: boolean;
+  onGenerate: () => void;
+  onRotate: () => void;
+  onCopy: () => void;
+  setRotateConfirm: (v: boolean) => void;
+}) {
+  return (
+    <div className="mt-6 pt-6 border-t border-purple-500/30">
+      <div className="mb-4 p-4 bg-nova-surface-2 border border-nova-border rounded-lg text-center">
+        <p className="text-nova-text text-sm mb-2"><strong>🔑 SDK API Key</strong></p>
+        <p className="text-nova-text-dim text-sm">
+          Your API key lets you use NOVA from your own apps or an external chat like Claude. Generate to reveal it, then rotate any time to issue a fresh key and permanently invalidate the old one.
+        </p>
+      </div>
+
+      {apiKeyError && (
+        <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+          <p className="text-red-200 text-sm">❌ {apiKeyError}</p>
+        </div>
+      )}
+
+      {apiKey ? (
+        <div className="mb-4">
+          <div className="p-3 bg-green-500/20 border border-green-500/50 rounded-lg mb-3">
+            <p className="text-green-200 text-sm mb-2">{apiKeyIsRotated ? '✅ API Key Rotated — previous key is now invalid' : '✅ API Key'}</p>
+            <p className="text-yellow-200 text-xs">⚠️ Save this key now — you won&apos;t see it again!</p>
+          </div>
+          <div className="flex items-center gap-2 p-3 bg-gray-800/50 rounded-lg">
+            <code className="text-purple-200 text-xs font-mono flex-1 truncate">{apiKey}</code>
+            <button type="button" onClick={onCopy} className="text-gray-400 hover:text-purple-300 transition-colors p-1 rounded hover:bg-gray-700/50" title="Copy API key">
+              {apiKeyCopied ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><polyline points="20 6 9 17 4 12" /></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+              )}
+            </button>
+          </div>
+          <div className="mt-3">
+            {rotateConfirm ? (
+              <div className="p-3 bg-red-500/10 border border-red-500/40 rounded-lg">
+                <p className="text-red-200 text-xs mb-2">
+                  Rotating invalidates the key above. Any agent using it will stop working until you give it the new key. Continue?
+                </p>
+                <div className="flex gap-2">
+                  <Button type="button" onClick={onRotate} disabled={rotateLoading} className="flex-1 bg-red-600 hover:bg-red-700 text-white" style={{ fontSize: '14px', padding: '8px 16px' }}>
+                    {rotateLoading ? 'Rotating…' : 'Yes, rotate key'}
+                  </Button>
+                  <Button type="button" onClick={() => setRotateConfirm(false)} disabled={rotateLoading} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white" style={{ fontSize: '14px', padding: '8px 16px' }}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setRotateConfirm(true)} className="text-xs text-gray-400 hover:text-red-300 underline">
+                Rotate this key
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <Button type="button" onClick={onGenerate} disabled={apiKeyLoading || !accountId} className="w-full bg-blue-600 hover:bg-blue-700 text-white" style={{ fontSize: '16px', padding: '12px 24px' }}>
+          {apiKeyLoading ? (
+            <span className="flex items-center justify-center"><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />Generating...</span>
+          ) : ('🔑 Generate API Key')}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ── AccountControls ─────────────────────────────────────────────────────────
 
 interface AccountControlsProps {
   accountId: string;
@@ -203,205 +414,37 @@ export default function AccountControls({ accountId }: AccountControlsProps) {
   };
 
   return (
-    <>
-      {/* TESTNET: Faucet + API Key section */}
-      {isTestnet && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0' }}>
-          <div style={{ width: '100%', maxWidth: '540px' }}>
-            <div className="mb-4 p-4 bg-nova-surface-2 border border-nova-border rounded-lg text-center">
-              <p className="text-nova-text text-sm mb-2"><strong>🧪 Testnet Mode</strong></p>
-              <p className="text-nova-text-dim text-sm">
-                Testnet accounts are free and can be funded automatically by clicking the &quot;Request Tokens&quot; button below.
-              </p>
-            </div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0' }}>
+      <div style={{ width: '100%', maxWidth: '540px' }}>
+        <Identity accountId={accountId} copied={copied} onCopy={copyToClipboard} />
 
-            {accountId && (
-              <div className="mb-4 p-3 bg-nova-surface-2 border border-nova-border rounded-lg">
-                <p className="text-nova-text-dim text-xs mb-1">Connected Account</p>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-nova-text text-sm font-mono truncate flex-1">{accountId}</p>
-                  <button type="button" onClick={copyToClipboard} className="text-gray-400 hover:text-purple-300 transition-colors p-1 rounded hover:bg-gray-700/50" title="Copy to clipboard">
-                    {copied ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><polyline points="20 6 9 17 4 12" /></svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
+        <FundingSection
+          isTestnet={isTestnet}
+          accountId={accountId}
+          error={error}
+          faucetLoading={faucetLoading}
+          faucetSuccess={faucetSuccess}
+          onRequestFaucet={requestFaucetTokens}
+          isLoading={isLoading}
+          fundedAmount={fundedAmount}
+          onStartOnramp={handleStartOnramp}
+        />
 
-            {faucetSuccess && (
-              <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
-                <p className="text-green-200 text-sm">✅ {faucetSuccess}</p>
-              </div>
-            )}
-
-            {error && (
-              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
-                <p className="text-red-200 text-sm">❌ {error}</p>
-              </div>
-            )}
-
-            <Button type="button" onClick={requestFaucetTokens} disabled={faucetLoading || !accountId} className="w-full bg-purple-600 hover:bg-purple-700 text-white" style={{ fontSize: '16px', padding: '12px 24px' }}>
-              {faucetLoading ? (
-                <span className="flex items-center justify-center"><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />Requesting Tokens...</span>
-              ) : ('🚰 Request Testnet Tokens')}
-            </Button>
-
-            <div className="mt-6 pt-6 border-t border-purple-500/30">
-              <div className="mb-4 p-4 bg-nova-surface-2 border border-nova-border rounded-lg text-center">
-                <p className="text-nova-text text-sm mb-2"><strong>🔑 SDK API Key</strong></p>
-                <p className="text-nova-text-dim text-sm">
-                  Click generate to reveal your API key, whether you already have one or not.
-                  Then you will be able to click on rotate to generate a fresh key and
-                  permanently invalidate the old one.
-                </p>
-              </div>
-
-              {apiKeyError && (
-                <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
-                  <p className="text-red-200 text-sm">❌ {apiKeyError}</p>
-                </div>
-              )}
-
-              {apiKey ? (
-                <div className="mb-4">
-                  <div className="p-3 bg-green-500/20 border border-green-500/50 rounded-lg mb-3">
-                    <p className="text-green-200 text-sm mb-2">{apiKeyIsRotated ? '✅ API Key Rotated — previous key is now invalid' : '✅ API Key'}</p>
-                    <p className="text-yellow-200 text-xs">⚠️ Save this key now — you won&apos;t see it again!</p>
-                  </div>
-                  <div className="flex items-center gap-2 p-3 bg-gray-800/50 rounded-lg">
-                    <code className="text-purple-200 text-xs font-mono flex-1 truncate">{apiKey}</code>
-                    <button type="button" onClick={copyApiKey} className="text-gray-400 hover:text-purple-300 transition-colors p-1 rounded hover:bg-gray-700/50" title="Copy API key">
-                      {apiKeyCopied ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><polyline points="20 6 9 17 4 12" /></svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-                      )}
-                    </button>
-                  </div>
-                  <div className="mt-3">
-                    {rotateConfirm ? (
-                      <div className="p-3 bg-red-500/10 border border-red-500/40 rounded-lg">
-                        <p className="text-red-200 text-xs mb-2">
-                          Rotating invalidates the key above. Any agent using it will stop working until you give it the new key. Continue?
-                        </p>
-                        <div className="flex gap-2">
-                          <Button type="button" onClick={rotateApiKey} disabled={rotateLoading} className="flex-1 bg-red-600 hover:bg-red-700 text-white" style={{ fontSize: '14px', padding: '8px 16px' }}>
-                            {rotateLoading ? 'Rotating…' : 'Yes, rotate key'}
-                          </Button>
-                          <Button type="button" onClick={() => setRotateConfirm(false)} disabled={rotateLoading} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white" style={{ fontSize: '14px', padding: '8px 16px' }}>
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button type="button" onClick={() => setRotateConfirm(true)} className="text-xs text-gray-400 hover:text-red-300 underline">
-                        Rotate this key
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <Button type="button" onClick={generateApiKey} disabled={apiKeyLoading || !accountId} className="w-full bg-blue-600 hover:bg-blue-700 text-white" style={{ fontSize: '16px', padding: '12px 24px' }}>
-                  {apiKeyLoading ? (
-                    <span className="flex items-center justify-center"><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />Generating...</span>
-                  ) : ('🔑 Generate API Key')}
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MAINNET: PingPay onramp */}
-      {!isTestnet && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0' }}>
-          {error && (
-            <div className={styles.alertDanger} style={{ width: '100%', maxWidth: '540px', marginBottom: '16px' }}>{error}</div>
-          )}
-          <div style={{ width: '100%', maxWidth: '540px' }}>
-            <div className="mb-4 p-4 bg-nova-surface-2 border border-nova-border rounded-lg text-center">
-              <p className="text-nova-text text-sm mb-2"><strong>💳 Get NEAR coins with a card payment</strong></p>
-              <p className="text-nova-text-dim text-sm">
-                Click the button below to purchase NEAR credits with your
-                credit/debit card via PingPay. These tokens will be burned through your file sharing operations.
-              </p>
-            </div>
-
-            {accountId && (
-              <div className="mb-4 p-3 bg-nova-surface-2 border border-nova-border rounded-lg" style={{ width: "100%", maxWidth: "540px" }}>
-                <p className="text-nova-text-dim text-xs mb-1">Connected Account</p>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-nova-text text-sm font-mono truncate flex-1">{accountId}</p>
-                  <button type="button" onClick={copyToClipboard} className="text-gray-400 hover:text-purple-300 transition-colors p-1 rounded hover:bg-gray-700/50" title="Copy to clipboard">
-                    {copied ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><polyline points="20 6 9 17 4 12" /></svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {fundedAmount && (
-              <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
-                <p className="text-green-200 text-sm">✅ Payment complete{fundedAmount ? ` — ${fundedAmount} NEAR on its way to your account` : ''}.</p>
-              </div>
-            )}
-
-            <Button type="button" onClick={handleStartOnramp} disabled={isLoading} className="w-full bg-purple-600 hover:bg-purple-700 text-white" style={{ fontSize: '16px', padding: '12px 24px' }}>
-              {isLoading ? (
-                <span className="flex items-center justify-center"><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />Processing...</span>
-              ) : (fundedAmount ? 'Buy more NEAR' : 'Buy NEAR tokens')}
-            </Button>
-
-            <div className="mt-6 pt-6 border-t border-purple-500/30">
-              <div className="mb-4 p-4 bg-nova-surface-2 border border-nova-border rounded-lg text-center">
-                <p className="text-nova-text text-sm mb-2"><strong>🔑 SDK API Key</strong></p>
-                <p className="text-nova-text-dim text-sm">
-                  Click generate to reveal your API key, whether you already have one or not.
-                  Then you will be able to click on rotate to generate a fresh key and
-                  permanently invalidate the old one.
-                </p>
-              </div>
-
-              {apiKeyError && (
-                <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
-                  <p className="text-red-200 text-sm">❌ {apiKeyError}</p>
-                </div>
-              )}
-
-              {apiKey ? (
-                <div className="mb-4">
-                  <div className="p-3 bg-green-500/20 border border-green-500/50 rounded-lg mb-3">
-                    <p className="text-green-200 text-sm mb-2">✅ API Key Generated</p>
-                    <p className="text-yellow-200 text-xs">⚠️ Save this key now — you won&apos;t see it again!</p>
-                  </div>
-                  <div className="flex items-center gap-2 p-3 bg-gray-800/50 rounded-lg">
-                    <code className="text-purple-200 text-xs font-mono flex-1 truncate">{apiKey}</code>
-                    <button type="button" onClick={copyApiKey} className="text-gray-400 hover:text-purple-300 transition-colors p-1 rounded hover:bg-gray-700/50" title="Copy API key">
-                      {apiKeyCopied ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400"><polyline points="20 6 9 17 4 12" /></svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <Button type="button" onClick={generateApiKey} disabled={apiKeyLoading || !accountId} className="w-full bg-blue-600 hover:bg-blue-700 text-white" style={{ fontSize: '16px', padding: '12px 24px' }}>
-                  {apiKeyLoading ? (
-                    <span className="flex items-center justify-center"><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />Generating...</span>
-                  ) : ('🔑 Generate API Key')}
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+        <ApiKeySection
+          accountId={accountId}
+          apiKey={apiKey}
+          apiKeyLoading={apiKeyLoading}
+          apiKeyError={apiKeyError}
+          apiKeyCopied={apiKeyCopied}
+          rotateLoading={rotateLoading}
+          rotateConfirm={rotateConfirm}
+          apiKeyIsRotated={apiKeyIsRotated}
+          onGenerate={generateApiKey}
+          onRotate={rotateApiKey}
+          onCopy={copyApiKey}
+          setRotateConfirm={setRotateConfirm}
+        />
+      </div>
+    </div>
   );
 }
