@@ -21,23 +21,38 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 
 // ── Identity ──────────────────────────────────────────────────────────────
 // The connected-account display (account id + copy). Network-independent, so it
 // renders once. 2d turns this into the full identity subsection (+ NEAR balance).
 
+// Below this NEAR balance, the low-balance hint appears — group registration is
+// the priciest common op (~0.65 NEAR), so that's the threshold.
+const LOW_BALANCE_THRESHOLD = 0.65;
+
 function Identity({
   accountId,
   copied,
   onCopy,
+  balanceNear,
+  balanceLoading,
+  balanceError,
+  onRetryBalance,
 }: {
   accountId: string;
   copied: boolean;
   onCopy: () => void;
+  balanceNear: string | null;
+  balanceLoading: boolean;
+  balanceError: boolean;
+  onRetryBalance: () => void;
 }) {
   if (!accountId) return null;
+
+  const isLow = balanceNear !== null && parseFloat(balanceNear) < LOW_BALANCE_THRESHOLD;
+
   return (
     <div className="mb-4 p-3 bg-nova-surface-2 border border-nova-border rounded-lg">
       <p className="text-nova-text-dim text-xs mb-1">Connected Account</p>
@@ -51,6 +66,29 @@ function Identity({
           )}
         </button>
       </div>
+
+      {/* Balance line */}
+      <div className="mt-3 pt-3 border-t border-nova-border flex items-center justify-between gap-2">
+        <span className="text-nova-text-dim text-xs">Balance</span>
+        {balanceLoading ? (
+          <span className="flex items-center gap-1.5 text-nova-text-dim text-sm">
+            <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-nova-text-dim" />
+          </span>
+        ) : balanceError ? (
+          <button type="button" onClick={onRetryBalance} className="text-xs text-red-700 hover:underline">
+            Couldn&apos;t load — retry
+          </button>
+        ) : (
+          <span className="text-nova-text text-sm font-mono">{balanceNear} NEAR</span>
+        )}
+      </div>
+
+      {/* Low-balance hint */}
+      {isLow && !balanceLoading && !balanceError && (
+        <p className="mt-2 text-xs text-red-700">
+          Low balance — registering a group costs ~0.65 NEAR. Add credits below.
+        </p>
+      )}
     </div>
   );
 }
@@ -251,6 +289,9 @@ export default function AccountControls({ accountId }: AccountControlsProps) {
   const [faucetLoading, setFaucetLoading] = useState(false);
   const [faucetSuccess, setFaucetSuccess] = useState('');
   const [copied, setCopied] = useState(false);
+  const [balanceNear, setBalanceNear] = useState<string | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(true);
+  const [balanceError, setBalanceError] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [apiKeyLoading, setApiKeyLoading] = useState(false);
   const [apiKeyError, setApiKeyError] = useState('');
@@ -260,6 +301,20 @@ export default function AccountControls({ accountId }: AccountControlsProps) {
   const [apiKeyIsRotated, setApiKeyIsRotated] = useState(false);
 
   const isTestnet = process.env.NEXT_PUBLIC_NEAR_NETWORK !== 'mainnet';
+
+  const loadBalance = useCallback(() => {
+    setBalanceLoading(true);
+    setBalanceError(false);
+    fetch('/api/nova/balance', { cache: 'no-store' })
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
+      .then((d) => { setBalanceNear(d.balance_near ?? null); setBalanceLoading(false); })
+      .catch(() => { setBalanceError(true); setBalanceLoading(false); });
+  }, []);
+
+  useEffect(() => { loadBalance(); }, [loadBalance]);
 
   const requestFaucetTokens = async () => {
     if (!accountId) {
@@ -416,7 +471,15 @@ export default function AccountControls({ accountId }: AccountControlsProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0' }}>
       <div style={{ width: '100%', maxWidth: '540px' }}>
-        <Identity accountId={accountId} copied={copied} onCopy={copyToClipboard} />
+        <Identity
+          accountId={accountId}
+          copied={copied}
+          onCopy={copyToClipboard}
+          balanceNear={balanceNear}
+          balanceLoading={balanceLoading}
+          balanceError={balanceError}
+          onRetryBalance={loadBalance}
+        />
 
         <FundingSection
           isTestnet={isTestnet}
