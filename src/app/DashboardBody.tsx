@@ -122,7 +122,7 @@ function BackendBadge({ tx }: { tx: Transaction }) {
       FastFS
     </span>
   ) : (
-    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-900/40 border border-purple-500/30 text-purple-400">
+    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-900/40 border border-purple-500/30 text-white">
       Legacy
     </span>
   );
