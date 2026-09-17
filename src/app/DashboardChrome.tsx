@@ -42,7 +42,7 @@ export default function DashboardChrome({ email, accountId, children }: Dashboar
   return (
     <div className="flex flex-col min-h-screen bg-nova-bg text-nova-text">
       <header className="bg-nova-surface shadow-sm border-b border-nova-border px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 backdrop-blur-sm">
-        <a href="/" className="flex items-center shrink-0" title="NOVA home" aria-label="NOVA home">
+        <a href="/app" className="flex items-center shrink-0" title="NOVA dashboard home" aria-label="NOVA dashboard">
           <img
             src={theme === 'light' ? '/logo.svg' : '/logo-dark.svg'}
             alt="NOVA"
