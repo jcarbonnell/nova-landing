@@ -5,7 +5,6 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
-import ChatInterface from '@/components/ChatInterface';
 import { MessageSquare } from 'lucide-react';
 import { useWalletState, useWalletSelector, useWalletSelectorModal } from '@/providers/WalletProvider';
 import type { User } from '@/lib/auth0';
@@ -623,17 +622,11 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
             Sign in with email or wallet to test the persistent AI agent memory.
           </p>
           <div className="relative w-full max-w-2xl lg:max-w-3xl mx-auto h-[500px] md:h-[550px] lg:h-[600px] rounded-lg overflow-hidden shadow-lg text-left">
-            {isConnected ? (
-              /* Show ChatInterface when connected */
-              <ChatInterface 
-                accountId={accountId!} 
-                email={user?.email || ''} 
-              />
-            ) : (
-              /* Not connected: frozen mock demo. Wallet-connected-but-not-SIWN'd
-                 users see it blurred with a sign-in prompt; everyone else gets
-                 the "Get Started" banner (→ login modal). */
-              <>
+            {/* Marketing page (step 5): the live chat moved to /app/chat; / shows
+                the frozen mock as a pure demo. Wallet-connected-not-SIWN'd users
+                see it blurred with a sign-in prompt; the bottom banner adapts to
+                whether the visitor is already signed in. */}
+            <>
                 {/* Frozen mock conversation — mirrors ChatInterface's rendering */}
                 <div
                   className={`flex flex-col h-full bg-[#280449]/80 rounded-lg border border-purple-600/50${
@@ -658,7 +651,15 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                     <div className="flex justify-start">
                       <div className="max-w-[85%] px-4 py-3 rounded-2xl shadow-md bg-purple-900/60 text-purple-100 border border-purple-700/50">
                         <div className="prose prose-invert prose-sm max-w-none">
-                          <div className="whitespace-pre-wrap">You own groups [software-engineering, market-research, personal-finance]</div>
+                          <div className="whitespace-pre-wrap mb-2">You own 3 groups:</div>
+                          <ul className="font-mono text-xs space-y-1">
+                            {['software-engineering', 'market-research', 'personal-finance'].map((g) => (
+                              <li key={g} className="flex items-center gap-2">
+                                <span className="text-purple-400">•</span>
+                                <span className="text-purple-100">{g}</span>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                       </div>
                     </div>
@@ -678,15 +679,31 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                     </div>
                   </div>
 
-                  {/* Bottom banner */}
+                  {/* Bottom banner — signed-in visitors get a link into the
+                      console (the live chat lives at /app/chat now); everyone
+                      else gets Get Started → login. */}
                   <div className="flex-shrink-0 border-t border-purple-700/50 p-4 bg-purple-900/30 flex items-center justify-center gap-4 flex-wrap">
-                    <p className="text-sm text-purple-300">Sign in to try yourself...</p>
-                    <Button
-                      onClick={handleConnect}
-                      className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded"
-                    >
-                      Get Started
-                    </Button>
+                    {isConnected ? (
+                      <>
+                        <p className="text-sm text-purple-300">You&apos;re signed in.</p>
+                        <a
+                          href="/app"
+                          className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded transition-colors"
+                        >
+                          Open NOVA →
+                        </a>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm text-purple-300">Sign in to try yourself...</p>
+                        <Button
+                          onClick={handleConnect}
+                          className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded"
+                        >
+                          Get Started
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -708,7 +725,6 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
                   </div>
                 )}
               </>
-            )}
           </div>
         </section>
       </main>

@@ -120,10 +120,13 @@ export default function Header({
                 Dashboard  
               </a>
             )}
-            {isWalletUser && !hasWalletSession ? (
-              // Wallet connected but not yet SIWN'd: the sign-in gesture lives
-              // HERE (renders at every breakpoint, unlike the desktop-only
-              // connect panel). Clicking calls the same NEP-413 handler.
+            {/* Wallet connected but not yet SIWN'd: the sign-in gesture lives
+                HERE (renders at every breakpoint). Clicking calls the NEP-413
+                handler. Manage Account was removed from the marketing header
+                (step 5) — account management now lives at /app/account, reached
+                via the Dashboard link. Once SIWN'd, a wallet user (like an email
+                user) sees just Dashboard + Logout. */}
+            {isWalletUser && !hasWalletSession && (
               <Button
                 variant="default"
                 size="sm"
@@ -133,17 +136,6 @@ export default function Header({
                 <Wallet size={16} />
                 <span>Sign in with wallet</span>
               </Button>
-            ) : (
-              // Email users, and wallet users who HAVE signed in: full account UI.
-              <div
-                onClick={onOpenPayment}
-                className="flex items-center space-x-2 px-3 py-2 rounded-md bg-purple-900/50 border border-purple-500/30 cursor-pointer hover:bg-purple-800/50"
-              >
-                <Wallet size={16} className="text-purple-300" />
-                <span className="text-sm max-w-32 truncate text-purple-100">
-                  Manage Account
-                </span>
-              </div>
             )}
             <Button 
               variant="default"
