@@ -10,6 +10,7 @@
 
 import { useState, useEffect, type ReactNode } from 'react';
 import Footer from '@/components/Footer';
+import DashboardNav from './DashboardNav';
 
 interface DashboardChromeProps {
   email: string;
@@ -48,6 +49,11 @@ export default function DashboardChrome({ email, accountId, children }: Dashboar
             className="h-8 w-auto object-contain"
           />
         </a>
+
+        {/* Centered section tabs (desktop) / hamburger (mobile) */}
+        <div className="flex-1 flex justify-center">
+          <DashboardNav />
+        </div>
 
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-end leading-tight">
