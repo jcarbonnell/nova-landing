@@ -1,6 +1,6 @@
 // nova-landing/src/lib/require-identity.ts
 //
-// §8 step 3 — the single dual-source /app identity gate, factored out of
+// the single dual-source /app identity gate, factored out of
 // app/page.tsx and app/account/page.tsx (the 2a copy-now-factor-later debt, paid
 // before the Files + landing routes make the duplication threefold).
 //

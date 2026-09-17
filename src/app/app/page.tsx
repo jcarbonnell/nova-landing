@@ -1,16 +1,17 @@
 // nova-landing/src/app/app/page.tsx
 //
-// The /app gate — now a thin caller of the shared requireNovaIdentity() helper
-// (§8 step 3). Behaviour unchanged: unauth → redirect('/'), else render the
-// dashboard shell with server-resolved { email, accountId }.
+// /app bare — gated redirect. Runs requireNovaIdentity() first so an unauthed
+// hit still redirects to '/' (never leaks past the gate), then sends an authed
+// user to the section landing. TEMPORARY target /app/files (slice 2); slice 4
+// retargets to /app/account per D1.
 
+import { redirect } from 'next/navigation';
 import { requireNovaIdentity } from '@/lib/require-identity';
-import DashboardShell from '../DashboardShell';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export default async function AppPage() {
-  const { email, accountId } = await requireNovaIdentity();
-  return <DashboardShell email={email} accountId={accountId} />;
+  await requireNovaIdentity(); // unauth → redirect('/') inside the helper
+  redirect('/app/files');
 }
