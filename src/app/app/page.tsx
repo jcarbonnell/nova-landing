@@ -38,7 +38,7 @@ export default async function AppHubPage() {
   return (
     <DashboardChrome email={email} accountId={accountId}>
       <h1 className="text-2xl md:text-3xl mb-2 tracking-tight">
-        <span className="font-museo font-black text-nova-text">Welcome, </span>
+        <span className="font-museo font-black text-nova-text">Welcome </span>
         <span className="font-space font-semibold text-nova-purple">{displayName}</span>
       </h1>
       <p className="font-space text-nova-text-dim mb-8">
