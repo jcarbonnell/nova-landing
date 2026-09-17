@@ -37,8 +37,8 @@ export default async function AppHubPage() {
 
   return (
     <DashboardChrome email={email} accountId={accountId}>
-      <h1 className="font-museo text-2xl md:text-3xl font-black text-nova-text mb-2 tracking-tight">
-        Welcome, {displayName}
+      <h1 className="font-space text-2xl md:text-3xl font-semibold text-nova-text mb-2 tracking-tight">
+        Welcome, <span className="text-nova-purple">{displayName}</span>
       </h1>
       <p className="font-space text-nova-text-dim mb-8">
         Your NOVA console — pick where to go.
