@@ -107,7 +107,7 @@ export default function Header({
             <span className="text-sm text-purple-200">Loading...</span>
           </div>
         ) : isConnected ? (
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-4">
             {/* Dashboard link — only when /app is actually reachable: email users
                 always are; wallet users only once SIWN'd (a wallet cookie exists).
                 A not-yet-SIWN'd wallet user would be bounced to / by the gate, so
@@ -117,7 +117,7 @@ export default function Header({
                 href="/app"
                 className="text-sm font-medium text-purple-100 hover:text-purple-300 transition-colors"
               >
-                Dashboard  
+                Dashboard
               </a>
             )}
             {/* Wallet connected but not yet SIWN'd: the sign-in gesture lives
