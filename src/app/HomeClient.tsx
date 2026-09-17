@@ -430,7 +430,7 @@ export default function HomeClient({ serverUser }: HomeClientProps) {
               </span>
             </h2>
             <p className="font-space text-lg md:text-xl lg:text-2xl text-purple-200 mb-8 leading-relaxed font-medium">
-              NOVA is a permissioned memory layer for AI agents: encrypted, auditable, and self-sovereign. Decryptable by authorized parties only, every data access can be tracked on the quantum-resistant NEAR blockchain.
+              NOVA is a permissioned memory layer for AI agents: encrypted, auditable, and self-sovereign. No NOVA server ever holds your plaintext or keys: encryption happens in your devices, keys live inside verifiable secure hardware, and every access is provable on-chain. Decryptable by authorized parties only, with integrity and audit anchored on the quantum-resistant NEAR blockchain.
             </p>
 
             {/* Hero CTAs */}
