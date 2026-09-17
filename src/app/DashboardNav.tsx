@@ -21,7 +21,7 @@ interface NavItem {
 }
 
 const ITEMS: NavItem[] = [
-  { label: 'Chat', href: '/app/chat', disabled: true },
+  { label: 'Chat', href: '/app/chat' },
   { label: 'Files', href: '/app/files' },
   { label: 'Account', href: '/app/account' },
 ];

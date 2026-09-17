@@ -27,7 +27,7 @@ interface HubCard {
 const CARDS: HubCard[] = [
   { label: 'Account', desc: 'Manage your API key and NEAR credits.', href: '/app/account' },
   { label: 'Files', desc: 'Browse your groups, inspect files, and verify integrity.', href: '/app/files' },
-  { label: 'Chat', desc: 'Talk to your encrypted memory.', href: '/app/chat', disabled: true },
+  { label: 'Chat', desc: 'Talk to your encrypted memory.', href: '/app/chat' },
   { label: 'Dev resources', desc: 'SDKs, API reference, and integration guides.', href: 'https://civictech-ou.gitbook.io/nova-docs/', external: true },
 ];
 
