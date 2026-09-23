@@ -8,13 +8,13 @@ import { actionCreators } from '@near-js/transactions';
 import { auth0 } from '@/lib/auth0';
 import { log, logError } from '@/lib/log';
 
-const NOVA_MASTER_ACCOUNT = 'nova-sdk-6.testnet';
+const NOVA_MASTER_ACCOUNT = 'nova-sdk-7.testnet';
 const FAUCET_CONTRACT = 'v2.faucet.nonofficial.testnet';
 const FAUCET_REQUEST_AMOUNT = '2000000000000000000000000';
 
 const VALID_NOVA_SUFFIXES = [
-  '.nova-sdk-6.testnet',  // Current
-  '.nova-sdk-5.testnet',  // Legacy
+  '.nova-sdk-7.testnet',  // Current
+  '.nova-sdk-6.testnet',  // Legacy
 ];
 
 export async function POST(req: NextRequest) {
