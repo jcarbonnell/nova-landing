@@ -1,0 +1,157 @@
+# NOVA
+
+> NOVA is a zero-data-retention backend for AI agents on NEAR. Files are encrypted client-side
+> (AES-256-GCM, one random key per file), stored as ciphertext on FastFS (NEAR), and decryptable
+> only by members of a group listed on the NEAR contract `nova-sdk.near`. Keys are held and
+> released by a TEE (Shade agent, Phala/dstack) after an on-chain membership check. Every upload
+> is recorded on chain with its SHA-256 `file_hash` and timestamp; groups can carry a retention
+> window after which files are crypto-shredded, wiped from FastFS and tombstoned on chain with a
+> `DeletionRecord`. Mainnet, real NEAR. If this file and the live API disagree, the API wins.
+
+## Use it from
+
+- **TypeScript/JavaScript**: `npm i nova-sdk-js` — server-side; does encryption/decryption for you. Recommended.
+- **Rust**: `nova-sdk-rs` (crates.io).
+- **HTTP**: the MCP server's REST surface, `POST {MCP}/tools/<tool>` (below). You must then do the
+  client-side crypto yourself (prefer the SDK).
+- **MCP clients** (agents): the same server speaks MCP over HTTP; tools are listed below.
+- **IronClaw Reborn agents**: the `nova-reborn` WASM extension (host-injected API key).
+- **Agent Connect agents** (NEAR Intents Agent API): sign in to NOVA as their own NEAR Intents
+  account via identity signing (below).
+- **Owners/humans**: the console at https://nova-sdk.com/app (groups, files, retention, deletion audit, API key).
+
+Endpoints:
+- Site / auth: `https://nova-sdk.com`
+- MCP (tools): `https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network`
+- Contract: `nova-sdk.near` (mainnet), `nova-sdk-7.testnet` (testnet)
+
+## Concepts
+
+- **Account**: a NEAR account. Custodial (`<name>.nova-sdk.near`, key held for you by NOVA's TEE,
+  you authenticate with an API key) or self-custodial (your wallet or an Agent Connect agent,
+  authenticated by a NEP-413 signature; NOVA never holds the key).
+- **Group**: unit of access. One owner, many members, optional retention window. The owner adds and
+  revokes members; revoking rotates the group key forward (files uploaded after revocation are
+  unreadable to the ex-member; files they already decrypted cannot be recalled).
+- **File**: encrypted with its own random key, wrapped under the group key and stored in the TEE's
+  KV. On chain: `trans_id`, `group_id`, `user_id` (uploader), `file_hash`, location, `backend`
+  (`FastFS` | `Ipfs` legacy), `timestamp`, `deleted` (`DeletionRecord` or null).
+- **Retention**: per-group window in days (`set_group_retention`). Expiry is computed from each
+  file's upload timestamp. A sweep destroys the file key, null-writes FastFS, and records
+  `DeletionRecord { reason: "RetentionPolicy", deleted_at, deleted_by }`.
+  Deletion reasons: `MemberRevocation | OwnerRequest | RetentionPolicy | ComplianceRequest`.
+- **Joinable groups**: groups registered `joinable` with an open window; members self-join with
+  `join_group` (used for hackathon submissions). Their members and file list are public views.
+
+## Who sees what
+
+- NOVA servers (MCP, storage): ciphertext + on-chain metadata only. "Plaintext data and encryption
+  keys never travel together."
+- TEE: holds keys, not files; releases a key only to an on-chain member.
+- NEAR chain: group ids, members, file hashes, timestamps, deletion records (metadata is public).
+- Members' clients: plaintext (that is the point).
+- Whatever model an agent hands plaintext to (e.g. an LLM provider) sees it. NOVA's guarantee ends
+  there: use zero-retention terms with the provider, or redact first.
+
+## Authentication
+
+All MCP calls need one of:
+
+1. `Authorization: Bearer <nova_session>` — a JWT (HS256, 24 h, `type: "nova_session"`).
+   Optional `x-account-id` header is a hint only and must match the token's `account_id`.
+2. `X-API-Key: nova_sk_…` **and** `x-account-id: <account>` — the key is verified against that
+   account on every call. Used by host-injected setups (nova-reborn). A Bearer, if present, wins.
+
+Getting a `nova_session`:
+
+- **API key → session** (custodial accounts, backends):
+  `POST https://nova-sdk.com/api/auth/session-token`, header `x-api-key: nova_sk_…`,
+  body `{"account_id": "<name>.nova-sdk.near"}` → `{ token, … }`. The SDK does this and refreshes
+  before expiry. Get/rotate the key in the console (Account). One key per account; rotation
+  invalidates the old one. Keep it server-side only.
+- **Agent Connect agent → session** (identity signing; agent keeps its own key):
+  1. The agent's owner adds NOVA to the agent policy: `sign: { recipients: ["<audience>"] }`
+     (on-chain policy change; the audience is returned in step 2 — expected `nova-sdk.near`).
+  2. `POST https://nova-sdk.com/api/auth/agent-identity/challenge` (no body) →
+     `{ message, challenge, audience, expires_at_ms }`. Challenges live 2 minutes, single use.
+  3. `POST <AgentAPI>/v1/agents/{agent_id}/sign` with `X-API-Key` + `X-Grant-Token`,
+     body `{ "message": <message verbatim>, "recipient": <audience> }` →
+     `{ near_account_id, public_key, signature, nonce, recipient }`.
+  4. `POST https://nova-sdk.com/api/auth/agent-identity/verify`
+     body `{ "challenge": <challenge>, "signature": <the sign response as-is> }` →
+     `{ token, account_id, expires_in }` (no cookie; backend use).
+     Errors: 400 bad body, 401 `UNAUTHORIZED` / `UNAUTHORIZED_NONCE_REPLAY` (get a new challenge),
+     503 `KEY_LOOKUP_UNAVAILABLE` or `CHALLENGE_CAPACITY` (retry; nothing consumed).
+  NOVA checks the NEP-413 signature over the message it stored, that `public_key` is a full-access
+  key of `near_account_id` (or the implicit account not yet on chain whose id is the key), then
+  consumes the challenge. Keep the token in your backend, never in a model prompt.
+- **Browser wallet sign-in** (NEP-413) and email login exist for the console; not needed for integrations.
+
+## SDK (nova-sdk-js)
+
+```ts
+import { NovaSdk, NovaError } from 'nova-sdk-js';
+const sdk = new NovaSdk(process.env.NOVA_ACCOUNT_ID!, { apiKey: process.env.NOVA_API_KEY });
+await sdk.registerGroup('acme-proofs');                       // owner
+await sdk.addGroupMember('acme-proofs', '<member account>');  // owner
+const up = await sdk.upload('acme-proofs', bytes, 'order-123.jpg'); // { cid, trans_id, file_hash }
+const { data } = await sdk.retrieve('acme-proofs', up.cid);   // member
+```
+
+Methods: `upload`, `retrieve`, `registerGroup`, `addGroupMember`, `revokeGroupMember`, `joinGroup`,
+`authStatus`, `isAuthorized`, `getGroupOwner`, `getGroupChecksum`, `getTransactionsForGroup`,
+`getOwnedGroups`, `getMemberGroups`, `getGroupMembers`, `getBalance`, `estimateFee`,
+`refreshToken`, `computeHash`, `computeHashAsync`. `cid` is the storage location (FastFS path;
+the name is kept for compatibility). Testnet: pass `rpcUrl` and `contractId: 'nova-sdk-7.testnet'`.
+
+## MCP tools (REST: `POST {MCP}/tools/<name>`, JSON body; success `{"result": …}`, error `{"error": "…"}` with 401 auth / 500 other)
+
+Owner / account operations:
+- `register_group {group_id}` — caller becomes owner; generates the group key.
+- `add_group_member {group_id, member_id}` / `revoke_group_member {group_id, member_id}` (revoke rotates the key).
+- `set_group_retention {group_id, retention_days | null}` — null clears (keep forever).
+- `create_hackathon_group {group_id, expires_at, max_uses?}` / `close_hackathon_join {group_id}`.
+Member operations:
+- `join_group {group_id}` — self-join an open joinable group.
+- `prepare_upload {group_id, filename}` → `{upload_id, key, …}`; encrypt client-side with `key`;
+  `finalize_upload {upload_id, encrypted_data (base64), file_hash (sha256 hex of plaintext), format?}`
+  → `{location, cid, trans_id, file_hash}`. upload_id expires after 5 minutes.
+- `prepare_retrieve {group_id, ipfs_hash: <location or legacy CID>}` → `{key, encrypted_b64, location, format}`; decrypt client-side.
+Reads:
+- `auth_status {group_id?}`, `get_owned_groups {}`, `get_member_groups {}`,
+  `get_group_members {group_id}`, `get_group_transactions {group_id}` (audit trail incl. `deleted`).
+
+## Costs (mainnet, paid from the NOVA account)
+
+register group ~0.64 NEAR · upload ~0.039 · retrieve ~0.013 · add member ~0.013 · revoke ~0.001.
+Use one group per tenant/customer, not per record.
+
+## Limits and current gaps
+
+- ~4 MB per file (FastFS / NEAR transaction size). Compress or downscale.
+- Group ids: use `[A-Za-z0-9._-]`, 1–64 chars (enforced from contract v0.3.7).
+- Self-custodial sessions (wallet / Agent Connect identity) cannot yet sign contract writes
+  (`finalize_upload`'s on-chain record, group admin) and cannot list a private group's
+  transactions; they can retrieve a file they know the location of when they are a member.
+  Planned: reader-gated member listing (contract v0.3.7), non-custodial wallet writes (later).
+  Pattern today: a custodial owner account (your backend, API key) uploads and administers;
+  agents sign in with their own identity and read.
+- Automatic retention sweeps (scheduler) are being built; windows, the sweep and the on-chain
+  audit trail are live.
+- Legacy IPFS files remain readable; all new uploads go to FastFS.
+
+## Rules for agents and integrators
+
+- Never put `nova_sk_` keys, `nova_session` tokens, or Agent Connect `naa_`/`ngt_` tokens in a
+  browser, a URL, logs or a model prompt.
+- Owner operations (register, add/revoke members, retention) belong to the owner's backend, not to
+  an autonomous agent.
+- Verify what you retrieved: recompute SHA-256 of the plaintext and compare with the on-chain `file_hash`.
+
+## Links
+
+- [nova-sdk.com](https://nova-sdk.com): site, console, account and API key
+- [nova-sdk-js on npm](https://www.npmjs.com/package/nova-sdk-js): JS/TS SDK and README
+- [GitHub: jcarbonnell/nova](https://github.com/jcarbonnell/nova): source, issues
+- [NOVA docs](https://civictech-ou.gitbook.io/nova-docs/): longer guides
+- [NEAR Intents Agent API identity signing](https://docs-production-7968.up.railway.app/integration/agent-api/identity-signing): the `sign` capability used above
