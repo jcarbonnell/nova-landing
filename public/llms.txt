@@ -17,7 +17,7 @@
 - **MCP clients** (agents): the same server speaks MCP over HTTP; tools are listed below.
 - **IronClaw Reborn agents**: the `nova-reborn` WASM extension (host-injected API key).
 - **Agent Connect agents** (NEAR Intents Agent API): sign in to NOVA as their own NEAR Intents
-  account via identity signing (below).
+  account with a NEP-413 signature from `native/near/sign-message` (below).
 - **Owners/humans**: the console at https://nova-sdk.com/app (groups, files, retention, deletion audit, API key).
 
 Endpoints:
@@ -69,22 +69,29 @@ Getting a `nova_session`:
   body `{"account_id": "<name>.nova-sdk.near"}` → `{ token, … }`. The SDK does this and refreshes
   before expiry. Get/rotate the key in the console (Account). One key per account; rotation
   invalidates the old one. Keep it server-side only.
-- **Agent Connect agent → session** (identity signing; agent keeps its own key):
-  1. The agent's owner adds NOVA to the agent policy: `sign: { recipients: ["<audience>"] }`
-     (on-chain policy change; the audience is returned in step 2 — expected `nova-sdk.near`).
+- **Agent Connect agent → session** (NEP-413 via the Agent API's native accounts; the agent keeps its own key):
+  1. The agent's owner enables NOVA in the agent policy (on-chain policy update, one signature):
+     `native: { near: { sign_message: ["nova-sdk.near"], transfer: false, call: [] },
+     evm: { sign_typed_data: [], sign_message: false, sign_transaction: false },
+     solana: { sign_message: false, sign_transaction: false } }`. Only `sign_message` is needed;
+     it moves no money. Keep `transfer` and `call` off: native requests skip `destinations`,
+     `budget`, `timelock_ms`, `schedule` and `owner_approval`.
   2. `POST https://nova-sdk.com/api/auth/agent-identity/challenge` (no body) →
-     `{ message, challenge, audience, expires_at_ms }`. Challenges live 2 minutes, single use.
-  3. `POST <AgentAPI>/v1/agents/{agent_id}/sign` with `X-API-Key` + `X-Grant-Token`,
-     body `{ "message": <message verbatim>, "recipient": <audience> }` →
-     `{ near_account_id, public_key, signature, nonce, recipient }`.
+     `{ message, challenge, audience, expires_at_ms, nonce }`. Challenges live 2 minutes, single use.
+  3. `POST <AgentAPI>/v1/agents/{agent_id}/native/near/sign-message` with `X-API-Key` + `X-Grant-Token`,
+     body `{ "message": <message verbatim>, "recipient": <audience>, "nonce": <nonce verbatim> }` →
+     `{ correlation_id, near_account_id, public_key, signature (base64), nonce, recipient }`.
+     SDK: `agent.nativeNearSignMessage(agentId, { message, recipient, nonce })`.
   4. `POST https://nova-sdk.com/api/auth/agent-identity/verify`
-     body `{ "challenge": <challenge>, "signature": <the sign response as-is> }` →
+     body `{ "challenge": <challenge>, "signature": <the sign-message response as-is> }` →
      `{ token, account_id, expires_in }` (no cookie; backend use).
-     Errors: 400 bad body, 401 `UNAUTHORIZED` / `UNAUTHORIZED_NONCE_REPLAY` (get a new challenge),
-     503 `KEY_LOOKUP_UNAVAILABLE` or `CHALLENGE_CAPACITY` (retry; nothing consumed).
-  NOVA checks the NEP-413 signature over the message it stored, that `public_key` is a full-access
-  key of `near_account_id` (or the implicit account not yet on chain whose id is the key), then
-  consumes the challenge. Keep the token in your backend, never in a model prompt.
+     Errors: 400 bad body, 401 `UNAUTHORIZED` (wrong nonce, signature or key) /
+     `UNAUTHORIZED_NONCE_REPLAY` (get a new challenge), 503 `KEY_LOOKUP_UNAVAILABLE` or
+     `CHALLENGE_CAPACITY` (retry; nothing consumed).
+  NOVA checks the NEP-413 signature over the message AND nonce it stored, that the returned nonce
+  is the one it issued, that `public_key` is a full-access key of `near_account_id` (or the
+  implicit account not yet on chain whose id is the key), then consumes the challenge. Keep the
+  token in your backend, never in a model prompt.
 - **Browser wallet sign-in** (NEP-413) and email login exist for the console; not needed for integrations.
 
 ## SDK (nova-sdk-js)
@@ -103,6 +110,14 @@ Methods: `upload`, `retrieve`, `registerGroup`, `addGroupMember`, `revokeGroupMe
 `getOwnedGroups`, `getMemberGroups`, `getGroupMembers`, `getBalance`, `estimateFee`,
 `refreshToken`, `computeHash`, `computeHashAsync`. `cid` is the storage location (FastFS path;
 the name is kept for compatibility). Testnet: pass `rpcUrl` and `contractId: 'nova-sdk-7.testnet'`.
+
+An agent that signed in (above) uses its session instead of an API key; retrieval costs it nothing:
+
+```ts
+const agentSdk = new NovaSdk('<agent near_account_id>', { sessionToken });   // from /verify
+const { data } = await agentSdk.retrieve('acme-proofs', location);          // member of the group
+// verify: sha256(data) === the file_hash recorded on chain at upload
+```
 
 ## MCP tools (REST: `POST {MCP}/tools/<name>`, JSON body; success `{"result": …}`, error `{"error": "…"}` with 401 auth / 500 other)
 
@@ -132,7 +147,9 @@ Use one group per tenant/customer, not per record.
 - Group ids: use `[A-Za-z0-9._-]`, 1–64 chars (enforced from contract v0.3.7).
 - Self-custodial sessions (wallet / Agent Connect identity) cannot yet sign contract writes
   (`finalize_upload`'s on-chain record, group admin) and cannot list a private group's
-  transactions; they can retrieve a file they know the location of when they are a member.
+  transactions; they CAN retrieve and decrypt a file they know the location of while they are a
+  member (proven on mainnet 2026-10-21, including immediate refusal after revocation).
+  Do not upload with an agent session yet: MCP will refuse it up front in its next release.
   Planned: reader-gated member listing (contract v0.3.7), non-custodial wallet writes (later).
   Pattern today: a custodial owner account (your backend, API key) uploads and administers;
   agents sign in with their own identity and read.
@@ -154,4 +171,5 @@ Use one group per tenant/customer, not per record.
 - [nova-sdk-js on npm](https://www.npmjs.com/package/nova-sdk-js): JS/TS SDK and README
 - [GitHub: jcarbonnell/nova](https://github.com/jcarbonnell/nova): source, issues
 - [NOVA docs](https://civictech-ou.gitbook.io/nova-docs/): longer guides
-- [NEAR Intents Agent API identity signing](https://docs-production-7968.up.railway.app/integration/agent-api/identity-signing): the `sign` capability used above
+- [Agent API native accounts (policy `native`)](https://github.com/NEAR-Intents-Agent-API/skills/blob/main/near-intents-agent-api/references/policy.md): `native.near.sign_message`, used above
+- [Agent API sign-and-verify example](https://github.com/NEAR-Intents-Agent-API/examples/tree/main/07-native-accounts): the reference relying-party flow NOVA implements
