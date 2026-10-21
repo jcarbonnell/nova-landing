@@ -7,8 +7,8 @@
 // the server), so callers hit this route, which forwards to Shade. Shade builds
 // the Agent API's canonical 7-field identity challenge, stores it, and returns:
 //   { message, challenge, audience, expires_at_ms }
-// The caller passes `message` VERBATIM to the Agent API's sign endpoint
-// (api.sign), then posts the API's signature + `challenge` to ../verify.
+// The caller passes message, audience (as recipient) and nonce VERBATIM to the 
+// Agent API’s native/near/sign-message, then posts the API's signature + `challenge` to ../verify.
 // `audience` is the NEAR account the agent owner must allow in the policy's
 // `sign.recipients`. Mints no token.
 
@@ -54,7 +54,8 @@ export async function POST() {
       typeof data?.message !== 'string' ||
       typeof data?.challenge !== 'string' ||
       typeof data?.audience !== 'string' ||
-      typeof data?.expires_at_ms !== 'number'
+      typeof data?.expires_at_ms !== 'number' ||
+      typeof data?.nonce !== 'string'
     ) {
       logError('agent_challenge_malformed', { status: shadeResponse.status });
       return NextResponse.json({ error: 'Could not issue challenge' }, { status: 502 });
@@ -66,6 +67,7 @@ export async function POST() {
       challenge: data.challenge,
       audience: data.audience,
       expires_at_ms: data.expires_at_ms,
+      nonce: data.nonce, // pass to native/near/sign-message as-is
     });
   } catch (error) {
     logError('agent_challenge_error', {
