@@ -145,12 +145,11 @@ Use one group per tenant/customer, not per record.
 
 - ~4 MB per file (FastFS / NEAR transaction size). Compress or downscale.
 - Group ids: use `[A-Za-z0-9._-]`, 1–64 chars (enforced from contract v0.3.7).
-- Self-custodial sessions (wallet / Agent Connect identity) cannot yet sign contract writes
-  (`finalize_upload`'s on-chain record, group admin) and cannot list a private group's
-  transactions; they CAN retrieve and decrypt a file they know the location of while they are a
-  member (proven on mainnet 2026-10-21, including immediate refusal after revocation).
-  Do not upload with an agent session yet: MCP will refuse it up front in its next release.
-  Planned: reader-gated member listing (contract v0.3.7), non-custodial wallet writes (later).
+- Self-custodial sessions (wallet / Agent Connect identity) can list a private group's files
+  (`get_group_transactions`, mainnet) and retrieve and decrypt them while they are a member
+  (proven on mainnet 2026-10-21, including immediate refusal after revocation). They cannot sign
+  contract writes: uploads and group admin from these sessions are refused up front.
+  Planned: non-custodial wallet writes; relayed uploads for agents.
   Pattern today: a custodial owner account (your backend, API key) uploads and administers;
   agents sign in with their own identity and read.
 - Automatic retention sweeps (scheduler) are being built; windows, the sweep and the on-chain
