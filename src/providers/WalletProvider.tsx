@@ -136,9 +136,15 @@ export function NearWalletProvider({ children }: { children: ReactNode }) {
           ],
         });
 
-        const modal = setupModal(selector, {
-          contractId: process.env.NEXT_PUBLIC_CONTRACT_ID || "nova-sdk.near",
-        });
+        // No contractId: connecting a wallet must NOT add a function-call key for
+        // nova-sdk.near to the user's account. With a contractId, every connect
+        // created an all-methods key (0.25 NEAR allowance) stored in the browser or
+        // the wallet; anyone who obtained it could call the zero-fee owner methods
+        // (set_group_retention, tombstone_transactions, open/close_hackathon_join)
+        // as the user, with no confirmation. NOVA never used that key: sign-in is
+        // NEP-413 (signMessage), and wallet-signed writes go through the wallet's
+        // own confirmation.
+        const modal = setupModal(selector, {});
 
         const state = selector.store.getState();
         const accounts = state.accounts || [];
