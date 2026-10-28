@@ -56,24 +56,30 @@ export interface Transaction {
 // Thrown for non-401 failures so the component can show an inline error. A 401
 // never reaches the caller — novaFetch redirects before returning.
 //
-// `walletSignerUnavailable` marks the specific, PERMANENT case where a wallet
-// (self-custody) user reads a PRIVATE group's members/transactions: those route
-// through MCP's signed call_contract path, which asks Shade for a custodial key
-// the wallet user does not have → Shade 501s → MCP wraps it as a 500 with a
-// "Failed to get signer … Shade key retrieval failed: 501" message. Retry is
-// futile (it's an architectural gap, not a transient error), so the UI shows a
-// distinct, retry-less explanation. Resolves when the deferred non-signed reader
-// path / client-side signing (§5.11-B) lands. Detected by message signature
-// because MCP does not surface a structured code here (the RuntimeError string
-// is all we get on the wire).
+// `walletSignerUnavailable` marks a wallet (self-custody) session hitting MCP's
+// SIGNED read path, which asks Shade for a custodial key the wallet user does not
+// have ("Failed to get signer … Shade key retrieval failed: 501"). Since MCP v0.4.12
+// (contract v0.3.8), wallet sessions on MAINNET read members/transactions through
+// the reader-gated views, so this no longer fires there; it remains for networks
+// without a reader key (testnet). Retry is futile, so the UI shows a retry-less notice.
+//
+// `bytesMissing` marks a file whose on-chain record exists but whose bytes are not
+// at its FastFS location ("FastFS read failed: 404"). Wallet uploads are
+// record-first: the wallet signs the record, then finalize writes the bytes. If
+// finalize never ran (tab closed, MCP refusal), the record stays without bytes. The
+// UI labels that honestly instead of as a broken file. 404 only: other FastFS
+// failures stay retryable errors. Detected by message signature (MCP wraps Shade's
+// error as text).
 export class DashboardFetchError extends Error {
   public walletSignerUnavailable: boolean;
+  public bytesMissing: boolean;
   constructor(public status: number, message: string) {
     super(message);
     this.name = 'DashboardFetchError';
     this.walletSignerUnavailable =
       /Shade key retrieval failed:\s*501/i.test(message) ||
       /Failed to get signer/i.test(message);
+    this.bytesMissing = /FastFS read failed:\s*404/i.test(message);
   }
 }
 

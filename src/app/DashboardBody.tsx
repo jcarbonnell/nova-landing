@@ -95,7 +95,7 @@ function sniffExt(bytes: Uint8Array): string {
 type VerifyState =
   | { status: 'verifying' }
   | { status: 'verified'; match: boolean; bytes: Uint8Array; ext: string }
-  | { status: 'error'; message: string; walletUnavailable: boolean };
+  | { status: 'error'; message: string; walletUnavailable: boolean; bytesMissing: boolean };
 
 // ── badges ───────────────────────────────────────────────────────────────────
 
@@ -161,7 +161,7 @@ function WalletUnavailableNotice() {
   return (
     <div className="flex items-start gap-2 rounded-lg border border-purple-500/30 bg-purple-900/30 px-3 py-2 text-sm text-purple-300">
       <AlertCircle size={16} className="shrink-0 mt-0.5 text-purple-400" />
-      <span>Private-group details aren&apos;t available for wallet sign-in — coming with client-side signing.</span>
+      <span>Private-group details aren&apos;t available for wallet sign-in on this network yet.</span>
     </div>
   );
 }
@@ -209,8 +209,26 @@ function IntegrityCell({
     // won't help, so show the calm notice, not a retry.
     if (state.walletUnavailable) {
       return (
-        <span className="text-xs text-purple-400" title="Coming with client-side signing">
+        <span className="text-xs text-purple-400" title="Not available for wallet sign-in on this network yet">
           Unavailable on wallet
+        </span>
+      );
+    }
+    // On-chain record exists, bytes never written (record-first upload not
+    // finalized). An honest audit state, not a failure: neutral pill + re-check.
+    if (state.bytesMissing) {
+      return (
+        <span
+          className="flex items-center gap-2 text-xs"
+          title="This file's on-chain record exists, but no bytes were found at its storage location. Usually the upload was recorded (signed) and never completed. The record itself is intact."
+        >
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-200 border border-amber-400/40">
+            <span className="w-2 h-2 rounded-full bg-amber-300" />
+            record without bytes
+          </span>
+          <button type="button" onClick={onVerify} className="underline text-purple-400 hover:text-white">
+            re-check
+          </button>
         </span>
       );
     }
@@ -341,9 +359,10 @@ export default function DashboardBody({ accountId }: DashboardBodyProps) {
       }));
     } catch (e) {
       const walletUnavailable = e instanceof DashboardFetchError && e.walletSignerUnavailable;
+      const bytesMissing = e instanceof DashboardFetchError && e.bytesMissing;
       setVerify((v) => ({
         ...v,
-        [tx.trans_id]: { status: 'error', message: errMessage(e), walletUnavailable },
+        [tx.trans_id]: { status: 'error', message: errMessage(e), walletUnavailable, bytesMissing },
       }));
     }
   }, []);

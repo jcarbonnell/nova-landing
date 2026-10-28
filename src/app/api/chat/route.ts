@@ -12,6 +12,15 @@ const MCP_URL = process.env.MCP_URL || 'https://5a5223f7d1bfe777433c496b9d52ff85
 const NETWORK_ID = process.env.NEXT_PUBLIC_NEAR_NETWORK || 'mainnet';
 const ACCOUNT_SUFFIX = NETWORK_ID === 'mainnet' ? '.nova-sdk.near' : '.nova-sdk-7.testnet';
 
+// The only tools a wallet (self-custodial) session may use in the chat.
+const WALLET_READ_TOOLS = [
+  'get_owned_groups',
+  'get_member_groups',
+  'get_group_members',
+  'get_group_transactions',
+  'prepare_retrieve',
+] as const;
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -77,6 +86,12 @@ export async function POST(req: NextRequest) {
       verifiedAccountId = tokenData.account_id;
     }
 
+    // Self-custodial (SIWN wallet) session: NOVA holds no key, every write must be
+    // signed by the user's wallet (path A), which this chat cannot reach. Writes are
+    // therefore NOT offered as tools for wallet sessions (below): enforced in code,
+    // not only in the prompt.
+    const walletMode = !!walletSession;
+
     const toolHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${sessionToken}`,
@@ -109,6 +124,18 @@ Your capabilities include:
 Current user: ${verifiedAccountId}
 NEAR Account: ${verifiedAccountId}
 Network: ${NETWORK_ID}
+${walletMode ? `
+═══════════════════════════════════════════════════════════════════════════════
+WALLET ACCOUNT (self-custodial):
+This user signed in with their own NEAR wallet. NOVA never holds their key, so every
+write (creating a group, adding or removing a member, uploading a file, setting
+retention) must be signed by their wallet. That cannot be done from this chat yet:
+the write tools are not available to you. You CAN read: their groups, a group's
+members, a group's files, and retrieve/decrypt a file. Reads are free for wallet accounts.
+If the user asks for a write, say plainly that it needs their wallet's signature and
+is not available in the chat yet (the NOVA SDK's wallet mode supports it). Do not
+attempt it and do not suggest a workaround.
+` : ''}
 
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -299,6 +326,10 @@ Be helpful, concise, and security-conscious.`;
             callMCPTool('prepare_retrieve', { group_id, ipfs_hash }),
         }),
       },
+      // Wallet sessions: reads only. activeTools filters both what the model is
+      // offered AND what the SDK will execute (a call to any other tool is rejected
+      // as NoSuchToolError, never run).
+      activeTools: walletMode ? [...WALLET_READ_TOOLS] : undefined,
       stopWhen: stepCountIs(5),
     });
 

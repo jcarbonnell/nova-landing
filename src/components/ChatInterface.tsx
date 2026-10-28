@@ -461,6 +461,9 @@ export default function ChatInterface({ accountId, email }: ChatInterfaceProps) 
 
   // Get display name from accountId
   const displayName = accountId.split('.')[0];
+  // Wallet sign-in (no email, same rule as DashboardChrome): self-custodial, so the
+  // chat is read-only (writes need the user's wallet signature; see api/chat).
+  const walletMode = !email;
 
   return (
     <div 
@@ -505,17 +508,40 @@ export default function ChatInterface({ accountId, email }: ChatInterfaceProps) 
             </p>
             <div className="text-left max-w-md mx-auto text-sm text-purple-300 space-y-2">
               <p><strong>What I can do:</strong></p>
-              <ul className="list-disc list-inside space-y-1 text-purple-400">
-                <li>📤 Upload data with end-to-end encryption</li>
-                <li>👥 Create secure sharing groups</li>
-                <li>🔐 Add/Revoke access permissions</li>
-              </ul>
-              <p className="mt-4"><strong>Try:</strong></p>
-              <ul className="list-disc list-inside space-y-1 text-purple-400">
-                <li>&quot;Create a group called &apos;Team Files&apos;&quot;</li>
-                <li>&quot;Upload this document in that group&quot;</li>
-                <li>&quot;Add user Y as an authorized member&quot;</li>
-              </ul>
+              {walletMode ? (
+                <>
+                  <ul className="list-disc list-inside space-y-1 text-purple-400">
+                    <li>👥 List your groups and their members</li>
+                    <li>📂 List a group&apos;s files</li>
+                    <li>📥 Retrieve and decrypt a file</li>
+                  </ul>
+                  <p className="mt-3 text-purple-400">
+                    You signed in with your own wallet, so NOVA never holds your key. Changes
+                    (groups, members, uploads) are signed by your wallet and aren&apos;t available
+                    in the chat yet.
+                  </p>
+                  <p className="mt-4"><strong>Try:</strong></p>
+                  <ul className="list-disc list-inside space-y-1 text-purple-400">
+                    <li>&quot;What groups am I in?&quot;</li>
+                    <li>&quot;Who has access to my group?&quot;</li>
+                    <li>&quot;Show the files in that group&quot;</li>
+                  </ul>
+                </>
+              ) : (
+                <>
+                  <ul className="list-disc list-inside space-y-1 text-purple-400">
+                    <li>📤 Upload data with end-to-end encryption</li>
+                    <li>👥 Create secure sharing groups</li>
+                    <li>🔐 Add/Revoke access permissions</li>
+                  </ul>
+                  <p className="mt-4"><strong>Try:</strong></p>
+                  <ul className="list-disc list-inside space-y-1 text-purple-400">
+                    <li>&quot;Create a group called &apos;Team Files&apos;&quot;</li>
+                    <li>&quot;Upload this document in that group&quot;</li>
+                    <li>&quot;Add user Y as an authorized member&quot;</li>
+                  </ul>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -702,7 +728,8 @@ export default function ChatInterface({ accountId, email }: ChatInterfaceProps) 
               variant="ghost" 
               className="text-purple-300 hover:text-white hover:bg-purple-800/50"
               onClick={() => fileInputRef.current?.click()}
-              disabled={status !== 'ready'}
+              disabled={status !== 'ready' || walletMode}
+              title={walletMode ? 'Uploads are signed by your wallet; not available in the chat yet' : undefined}
             >
               <Paperclip size={20} />
             </Button>
