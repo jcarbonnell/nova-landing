@@ -33,7 +33,7 @@
     "@pingpay/onramp-types": "^0.0.2",
     "@tanstack/react-query": "^5.90.7",
     "@types/stripe": "^8.0.416",
-    "ai": "^6.0.177",
+    "ai": "^6.0.317",
     "autoprefixer": "^10.4.22",
     "bn.js": "^5.2.2",
     "buffer": "^6.0.3",
@@ -60,7 +60,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
-    "nova-sdk-js":"^1.2.5",
+    "nova-sdk-js": "^1.2.5",
     "typescript": "^5"
   }
 }

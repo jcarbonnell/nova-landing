@@ -92,6 +92,18 @@ export async function POST(req: NextRequest) {
     // not only in the prompt.
     const walletMode = !!walletSession;
 
+    // Second layer, independent of the AI SDK version: a write tool refuses to run
+    // for a wallet session even if the model calls it. (activeTools only blocks
+    // execution from ai@6.0.231; test/check-chat-active-tools.mjs checks both.)
+    function custodialOnly<T>(run: () => Promise<T>): Promise<T> {
+      if (walletMode) {
+        return Promise.reject(
+          new Error('Writes are signed by your own wallet and are not available in the chat yet.'),
+        );
+      }
+      return run();
+    }
+
     const toolHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${sessionToken}`,
@@ -285,7 +297,8 @@ Be helpful, concise, and security-conscious.`;
           inputSchema: z.object({
             group_id: z.string().describe('Unique group identifier (e.g., "my-team")'),
           }),
-          execute: async ({ group_id }) => callMCPTool('register_group', { group_id }),
+          execute: async ({ group_id }) =>
+            custodialOnly(() => callMCPTool('register_group', { group_id })),
         }),
         add_group_member: tool({
           description: 'Add a member to a group (owner only)',
@@ -294,7 +307,7 @@ Be helpful, concise, and security-conscious.`;
             member_id: z.string().describe('NEAR account ID of the member to add'),
           }),
           execute: async ({ group_id, member_id }) =>
-            callMCPTool('add_group_member', { group_id, member_id }),
+            custodialOnly(() => callMCPTool('add_group_member', { group_id, member_id })),
         }),
         revoke_group_member: tool({
           description: 'Remove a member from a group (owner only, automatically rotates encryption key)',
@@ -303,7 +316,7 @@ Be helpful, concise, and security-conscious.`;
             member_id: z.string().describe('NEAR account ID of the member to remove'),
           }),
           execute: async ({ group_id, member_id }) =>
-            callMCPTool('revoke_group_member', { group_id, member_id }),
+            custodialOnly(() => callMCPTool('revoke_group_member', { group_id, member_id })),
         }),
 
         // ─── File operations ───
@@ -314,7 +327,7 @@ Be helpful, concise, and security-conscious.`;
             filename: z.string().describe('Name of the file being uploaded'),
           }),
           execute: async ({ group_id, filename }) =>
-            callMCPTool('prepare_upload', { group_id, filename }),
+            custodialOnly(() => callMCPTool('prepare_upload', { group_id, filename })),
         }),
         prepare_retrieve: tool({
           description: 'Get encryption key and encrypted file data for download. Frontend handles decryption.',
