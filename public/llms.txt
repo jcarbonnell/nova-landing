@@ -16,8 +16,9 @@
   client-side crypto yourself (prefer the SDK).
 - **MCP clients** (agents): the same server speaks MCP over HTTP; tools are listed below.
 - **IronClaw Reborn agents**: the `nova-reborn` WASM extension (host-injected API key).
-- **Agent Connect agents** (NEAR Intents Agent API): sign in to NOVA as their own NEAR Intents
-  account with a NEP-413 signature from `native/near/sign-message` (below).
+- **Agent Connect agents** (NEAR Intents Agent API): sign in to NOVA as their own NEAR account
+  (NEP-413 via `native/near/sign-message`) and sign and pay their own writes (`native/near/call`).
+  Reference module and guide: `nova-agent-connect` (below).
 - **Owners/humans**: the console at https://nova-sdk.com/app (groups, files, retention, deletion audit, API key).
 
 Endpoints:
@@ -73,9 +74,10 @@ Getting a `nova_session`:
   1. The agent's owner enables NOVA in the agent policy (on-chain policy update, one signature):
      `native: { near: { sign_message: ["nova-sdk.near"], transfer: false, call: [] },
      evm: { sign_typed_data: [], sign_message: false, sign_transaction: false },
-     solana: { sign_message: false, sign_transaction: false } }`. Only `sign_message` is needed;
-     it moves no money. Keep `transfer` and `call` off: native requests skip `destinations`,
-     `budget`, `timelock_ms`, `schedule` and `owner_approval`.
+     solana: { sign_message: false, sign_transaction: false } }`. `sign_message` alone is enough to
+     sign in and read; it moves no money. To also write, list the contract in `call` as well (see
+     "Self-custodial writes"). Keep `transfer` off: native requests skip `destinations`, `budget`,
+     `timelock_ms`, `schedule` and `owner_approval`.
   2. `POST https://nova-sdk.com/api/auth/agent-identity/challenge` (no body) →
      `{ message, challenge, audience, expires_at_ms, nonce }`. Challenges live 2 minutes, single use.
   3. `POST <AgentAPI>/v1/agents/{agent_id}/native/near/sign-message` with `X-API-Key` + `X-Grant-Token`,
@@ -92,7 +94,8 @@ Getting a `nova_session`:
   is the one it issued, that `public_key` is a full-access key of `near_account_id` (or the
   implicit account not yet on chain whose id is the key), then consumes the challenge. Keep the
   token in your backend, never in a model prompt.
-- **Browser wallet sign-in** (NEP-413) and email login exist for the console; not needed for integrations.
+- **Browser wallet sign-in** (NEP-413) and email login exist for the console. A wallet session writes
+  with its own wallet (see "Self-custodial writes").
 
 ## SDK (nova-sdk-js)
 
@@ -106,6 +109,7 @@ const { data } = await sdk.retrieve('acme-proofs', up.cid);   // member
 ```
 
 Methods: `upload`, `retrieve`, `registerGroup`, `addGroupMember`, `revokeGroupMember`, `joinGroup`,
+`setGroupRetention`, `getMemberWindow`, `signerMode`,
 `authStatus`, `isAuthorized`, `getGroupOwner`, `getGroupChecksum`, `getTransactionsForGroup`,
 `getOwnedGroups`, `getMemberGroups`, `getGroupMembers`, `getBalance`, `estimateFee`,
 `refreshToken`, `computeHash`, `computeHashAsync`. `cid` is the storage location (FastFS path;
@@ -119,41 +123,80 @@ const { data } = await agentSdk.retrieve('acme-proofs', location);          // m
 // verify: sha256(data) === the file_hash recorded on chain at upload
 ```
 
+## Self-custodial writes (browser wallets and Agent Connect agents)
+
+A self-custodial account signs and pays its own contract writes. NOVA never signs for it, sponsors
+none of its transactions, and never sees its key. `nova-sdk-js` ≥ 1.4.0 does this in wallet mode:
+pass `walletSigner: { accountId, signAndSendFunctionCall({ receiverId, methodName, args, gas, deposit }) → { txHash } }`
+(`nova-sdk-rs` 1.4.0: `NovaWalletSigner`, `with_wallet_signer`). Uploads are record-first:
+`prepare_upload` returns the FastFS `location`, the account signs `record_transaction` at that
+location, and `finalize_upload` carries its `tx_hash`. MCP checks that transaction on chain (signer =
+the session account, receiver `nova-sdk.near`, exact args, success) before storing any byte. Owner
+operations work the same way: the account signs, then MCP re-reads the chain before doing NOVA's
+side (key creation, rotation).
+
+### Agent Connect agents (live on mainnet since 2026-10-29)
+
+The agent's own NEAR account (`wallet.near_account_id`) signs with its own key through
+`native/near/call` and pays gas and fees from its own NEAR balance.
+1. The owner's policy (one on-chain update): `native.near.sign_message` and `native.near.call` =
+   `["nova-sdk.near"]`; `assets` allows `nep141:wrap.near` (native deposits count as wNEAR);
+   `limits.per_transaction["nep141:wrap.near"]` caps each deposit (the deposit is NOVA's fee:
+   `estimate_fee`; `record_transaction` is 0.0000256 NEAR, `register_group` 0.64 NEAR);
+   `max_actions_per_hour` ≥ the writes you expect (every write that reaches the chain counts, even one
+   the contract refuses).
+2. Fund the agent's NEAR account (any NEAR transfer creates the implicit account). An upload costs it
+   about 0.0004 NEAR.
+3. In your backend: `const { nova, signer } = await connectNovaAgent(agentApi.forGrant(ngt), agentId, { store, maxDepositYocto })`
+   from the `nova-agent-connect` reference module; `nova` is plain `nova-sdk-js`. Persist pending calls
+   in `store`. After a `NativeCallPendingError`, call `signer.resolvePending()`, which uses the same
+   idempotency key; never resend under a new key.
+Refusals: `403 native_method_denied` (contract not in `call`), `409 policy_denied` (deposit over the
+cap, or the hourly action budget used up), `provider_rate_limited` (retryable, same key). A contract
+panic comes back as `FAILED (native_request_failed)` with the panic text.
+
 ## MCP tools (REST: `POST {MCP}/tools/<name>`, JSON body; success `{"result": …}`, error `{"error": "…"}` with 401 auth / 500 other)
 
 Owner / account operations:
 - `register_group {group_id}` — caller becomes owner; generates the group key.
-- `add_group_member {group_id, member_id}` / `revoke_group_member {group_id, member_id}` (revoke rotates the key).
+- `add_group_member {group_id, member_id, access_minutes?}` / `revoke_group_member {group_id, member_id}` (revoke rotates the key).
+  `access_minutes` (custodial owners only) sells a window: NOVA's scheduler revokes the member about a
+  minute after expiry. `get_member_window {group_id, member_id}` (owner) reads it.
+- Self-custodial owners sign the contract call first, then call the tool (NOVA's side only).
 - `set_group_retention {group_id, retention_days | null}` — null clears (keep forever).
 - `create_hackathon_group {group_id, expires_at, max_uses?}` / `close_hackathon_join {group_id}`.
 Member operations:
 - `join_group {group_id}` — self-join an open joinable group.
-- `prepare_upload {group_id, filename}` → `{upload_id, key, …}`; encrypt client-side with `key`;
-  `finalize_upload {upload_id, encrypted_data (base64), file_hash (sha256 hex of plaintext), format?}`
-  → `{location, cid, trans_id, file_hash}`. upload_id expires after 5 minutes.
+- `prepare_upload {group_id, filename}` → `{upload_id, key, …}` (self-custodial sessions also get
+  `location`); encrypt client-side with `key`;
+  `finalize_upload {upload_id, encrypted_data (base64), file_hash (sha256 hex of plaintext), format?, tx_hash?}`
+  → `{location, cid, trans_id, file_hash}`. upload_id expires after 5 minutes. Self-custodial
+  sessions first sign `record_transaction {group_id, user_id, file_hash, ipfs_hash: <location>, backend: "FastFS"}`
+  and pass its `tx_hash`.
 - `prepare_retrieve {group_id, ipfs_hash: <location or legacy CID>}` → `{key, encrypted_b64, location, format}`; decrypt client-side.
 Reads:
 - `auth_status {group_id?}`, `get_owned_groups {}`, `get_member_groups {}`,
   `get_group_members {group_id}`, `get_group_transactions {group_id}` (audit trail incl. `deleted`).
 
-## Costs (mainnet, paid from the NOVA account)
+## Costs (mainnet; custodial accounts pay from their NOVA account, self-custodial accounts from their own)
 
 register group ~0.64 NEAR · upload ~0.039 · retrieve ~0.013 · add member ~0.013 · revoke ~0.001.
-Use one group per tenant/customer, not per record.
+Use one group per tenant/customer, not per record. A self-custodial upload (gas plus the 0.0000256 NEAR
+fee) cost an Agent Connect agent about 0.0004 NEAR.
 
 ## Limits and current gaps
 
 - ~4 MB per file (FastFS / NEAR transaction size). Compress or downscale.
 - Group ids: use `[A-Za-z0-9._-]`, 1–64 chars (enforced from contract v0.3.7).
-- Self-custodial sessions (wallet / Agent Connect identity) can list a private group's files
-  (`get_group_transactions`, mainnet) and retrieve and decrypt them while they are a member
-  (proven on mainnet 2026-10-21, including immediate refusal after revocation). They cannot sign
-  contract writes: uploads and group admin from these sessions are refused up front.
-  Planned: non-custodial wallet writes; relayed uploads for agents.
-  Pattern today: a custodial owner account (your backend, API key) uploads and administers;
-  agents sign in with their own identity and read.
-- Automatic retention sweeps (scheduler) are being built; windows, the sweep and the on-chain
-  audit trail are live.
+- Self-custodial sessions (browser wallet / Agent Connect agent) read as members (list, retrieve,
+  members) and write with their own signature: uploads, joins and, for groups they own, owner
+  operations (wallets: live 2026-10-28; Agent Connect agents: member writes live 2026-10-29).
+  Not proven yet: an Agent Connect agent owning a group (`register_group` needs a 0.64 NEAR cap).
+- Access windows (`access_minutes`) need a custodial owner: the scheduler revokes by signing as the
+  owner, and NOVA never signs for a self-custodial account.
+- Common pattern: a custodial owner account (your backend, API key) owns and administers the group;
+  agents sign in as themselves, read, and upload with their own signature.
+- Retention sweeps and access-window revocations run in NOVA's TEE scheduler (on since 2026-10-26).
 - Legacy IPFS files remain readable; all new uploads go to FastFS.
 
 ## Rules for agents and integrators
@@ -171,4 +214,5 @@ Use one group per tenant/customer, not per record.
 - [GitHub: jcarbonnell/nova](https://github.com/jcarbonnell/nova): source, issues
 - [NOVA docs](https://civictech-ou.gitbook.io/nova-docs/): longer guides
 - [Agent API native accounts (policy `native`)](https://github.com/NEAR-Intents-Agent-API/skills/blob/main/near-intents-agent-api/references/policy.md): `native.near.sign_message`, used above
-- [Agent API sign-and-verify example](https://github.com/NEAR-Intents-Agent-API/examples/tree/main/07-native-accounts): the reference relying-party flow NOVA implements
+- [Agent API sign-and-verify example](https://github.com/NEAR-Intents-Agent-API/examples/tree/main/07-identity-signing): the reference relying-party flow NOVA implements
+- [nova-agent-connect](https://github.com/jcarbonnell/nova/tree/main/nova-agent-connect): reference module and guide for Agent Connect agents (self-custodial sign-in and writes)
