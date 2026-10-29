@@ -203,8 +203,11 @@ fee) cost an Agent Connect agent about 0.0004 NEAR.
 
 - Never put `nova_sk_` keys, `nova_session` tokens, or Agent Connect `naa_`/`ngt_` tokens in a
   browser, a URL, logs or a model prompt.
-- Owner operations (register, add/revoke members, retention) belong to the owner's backend, not to
-  an autonomous agent.
+- Owner operations (register, add/revoke members, retention) are signed by the group's owner: never
+  give an agent another owner's API key or wallet key, and NOVA never performs them on anyone's
+  behalf. An agent can own groups under its own account and administer them with its own signature;
+  restrict in your backend which owner methods it may sign (Agent Connect cannot require owner
+  approval for native calls).
 - Verify what you retrieved: recompute SHA-256 of the plaintext and compare with the on-chain `file_hash`.
 
 ## Links
