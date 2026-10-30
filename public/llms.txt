@@ -151,6 +151,10 @@ The agent's own NEAR account (`wallet.near_account_id`) signs with its own key t
    from the `nova-agent-connect` reference module; `nova` is plain `nova-sdk-js`. Persist pending calls
    in `store`. After a `NativeCallPendingError`, call `signer.resolvePending()`, which uses the same
    idempotency key; never resend under a new key.
+Owner operations (live 2026-10-30): the agent registers and administers its own groups. Give
+`register_group` its own cap (`maxDepositByMethod: { register_group: 0.64 NEAR }`, owner policy cap
+≥ 0.64 NEAR), restrict what it may sign with `methods`, and keep ~0.2 NEAR above the deposit on its
+account (`409 custody_native_balance_required`: the provider reserves the network fee).
 Refusals: `403 native_method_denied` (contract not in `call`), `409 policy_denied` (deposit over the
 cap, or the hourly action budget used up), `provider_rate_limited` (retryable, same key). A contract
 panic comes back as `FAILED (native_request_failed)` with the panic text.
@@ -190,8 +194,8 @@ fee) cost an Agent Connect agent about 0.0004 NEAR.
 - Group ids: use `[A-Za-z0-9._-]`, 1–64 chars (enforced from contract v0.3.7).
 - Self-custodial sessions (browser wallet / Agent Connect agent) read as members (list, retrieve,
   members) and write with their own signature: uploads, joins and, for groups they own, owner
-  operations (wallets: live 2026-10-28; Agent Connect agents: member writes live 2026-10-29).
-  Not proven yet: an Agent Connect agent owning a group (`register_group` needs a 0.64 NEAR cap).
+  operations (wallets: live 2026-10-28; Agent Connect agents: member writes live 2026-10-29,
+  owning and administering their own groups live 2026-10-30).
 - Access windows (`access_minutes`) need a custodial owner: the scheduler revokes by signing as the
   owner, and NOVA never signs for a self-custodial account.
 - Common pattern: a custodial owner account (your backend, API key) owns and administers the group;
@@ -206,8 +210,7 @@ fee) cost an Agent Connect agent about 0.0004 NEAR.
 - Owner operations (register, add/revoke members, retention) are signed by the group's owner: never
   give an agent another owner's API key or wallet key, and NOVA never performs them on anyone's
   behalf. An agent can own groups under its own account and administer them with its own signature;
-  restrict in your backend which owner methods it may sign (Agent Connect cannot require owner
-  approval for native calls).
+  restrict in your backend which owner methods it may sign (`methods`, `maxDepositByMethod`).
 - Verify what you retrieved: recompute SHA-256 of the plaintext and compare with the on-chain `file_hash`.
 
 ## Links
