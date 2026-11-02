@@ -45,7 +45,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { upload_id, encrypted_data, file_hash } = body;
+  // format: the v1 descriptor (W0, chat uploads are v1). tx_hash: the wallet's
+  // record_transaction hash (record-first wallet uploads, §5.11). Both optional and
+  // forwarded verbatim; MCP validates them.
+  const { upload_id, encrypted_data, file_hash, format, tx_hash } = body;
 
   // Presence guard only. file_hash format (64-hex) is validated by MCP — not
   // duplicated here (single source of truth for the format constraint).
@@ -76,6 +79,8 @@ export async function POST(req: NextRequest) {
     upload_id,
     file_hash_prefix: file_hash.slice(0, 16),
     data_length: encrypted_data.length,
+    has_format: format !== undefined,
+    has_tx_hash: tx_hash !== undefined,
   });
 
   try {
@@ -86,7 +91,13 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${sessionToken}`,
         'x-account-id': accountId, // resolved, not client-supplied
       },
-      body: JSON.stringify({ upload_id, encrypted_data, file_hash }),
+      body: JSON.stringify({
+        upload_id,
+        encrypted_data,
+        file_hash,
+        ...(format !== undefined && { format }),
+        ...(tx_hash !== undefined && { tx_hash }),
+      }),
     });
 
     const data = await response.json();

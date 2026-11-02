@@ -1,8 +1,8 @@
 // nova-landing/src/app/api/chat/route.ts
-import { streamText, convertToModelMessages, tool, stepCountIs } from 'ai';
+import { streamText, stepCountIs } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { NextRequest } from 'next/server';
-import { z } from 'zod';
+import { buildChatTools, toModelHistory, WALLET_READ_TOOLS } from '@/lib/chat-tools';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -11,15 +11,6 @@ export const runtime = 'nodejs';
 const MCP_URL = process.env.MCP_URL || 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network';
 const NETWORK_ID = process.env.NEXT_PUBLIC_NEAR_NETWORK || 'mainnet';
 const ACCOUNT_SUFFIX = NETWORK_ID === 'mainnet' ? '.nova-sdk.near' : '.nova-sdk-7.testnet';
-
-// The only tools a wallet (self-custodial) session may use in the chat.
-const WALLET_READ_TOOLS = [
-  'get_owned_groups',
-  'get_member_groups',
-  'get_group_members',
-  'get_group_transactions',
-  'prepare_retrieve',
-] as const;
 
 export async function POST(req: NextRequest) {
   try {
@@ -92,18 +83,6 @@ export async function POST(req: NextRequest) {
     // not only in the prompt.
     const walletMode = !!walletSession;
 
-    // Second layer, independent of the AI SDK version: a write tool refuses to run
-    // for a wallet session even if the model calls it. (activeTools only blocks
-    // execution from ai@6.0.231; test/check-chat-active-tools.mjs checks both.)
-    function custodialOnly<T>(run: () => Promise<T>): Promise<T> {
-      if (walletMode) {
-        return Promise.reject(
-          new Error('Writes are signed by your own wallet and are not available in the chat yet.'),
-        );
-      }
-      return run();
-    }
-
     const toolHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${sessionToken}`,
@@ -127,7 +106,7 @@ export async function POST(req: NextRequest) {
     const systemPrompt = `You are NOVA, a secure file-sharing assistant powered by the NOVA SDK.
 
 Your capabilities include:
-- Uploading files with end-to-end encryption (use composite_upload tool)
+- Uploading files with end-to-end encryption (use prepare_upload tool)
 - Creating secure sharing groups
 - Managing access permissions
 - Tracking file analytics
@@ -218,21 +197,23 @@ If a query fails with "Unauthorized", the user is not a member of that group.
 IMPORTANT - FILE OPERATIONS:
 
 UPLOAD FILES:
-When a user wants to upload a file:
+When a user wants to upload a file they attached:
 1. Ask which group if not specified
-2. Call prepare_upload(group_id, filename) - this returns a key and upload_id
-3. The frontend will automatically encrypt the file and complete the upload
-4. Wait for the frontend to report success/failure
+2. Call prepare_upload(group_id, filename) with the attached file's exact name
+3. The user's browser encrypts and stores the file; you receive only { status, filename, cid, trans_id } or an error
+4. Report the result
 
 RETRIEVE/DOWNLOAD FILES:
 When a user wants to download a file:
-1. If they don't have the CID, use get_group_transactions to find it
-2. Call prepare_retrieve(group_id, ipfs_hash) - this returns the key and encrypted data
-3. The frontend will automatically decrypt and download the file
+1. If they don't have the file reference, use get_group_transactions to find it
+2. Call prepare_retrieve(group_id, ipfs_hash)
+3. The user's browser decrypts and downloads the file; you receive only { status, filename } or an error
+
+You never receive file keys or file contents: encryption and decryption happen only in the user's browser.
 
 Available tools for files:
-- prepare_upload: Start an upload (returns key for encryption). The frontend encrypts the file and completes the upload. You do NOT finalize it.
-- prepare_retrieve: Get encrypted file + key (frontend decrypts locally)
+- prepare_upload: Upload an attached file (the browser encrypts and stores it)
+- prepare_retrieve: Download and decrypt a file (the browser decrypts it)
 - get_group_transactions: List files in a group
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -263,82 +244,9 @@ Be helpful, concise, and security-conscious.`;
     const result = streamText({
       model: anthropic('claude-haiku-4-5-20251001'),
       system: systemPrompt,
-      messages: await convertToModelMessages(messages),
-      tools: {
-        // ─── Query tools ───
-        get_owned_groups: tool({
-          description: 'List all groups owned by the current user',
-          inputSchema: z.object({}),
-          execute: async () => callMCPTool('get_owned_groups', {}),
-        }),
-        get_member_groups: tool({
-          description: 'List all groups the user is a member of (includes owned groups)',
-          inputSchema: z.object({}),
-          execute: async () => callMCPTool('get_member_groups', {}),
-        }),
-        get_group_members: tool({
-          description: 'List all members of a specific group',
-          inputSchema: z.object({
-            group_id: z.string().describe('The group identifier'),
-          }),
-          execute: async ({ group_id }) => callMCPTool('get_group_members', { group_id }),
-        }),
-        get_group_transactions: tool({
-          description: 'List all files/transactions in a specific group',
-          inputSchema: z.object({
-            group_id: z.string().describe('The group identifier'),
-          }),
-          execute: async ({ group_id }) => callMCPTool('get_group_transactions', { group_id }),
-        }),
-
-        // ─── Group management ───
-        register_group: tool({
-          description: 'Create a new group for secure file sharing. The caller becomes the owner.',
-          inputSchema: z.object({
-            group_id: z.string().describe('Unique group identifier (e.g., "my-team")'),
-          }),
-          execute: async ({ group_id }) =>
-            custodialOnly(() => callMCPTool('register_group', { group_id })),
-        }),
-        add_group_member: tool({
-          description: 'Add a member to a group (owner only)',
-          inputSchema: z.object({
-            group_id: z.string().describe('The group identifier'),
-            member_id: z.string().describe('NEAR account ID of the member to add'),
-          }),
-          execute: async ({ group_id, member_id }) =>
-            custodialOnly(() => callMCPTool('add_group_member', { group_id, member_id })),
-        }),
-        revoke_group_member: tool({
-          description: 'Remove a member from a group (owner only, automatically rotates encryption key)',
-          inputSchema: z.object({
-            group_id: z.string().describe('The group identifier'),
-            member_id: z.string().describe('NEAR account ID of the member to remove'),
-          }),
-          execute: async ({ group_id, member_id }) =>
-            custodialOnly(() => callMCPTool('revoke_group_member', { group_id, member_id })),
-        }),
-
-        // ─── File operations ───
-        prepare_upload: tool({
-          description: 'Start an upload - returns encryption key and upload_id. Frontend handles encryption.',
-          inputSchema: z.object({
-            group_id: z.string().describe('The group to upload to'),
-            filename: z.string().describe('Name of the file being uploaded'),
-          }),
-          execute: async ({ group_id, filename }) =>
-            custodialOnly(() => callMCPTool('prepare_upload', { group_id, filename })),
-        }),
-        prepare_retrieve: tool({
-          description: 'Get encryption key and encrypted file data for download. Frontend handles decryption.',
-          inputSchema: z.object({
-            group_id: z.string().describe('The group containing the file'),
-            ipfs_hash: z.string().describe('IPFS CID of the file to retrieve'),
-          }),
-          execute: async ({ group_id, ipfs_hash }) =>
-            callMCPTool('prepare_retrieve', { group_id, ipfs_hash }),
-        }),
-      },
+      // W0: scrub key/ciphertext fields from the posted history, then convert.
+      messages: await toModelHistory(messages),
+      tools: buildChatTools({ callMcp: callMCPTool, walletMode }),
       // Wallet sessions: reads only. activeTools filters both what the model is
       // offered AND what the SDK will execute (a call to any other tool is rejected
       // as NoSuchToolError, never run).

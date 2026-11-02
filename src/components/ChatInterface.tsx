@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Send, Paperclip, X, FileIcon, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRef, useState, useCallback, useEffect } from 'react';
-import { importKey, encryptData, decryptData, hashData } from '@/lib/crypto';
+import { hashData } from '@/lib/crypto';
+import { decodeFile, type FileFormat } from '@/lib/nova-decode';
+import { encodeFile } from '@/lib/nova-encode';
 
 interface ChatInterfaceProps {
   accountId: string;
@@ -18,6 +20,7 @@ interface PrepareUploadResult {
   key: string;
   group_id: string;
   filename: string;
+  location?: string;
 }
 
 interface PrepareRetrieveResult {
@@ -25,6 +28,8 @@ interface PrepareRetrieveResult {
   encrypted_b64: string;
   ipfs_hash: string;
   group_id: string;
+  location?: string;
+  format?: unknown;
 }
 
 export default function ChatInterface({ accountId, email }: ChatInterfaceProps) {
@@ -33,8 +38,10 @@ export default function ChatInterface({ accountId, email }: ChatInterfaceProps) 
   const [input, setInput] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [processedToolCalls, setProcessedToolCalls] = useState<Set<string>>(new Set());
-  const processingRef = useRef<Set<string>>(new Set());
+  const processingRef = useRef<Set<string>>(new Set()); // toolCallIds already run (W0)
+  // Wallet sign-in (no email, same rule as DashboardChrome): self-custodial, so the
+  // chat is read-only (writes need the user's wallet signature; see api/chat).
+  const walletMode = !email;
   
   const [uploadProgress, setUploadProgress] = useState<{
     status: 'idle' | 'encrypting' | 'uploading' | 'complete' | 'error';
@@ -57,6 +64,7 @@ export default function ChatInterface({ accountId, email }: ChatInterfaceProps) 
     error,
     stop,
     regenerate,
+    addToolOutput,
   } = useChat({
     id: `nova-chat-${accountId}`,
     
@@ -107,117 +115,134 @@ export default function ChatInterface({ accountId, email }: ChatInterfaceProps) 
     });
   };
 
-  // Handle prepare_upload tool result - encrypt and finalize
-  const handlePrepareUpload = useCallback(async (result: PrepareUploadResult) => {
-    const file = pendingFiles.find(f => f.name === result.filename);
-    if (!file) {
-      console.error('File not found for upload:', result.filename);
-      sendMessage({ text: `❌ Upload failed: File "${result.filename}" not found in pending files.` });
-      return;
-    }
+    // ── W0: client-side file tools ──────────────────────────────────────────────
+  // prepare_upload / prepare_retrieve have no server execute (src/lib/chat-tools.ts).
+  // The browser fetches the key through /api/nova/prepare-*, encrypts or decrypts
+  // locally, and answers the tool call with addToolOutput. The output carries no key
+  // and no bytes, so nothing secret enters the chat history or reaches the model.
 
-    setUploadProgress({ status: 'encrypting', filename: file.name });
+  type ToolAnswer =
+    | { ok: true; output: Record<string, unknown> }
+    | { ok: false; errorText: string };
 
-    try {
-      // Import key and encrypt
-      const key = await importKey(result.key);
-      const plaintext = await readFileAsArrayBuffer(file);
-      const fileHash = await hashData(plaintext);
-      const encryptedData = await encryptData(plaintext, key);
+  const answerTool = useCallback(
+    (tool: 'prepare_upload' | 'prepare_retrieve', toolCallId: string, a: ToolAnswer) => {
+      if (a.ok) {
+        void addToolOutput({ tool, toolCallId, output: a.output as never });
+      } else {
+        void addToolOutput({ tool, toolCallId, state: 'output-error', errorText: a.errorText });
+      }
+    },
+    [addToolOutput],
+  );
 
-      setUploadProgress({ status: 'uploading', filename: file.name });
+  const errorFrom = async (res: Response, fallback: string) => {
+    const body = await res.json().catch(() => ({}));
+    return (body && (body.error || body.detail || body.message)) || `${fallback} (${res.status})`;
+  };
 
-      // Call finalize-upload endpoint
-      const response = await fetch('/api/nova/finalize-upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-account-id': accountId,
-          ...(email && { 'x-user-email': email }),
-        },
-        body: JSON.stringify({
-          upload_id: result.upload_id,
-          encrypted_data: encryptedData,
-          file_hash: fileHash,
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Upload failed');
+  // Upload: prepare (key) → encode v1 + hash plaintext → finalize (bytes + format).
+  const runPrepareUpload = useCallback(
+    async (input: { group_id?: string; filename?: string }): Promise<ToolAnswer> => {
+      if (walletMode) {
+        // Wallet uploads are signed by the user's wallet (W3); refuse before any request.
+        return { ok: false, errorText: 'Uploads from a wallet account are signed by your wallet and are not available in the chat yet.' };
+      }
+      const { group_id, filename } = input;
+      const file = pendingFiles.find((f) => f.name === filename);
+      if (!group_id || !file) {
+        return { ok: false, errorText: `File "${filename ?? ''}" is not attached. Attach it and ask again.` };
       }
 
-      const uploadResult = await response.json();
-      
-      setUploadProgress({ status: 'complete', filename: file.name, result: uploadResult });
-      setTimeout(() => setUploadProgress(null), 3000);
+      setUploadProgress({ status: 'encrypting', filename: file.name });
+      try {
+        const prepRes = await fetch('/api/nova/prepare-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ group_id, filename: file.name }),
+        });
+        if (!prepRes.ok) throw new Error(await errorFrom(prepRes, 'Prepare upload failed'));
+        const prep = (await prepRes.json()) as PrepareUploadResult;
 
-      // Remove file from pending
-      setPendingFiles(prev => prev.filter(f => f.name !== result.filename));
+        const plaintext = await readFileAsArrayBuffer(file);
+        const fileHash = await hashData(plaintext);
+        const { bytes_b64, format } = await encodeFile(plaintext, prep.key);
 
-      // Notify chat
-      sendMessage({
-        text: `✅ File "${file.name}" uploaded successfully!\n- CID: ${uploadResult.cid}\n- Transaction: ${uploadResult.trans_id}`,
-      });
+        setUploadProgress({ status: 'uploading', filename: file.name });
+        const finRes = await fetch('/api/nova/finalize-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ upload_id: prep.upload_id, encrypted_data: bytes_b64, file_hash: fileHash, format }),
+        });
+        if (!finRes.ok) throw new Error(await errorFrom(finRes, 'Upload failed'));
+        const done = (await finRes.json()) as { cid?: string; location?: string; trans_id?: string };
 
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Upload failed';
-      setUploadProgress({ status: 'error', filename: file.name, error: message });
-      setTimeout(() => setUploadProgress(null), 5000);
-      sendMessage({ text: `❌ Upload failed: ${message}` });
-    }
-  }, [accountId, email, pendingFiles, sendMessage]);
+        setUploadProgress({ status: 'complete', filename: file.name });
+        setTimeout(() => setUploadProgress(null), 3000);
+        setPendingFiles((prev) => prev.filter((f) => f !== file));
+        return {
+          ok: true,
+          output: { status: 'uploaded', filename: file.name, group_id, cid: done.location ?? done.cid, trans_id: done.trans_id, file_hash: fileHash },
+        };
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Upload failed';
+        setUploadProgress({ status: 'error', filename: file.name, error: message });
+        setTimeout(() => setUploadProgress(null), 5000);
+        return { ok: false, errorText: message };
+      }
+    },
+    [walletMode, pendingFiles],
+  );
 
-  // Handle prepare_retrieve tool result - decrypt and download
-  const handlePrepareRetrieve = useCallback(async (result: PrepareRetrieveResult) => {
-    setDownloadProgress({ status: 'decrypting', ipfsHash: result.ipfs_hash });
+  // Retrieve: prepare (key + ciphertext + format) → decodeFile → download.
+  const runPrepareRetrieve = useCallback(
+    async (input: { group_id?: string; ipfs_hash?: string }): Promise<ToolAnswer> => {
+      const { group_id, ipfs_hash } = input;
+      if (!group_id || !ipfs_hash) return { ok: false, errorText: 'group_id and ipfs_hash are required' };
 
-    try {
-      // Import key and decrypt
-      const key = await importKey(result.key);
-      const decryptedData = await decryptData(result.encrypted_b64, key);
+      setDownloadProgress({ status: 'fetching', ipfsHash: ipfs_hash });
+      try {
+        const qs = new URLSearchParams({ group_id, ipfs_hash });
+        const res = await fetch(`/api/nova/prepare-retrieve?${qs}`);
+        if (!res.ok) throw new Error(await errorFrom(res, 'Retrieve failed'));
+        const r = (await res.json()) as PrepareRetrieveResult;
 
-      // Detect mime type
-      const mimeType = detectMimeType(new Uint8Array(decryptedData));
-      const filename = `file-${result.ipfs_hash.slice(0, 8)}`;
+        setDownloadProgress({ status: 'decrypting', ipfsHash: ipfs_hash });
+        const plaintext = await decodeFile(r.encrypted_b64, r.key, (r.format ?? null) as FileFormat | null);
+        const bytes = new Uint8Array(plaintext);
+        const mimeType = detectMimeType(bytes);
+        const filename = `file-${ipfs_hash.split('/').pop()!.slice(0, 8)}`;
 
-      // Trigger download
-      const blob = new Blob([decryptedData], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+        const blob = new Blob([bytes], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
 
-      setDownloadProgress({ status: 'complete', ipfsHash: result.ipfs_hash });
-      setTimeout(() => setDownloadProgress(null), 3000);
-
-      // Notify chat
-      sendMessage({
-        text: `✅ File decrypted and downloaded!\n- Filename: ${filename}\n- Type: ${mimeType}`,
-      });
-
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Decryption failed';
-      setDownloadProgress({ status: 'error', ipfsHash: result.ipfs_hash, error: message });
-      setTimeout(() => setDownloadProgress(null), 5000);
-      sendMessage({ text: `❌ Download failed: ${message}` });
-    }
-  }, [sendMessage]);
+        setDownloadProgress({ status: 'complete', ipfsHash: ipfs_hash });
+        setTimeout(() => setDownloadProgress(null), 3000);
+        return { ok: true, output: { status: 'downloaded', filename, mime_type: mimeType, size: bytes.length } };
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Decryption failed';
+        setDownloadProgress({ status: 'error', ipfsHash: ipfs_hash, error: message });
+        setTimeout(() => setDownloadProgress(null), 5000);
+        return { ok: false, errorText: message };
+      }
+    },
+    [],
+  );
 
   // Detect MIME type from magic bytes
   const detectMimeType = (data: Uint8Array): string => {
-    // Check magic bytes
     if (data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4E && data[3] === 0x47) return 'image/png';
     if (data[0] === 0xFF && data[1] === 0xD8 && data[2] === 0xFF) return 'image/jpeg';
     if (data[0] === 0x47 && data[1] === 0x49 && data[2] === 0x46) return 'image/gif';
     if (data[0] === 0x25 && data[1] === 0x50 && data[2] === 0x44 && data[3] === 0x46) return 'application/pdf';
     if (data[0] === 0x50 && data[1] === 0x4B) return 'application/zip';
-    
-    // Try UTF-8 decode for text
     try {
       new TextDecoder('utf-8', { fatal: true }).decode(data.slice(0, 1000));
       return 'text/plain';
@@ -226,68 +251,32 @@ export default function ChatInterface({ accountId, email }: ChatInterfaceProps) 
     }
   };
 
-  // Watch for tool call results in messages
+  // Run each client-side tool call exactly once, keyed by its toolCallId. Only
+  // static parts (`tool-prepare_*`) in state input-available: a call the server
+  // refused (not in activeTools) arrives as a dynamic, errored part and is ignored.
+  // Wait until the response stream has ended, so addToolOutput's automatic
+  // re-send (sendAutomaticallyWhen) is not skipped.
   useEffect(() => {
+    if (status === 'streaming' || status === 'submitted') return;
     for (const message of messages) {
       if (message.role !== 'assistant') continue;
-
       for (const part of message.parts) {
-        // AI SDK v6: statically-defined tools emit parts typed `tool-${name}`
-        // with `output` as a flat object; `dynamic-tool` is only for runtime-
-        // registered tools. Support both so the shape can't silently drift again.
-        let toolName: string | undefined;
-        if (part.type === 'dynamic-tool') {
-          toolName = (part as { toolName?: string }).toolName;
-        } else if (typeof part.type === 'string' && part.type.startsWith('tool-')) {
-          toolName = part.type.slice('tool-'.length);
-        }
-        if (!toolName) continue;
+        const p = part as { type: string; state?: string; toolCallId?: string; input?: unknown };
+        if (p.state !== 'input-available' || !p.toolCallId) continue;
+        if (p.type !== 'tool-prepare_upload' && p.type !== 'tool-prepare_retrieve') continue;
+        if (processingRef.current.has(p.toolCallId)) continue;
+        processingRef.current.add(p.toolCallId);
 
-        const state = (part as { state?: string }).state;
-        const rawOutput = (part as { output?: unknown }).output;
-        if (state !== 'output-available' || !rawOutput) continue;
-
-        const toolCallId = `${message.id}-${toolName}`;
-        if (processedToolCalls.has(toolCallId) || processingRef.current.has(toolCallId)) continue;
-        processingRef.current.add(toolCallId);
-
-        // Extract the payload. Static tools give a flat object; older/dynamic
-        // shapes nest it under structuredContent or content[0].text.
-        const wrapper = rawOutput as {
-          structuredContent?: Record<string, unknown>;
-          content?: Array<{ text?: string; type?: string }>;
-        };
-        let output: Record<string, unknown> | null = null;
-
-        if (wrapper.structuredContent && typeof wrapper.structuredContent === 'object') {
-          output = wrapper.structuredContent;
-        } else if (wrapper.content?.[0]?.text) {
-          try {
-            output = JSON.parse(wrapper.content[0].text);
-          } catch {
-            // ignore parse error
-          }
-        } else if (typeof rawOutput === 'object') {
-          // Flat object (AI SDK v6 static tool): the output IS the payload.
-          output = rawOutput as Record<string, unknown>;
-        }
-
-        if (!output) continue;
-
-        if (toolName === 'prepare_upload' && output.upload_id && output.key) {
-          setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
-          handlePrepareUpload(output as unknown as PrepareUploadResult);
-          return;
-        }
-
-        if (toolName === 'prepare_retrieve' && output.key && output.encrypted_b64) {
-          setProcessedToolCalls(prev => new Set(prev).add(toolCallId));
-          handlePrepareRetrieve(output as unknown as PrepareRetrieveResult);
-          return;
+        const toolCallId = p.toolCallId;
+        const input = (p.input ?? {}) as Record<string, string>;
+        if (p.type === 'tool-prepare_upload') {
+          void runPrepareUpload(input).then((a) => answerTool('prepare_upload', toolCallId, a));
+        } else {
+          void runPrepareRetrieve(input).then((a) => answerTool('prepare_retrieve', toolCallId, a));
         }
       }
     }
-  }, [messages, processedToolCalls, handlePrepareUpload, handlePrepareRetrieve]);
+  }, [messages, status, runPrepareUpload, runPrepareRetrieve, answerTool]);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
@@ -461,9 +450,6 @@ export default function ChatInterface({ accountId, email }: ChatInterfaceProps) 
 
   // Get display name from accountId
   const displayName = accountId.split('.')[0];
-  // Wallet sign-in (no email, same rule as DashboardChrome): self-custodial, so the
-  // chat is read-only (writes need the user's wallet signature; see api/chat).
-  const walletMode = !email;
 
   return (
     <div 
