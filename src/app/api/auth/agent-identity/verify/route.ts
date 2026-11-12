@@ -25,12 +25,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mintNovaSession } from '@/lib/session';
 import { log, logError } from '@/lib/log';
+import { configOrNull, shadeApiUrl } from '@/lib/server-config';
 
 const SIG_FIELDS = ['near_account_id', 'public_key', 'signature', 'nonce', 'recipient'] as const;
 
 export async function POST(req: NextRequest) {
   try {
-    const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL;
+    const shadeUrl = configOrNull(shadeApiUrl);
     const internalSecret = process.env.INTERNAL_API_SECRET;
     const sessionSecret = process.env.SESSION_TOKEN_SECRET;
     if (!shadeUrl || !internalSecret || !sessionSecret) {

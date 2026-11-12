@@ -22,6 +22,7 @@ import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { getServerSession } from '@/lib/auth0';
 import { verifyNovaSession } from '@/lib/session';
+import { configOrNull, shadeApiUrl } from '@/lib/server-config';
 
 export interface NovaIdentity {
   email: string;
@@ -38,7 +39,7 @@ async function resolveNovaAccountId(
   email: string,
   authToken: string | null,
 ): Promise<string | null> {
-  const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL;
+  const shadeUrl = configOrNull(shadeApiUrl);
   const internalSecret = process.env.INTERNAL_API_SECRET;
   if (!shadeUrl || !internalSecret) {
     throw new Error('Server configuration error: Shade URL or internal secret missing');

@@ -12,10 +12,11 @@
 
 import { NextResponse } from 'next/server';
 import { log, logError } from '@/lib/log';
+import { configOrNull, shadeApiUrl } from '@/lib/server-config';
 
 export async function POST() {
   try {
-    const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL;
+    const shadeUrl = configOrNull(shadeApiUrl);
     const internalSecret = process.env.INTERNAL_API_SECRET;
     if (!shadeUrl || !internalSecret) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });

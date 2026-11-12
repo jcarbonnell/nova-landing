@@ -11,13 +11,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveNovaSession, NovaProxyAuthError } from '@/lib/nova-proxy';
+import { mcpUrl } from '@/lib/server-config';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const MCP_URL =
-  process.env.MCP_URL ||
-  'https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network';
 
 export async function POST(req: NextRequest) {
   let body: { group_id?: unknown; filename?: unknown };
@@ -43,7 +40,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const response = await fetch(`${MCP_URL}/tools/prepare_upload`, {
+    const response = await fetch(`${mcpUrl()}/tools/prepare_upload`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

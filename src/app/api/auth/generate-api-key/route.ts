@@ -2,10 +2,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth0, getAuthToken } from '@/lib/auth0';
 import { log, logError } from '@/lib/log';
+import { configOrNull, shadeApiUrl } from '@/lib/server-config';
 
 export async function POST(req: NextRequest) {
   try {
-    const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL;
+    const shadeUrl = configOrNull(shadeApiUrl);
     if (!shadeUrl) {
       return NextResponse.json({ error: 'Shade URL not configured' }, { status: 500 });
     }

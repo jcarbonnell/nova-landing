@@ -3,12 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth0, getAuthToken } from '@/lib/auth0';
 import { JsonRpcProvider } from '@near-js/providers';
 import { log, logError } from '@/lib/log';
+import { configOrNull, shadeApiUrl } from '@/lib/server-config';
 
 export async function POST(req: NextRequest) {
   try {
     const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
     const parentDomain = process.env.NEXT_PUBLIC_PARENT_DOMAIN;
-    const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL;
+    const shadeUrl = configOrNull(shadeApiUrl);
     if (!rpcUrl || !parentDomain || !shadeUrl) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }

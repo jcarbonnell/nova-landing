@@ -3,12 +3,12 @@ import { streamText, stepCountIs } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { NextRequest } from 'next/server';
 import { buildChatTools, toModelHistory, WALLET_READ_TOOLS } from '@/lib/chat-tools';
+import { mcpUrl } from '@/lib/server-config';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const MCP_URL = process.env.MCP_URL || 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network';
 const NETWORK_ID = process.env.NEXT_PUBLIC_NEAR_NETWORK || 'mainnet';
 const ACCOUNT_SUFFIX = NETWORK_ID === 'mainnet' ? '.nova-sdk.near' : '.nova-sdk-7.testnet';
 
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
 
     // Helper to call MCP REST endpoints
     async function callMCPTool(toolName: string, args: Record<string, unknown>) {
-      const response = await fetch(`${MCP_URL}/tools/${toolName}`, {
+      const response = await fetch(`${mcpUrl()}/tools/${toolName}`, {
         method: 'POST',
         headers: toolHeaders,
         body: JSON.stringify(args)

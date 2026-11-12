@@ -7,10 +7,11 @@
 // below are test fixtures, never real configuration; the session secret is a
 // throwaway string.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { SignJWT, jwtVerify, decodeJwt } from 'jose';
 import {
-  mcpUrl, shadeApiUrl, auth0Audience, sessionAudience, ConfigError,
+  mcpUrl, shadeApiUrl, auth0Audience, sessionAudience, ConfigError, configOrNull,
 } from '../src/lib/server-config';
 import { mintNovaSession, verifyNovaSession, ISSUER } from '../src/lib/session';
 
@@ -129,12 +130,38 @@ await check('S4 verify without an audience surfaces the misconfiguration (not "i
     (e: unknown) => e instanceof ConfigError && e.message === 'SESSION_TOKEN_AUDIENCE is not configured');
 });
 
-// ── R: no retired endpoint left in the files this step owns ─────────────────
+await check('C10 configOrNull: value when set; null (name logged) when missing; other errors rethrown', () => {
+  assert.equal(configOrNull(shadeApiUrl), GOOD.SHADE_API_URL);
+  const logged: string[] = [];
+  const orig = console.error;
+  console.error = (m: string) => { logged.push(m); };
+  try {
+    setEnv({ SHADE_API_URL: undefined });
+    assert.equal(configOrNull(shadeApiUrl), null);
+  } finally {
+    console.error = orig;
+  }
+  assert.deepEqual(logged, ['[server-config] SHADE_API_URL is not configured']);
+  assert.throws(() => configOrNull(() => { throw new TypeError('boom'); }), TypeError);
+});
+
+// ── R: no retired endpoint, and no direct env read, anywhere in the app ─────
 const RETIRED = [/5a5223f7/i, /dstack-prod5\.phala\.network/i, /fastmcp\.app/i];
 const retiredIn = (text: string) => RETIRED.filter((r) => r.test(text)).map(String);
-const OWNED = ['src/lib/server-config.ts', 'src/lib/session.ts', 'src/lib/auth0.ts', 'next.config.ts'];
-await check(`R1 no retired CVM / fastmcp reference in ${OWNED.length} owned files`, () => {
-  for (const f of OWNED) assert.deepEqual(retiredIn(readFileSync(f, 'utf8')), [], `${f} still references a retired endpoint`);
+const walk = (d: string): string[] => readdirSync(d).flatMap((x) => {
+  const p = join(d, x);
+  return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx|js|jsx|mjs)$/.test(x) ? [p] : [];
+});
+const APP = [...walk('src'), 'next.config.ts'];
+// Endpoint and audience variables may be read ONLY by server-config.ts.
+const DIRECT = /process\.env\.(MCP_URL|SHADE_API_URL|NEXT_PUBLIC_SHADE_API_URL|NEXT_PUBLIC_MCP_URL|AUTH0_AUDIENCE|SESSION_TOKEN_AUDIENCE)\b/;
+await check(`R1 no retired CVM / fastmcp reference in ${APP.length} app files`, () => {
+  const hits = APP.filter((f) => retiredIn(readFileSync(f, 'utf8')).length > 0);
+  assert.deepEqual(hits, [], 'files still referencing a retired endpoint');
+});
+await check('R2 endpoint/audience variables read only through server-config.ts', () => {
+  const hits = APP.filter((f) => !f.endsWith(join('lib', 'server-config.ts')) && DIRECT.test(readFileSync(f, 'utf8')));
+  assert.deepEqual(hits, [], 'files reading an endpoint/audience variable directly');
 });
 
 // ── M: mutation checks (the detectors are not blind) ────────────────────────
@@ -148,6 +175,11 @@ await check('M2 R1 detects the pre-§5.12 code (old session.ts / next.config.ts 
   const OLD_NEXT = "destination: `${process.env.MCP_URL || 'https://nova-mcp.fastmcp.app'}/mcp/:path*`,";
   assert.equal(retiredIn(OLD_SESSION).length, 2);
   assert.equal(retiredIn(OLD_NEXT).length, 1);
+});
+await check('M5 R2 detects the pre-10.2 route code', () => {
+  assert.ok(DIRECT.test('    const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL;'));
+  assert.ok(DIRECT.test('  process.env.MCP_URL ||'));
+  assert.ok(!DIRECT.test('    const shadeUrl = configOrNull(shadeApiUrl);'));
 });
 await check('M3 a defaulting getter would pass C1 but fail C3 (C3 is what forbids defaults)', () => {
   const defaulting = () => process.env.MCP_URL || 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network';

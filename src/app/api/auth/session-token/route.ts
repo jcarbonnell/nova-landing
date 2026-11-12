@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth0 } from '@/lib/auth0';
 import { mintNovaSession } from '@/lib/session';
 import { log, logError } from '@/lib/log';
+import { configOrNull, shadeApiUrl } from '@/lib/server-config';
 
 
 export async function POST(req: NextRequest) {
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     let accountId: string | null = null;
     let subject: string;
-    const shadeUrl = process.env.NEXT_PUBLIC_SHADE_API_URL;
+    const shadeUrl = configOrNull(shadeApiUrl);
     const sessionSecret = process.env.SESSION_TOKEN_SECRET;
     if (!shadeUrl || !sessionSecret) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });

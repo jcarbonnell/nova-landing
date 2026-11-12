@@ -6,6 +6,7 @@ import { Account } from '@near-js/accounts';
 import { KeyPair, type KeyPairString } from '@near-js/crypto';
 import { JsonRpcProvider } from '@near-js/providers';
 import { KeyPairSigner } from '@near-js/signers';
+import { configOrNull, shadeApiUrl } from '@/lib/server-config';
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
       ? process.env.NEAR_CREATOR_PRIVATE_KEY_TESTNET
       : process.env.NEAR_CREATOR_PRIVATE_KEY_MAINNET;
     const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL;
-    const SHADE_API_URL = process.env.NEXT_PUBLIC_SHADE_API_URL;
+    const SHADE_API_URL = configOrNull(shadeApiUrl);
     if (!PARENT_DOMAIN || !CREATOR_PRIVATE_KEY || !RPC_URL || !SHADE_API_URL) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }

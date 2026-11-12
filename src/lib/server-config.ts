@@ -73,3 +73,21 @@ export const auth0Audience = (): string => audience('AUTH0_AUDIENCE');
 
 /** Audience of every nova_session token (consumed by MCP; verified by Shade too). */
 export const sessionAudience = (): string => audience('SESSION_TOKEN_AUDIENCE');
+
+/**
+ * For routes that already answer a missing value with their own 500: returns
+ * null on a ConfigError, so the route's existing `if (!x) return 500` path runs
+ * unchanged. The variable's NAME is logged server-side (never a value, never to
+ * the client); any other error is rethrown.
+ */
+export function configOrNull(get: () => string): string | null {
+  try {
+    return get();
+  } catch (e) {
+    if (e instanceof ConfigError) {
+      console.error(`[server-config] ${e.message}`);
+      return null;
+    }
+    throw e;
+  }
+}

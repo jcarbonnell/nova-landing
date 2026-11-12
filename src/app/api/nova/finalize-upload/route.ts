@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { resolveNovaSession, NovaProxyAuthError } from '@/lib/nova-proxy';
+import { mcpUrl } from '@/lib/server-config';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,10 +10,6 @@ export const dynamic = 'force-dynamic';
 // MCP (port 8000), not Shade (port 3000). The old route defaulted to -3000 and
 // called /api/finalize-upload, which MCP does not expose (it exposes
 // /tools/finalize_upload) — the route was dead. Same env var as chat/route.ts.
-const MCP_URL =
-  process.env.MCP_URL ||
-  'https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network';
-
 // 8.1b: hash identity fields for logs (port of Shade's hashForLog); never log
 // raw account IDs to Vercel. 12 chars = cross-line correlation without exposing
 // the value.
@@ -84,7 +81,7 @@ export async function POST(req: NextRequest) {
   });
 
   try {
-    const response = await fetch(`${MCP_URL}/tools/finalize_upload`, {
+    const response = await fetch(`${mcpUrl()}/tools/finalize_upload`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
