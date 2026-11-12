@@ -13,23 +13,25 @@
 //     file is server-only by virtue of what it imports.
 //
 // INVARIANTS (a change here changes every session in the system):
-//   - alg HS256, aud = the MCP URL (-8000), iss = nova-sdk.com. MCP verifies all
-//     three. The aud is the MCP port (8000), NOT the shade port (3000) — the
-//     nova_session is consumed by MCP /tools/*, so it carries MCP's audience.
+//   - alg HS256, aud = SESSION_TOKEN_AUDIENCE (MCP's audience, the stable name
+//     https://nova-sdk.com/api/mcp since §5.12), iss = nova-sdk.com. MCP verifies
+//     all three; the nova_session is consumed by MCP /tools/*.
 //   - claims { account_id, type: 'nova_session' }, subject = `${kind}|${id}`.
 //   These are byte-identical to what session-token/route.ts minted before the
 //   extraction; the wallet path reuses them so every issuer converges on ONE
 //   token shape (email|…, apikey|…, wallet|…).
 
 import { SignJWT, jwtVerify } from 'jose';
+import { sessionAudience } from './server-config';
 
 // Exported so the ONE mint audience/issuer is also the ONE verify audience/issuer
 // (verifyNovaSession below reuses them). Co-location is the anti-drift guarantee:
 // mint and verify cannot disagree because they read the same module constants.
 export const ISSUER = 'https://nova-sdk.com';
-// MCP audience (-8000). Same value session-token/route.ts used; do not change
-// without auditing MCP's verifier (SESSION_TOKEN_AUDIENCE in its env).
-export const AUDIENCE = 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network';
+// The audience is MCP's, read from SESSION_TOKEN_AUDIENCE (server-config.ts) at
+// mint and at verify: one variable for both, so they cannot disagree. Since
+// §5.12 it is the stable name https://nova-sdk.com/api/mcp, not a CVM URL; MCP
+// and Shade verify against the same value in their own env.
 
 // 24h default, configurable — unchanged from the original route.
 const TOKEN_EXPIRY = process.env.SESSION_TOKEN_EXPIRY || '24h';
@@ -70,7 +72,7 @@ export async function mintNovaSession(
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setSubject(subject)
     .setIssuer(ISSUER)
-    .setAudience(AUDIENCE)
+    .setAudience(sessionAudience())
     .setIssuedAt()
     .setExpirationTime(TOKEN_EXPIRY)
     .sign(secret);
@@ -89,7 +91,7 @@ export async function mintNovaSession(
 // account_id + sub), but with `jose` (async) since that is what mints the token
 // here — same library, tightest symmetry, no cross-lib HS256 edge cases.
 //
-// Verifies against the token's AS-MINTED audience (the MCP -8000 URL). The gate
+// Verifies against the token's AS-MINTED audience (SESSION_TOKEN_AUDIENCE). The gate
 // is not itself the audience; like Shade, it checks that the token carries the
 // audience it was minted with. Throws on ANY failure so the caller can try/catch
 // and fall through (a stale cookie must never hard-block); returns claims on
@@ -106,6 +108,9 @@ export async function verifyNovaSession(token: string): Promise<NovaSessionClaim
     throw new Error('SESSION_TOKEN_SECRET is not configured');
   }
   const secret = new TextEncoder().encode(sessionSecret);
+  // Read before the try: a misconfiguration must surface as itself, not be
+  // swallowed into "Invalid or expired session".
+  const audience = sessionAudience();
 
   let payload: Record<string, unknown>;
   try {
@@ -113,7 +118,7 @@ export async function verifyNovaSession(token: string): Promise<NovaSessionClaim
     const result = await jwtVerify(token, secret, {
       algorithms: ['HS256'],
       issuer: ISSUER,
-      audience: AUDIENCE,
+      audience,
     });
     payload = result.payload as Record<string, unknown>;
   } catch {

@@ -1,6 +1,7 @@
 // src/lib/auth0.ts
 import { Auth0Client } from '@auth0/nextjs-auth0/server';
 import { NextRequest } from 'next/dist/server/web/spec-extension/request';
+import { auth0Audience } from './server-config';
 
 // Minimal User interface
 export interface User {
@@ -18,8 +19,6 @@ export interface User {
   [key: string]: unknown;
 }
 
-const SHADE_AUDIENCE = 'https://5a5223f7d1bfe777433c496b9d52ff851e927259-3000.dstack-prod5.phala.network';
-
 // auth0 v4: Instantiate client with explicit config to ensure all vars are read
 export const auth0 = new Auth0Client({
   appBaseUrl: process.env.APP_BASE_URL!,
@@ -29,7 +28,7 @@ export const auth0 = new Auth0Client({
   domain: process.env.AUTH0_DOMAIN!,
   authorizationParameters: {
     scope: 'openid profile email offline_access read:keys write:keys check:keys',
-    audience: process.env.AUTH0_AUDIENCE || SHADE_AUDIENCE,
+    audience: auth0Audience(),
     response_type: 'code',
     response_mode: 'query',
   },
@@ -73,7 +72,7 @@ export async function getAuthToken(): Promise<string | null> {
     
     // STRATEGY 1: Use accessToken (has correct audience for Shade)
     if (session.tokenSet?.accessToken) {
-      console.log('Using accessToken with audience: https://5a5223f7d1bfe777433c496b9d52ff851e927259-3000.dstack-prod5.phala.network');
+       console.log('Using accessToken (audience: AUTH0_AUDIENCE)');
       return session.tokenSet.accessToken;
     }
     

@@ -9,19 +9,9 @@ const nextConfig: NextConfig = {
   },
   env: {
     NEXT_PUBLIC_CONTRACT_ID: process.env.NEXT_PUBLIC_CONTRACT_ID,
-    NEXT_PUBLIC_MCP_URL: process.env.NEXT_PUBLIC_MCP_URL,
     NEXT_PUBLIC_RPC_URL: process.env.NEXT_PUBLIC_RPC_URL,
     NEXT_PUBLIC_RELAYER_URL: process.env.NEXT_PUBLIC_RELAYER_URL,
     NEXT_PUBLIC_NEAR_NETWORK: process.env.NEXT_PUBLIC_NEAR_NETWORK,
-  },
-  
-  async rewrites() {
-    return [
-      {
-        source: '/api/mcp-proxy/:path*',
-        destination: `${process.env.MCP_URL || 'https://nova-mcp.fastmcp.app'}/mcp/:path*`,
-      },
-    ];
   },
   
   async headers() {
