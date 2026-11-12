@@ -27,18 +27,29 @@ export async function POST(req: NextRequest) {
       }, { status: 501 });
     }
 
+    // Same discrimination as generate-api-key: an Auth0 session means the email
+    // (custodial) path; otherwise the wallet nova_session cookie (SIWN), which
+    // Shade verifies itself (resolveApiKeyTarget → verifyNovaSession, sub=wallet|…).
     const session = await auth0.getSession();
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
 
-    const email = session.user.email;
-    const authToken = await getAuthToken();
-    if (!authToken) {
-      return NextResponse.json({ error: 'No authentication token available' }, { status: 401 });
-    }
+    let shadeBody: Record<string, string>;
 
-    log('rotate_api_key_request', { email });
+    if (session?.user?.email) {
+      const email = session.user.email;
+      const authToken = await getAuthToken();
+      if (!authToken) {
+        return NextResponse.json({ error: 'No authentication token available' }, { status: 401 });
+      }
+      log('rotate_api_key_request', { email });
+      shadeBody = { email, auth_token: authToken };
+    } else {
+      const walletSession = req.cookies.get('nova_session')?.value;
+      if (!walletSession) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      }
+      log('rotate_api_key_request', { auth: 'wallet_session' });
+      shadeBody = { session_token: walletSession };
+    }
 
     const shadeResponse = await fetch(`${shadeUrl}/rpc/user-keys/rotate-api-key`, {
       method: 'POST',
@@ -46,7 +57,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
         'X-Internal-Auth': process.env.INTERNAL_API_SECRET || '',
       },
-      body: JSON.stringify({ email, auth_token: authToken }),
+      body: JSON.stringify(shadeBody),
       signal: AbortSignal.timeout(15000),
     });
 
@@ -60,7 +71,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await shadeResponse.json();
-    log('rotate_api_key_issued', { email, account_id: data.account_id });
+    log('rotate_api_key_issued', { auth: 'email' in shadeBody ? 'email' : 'wallet_session', account_id: data.account_id });
 
     return NextResponse.json({
       success: true,
