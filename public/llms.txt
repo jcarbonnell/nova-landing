@@ -8,10 +8,15 @@
 > window after which files are crypto-shredded, wiped from FastFS and tombstoned on chain with a
 > `DeletionRecord`. Mainnet, real NEAR. If this file and the live API disagree, the API wins.
 
+> **2026-11-12: new TEE and endpoint.** NOVA moved to a new CVM as part of a security rebuild. The
+> MCP URL below changed; the previous one is retired and will stop answering shortly. API keys and
+> sessions issued before 2026-11-12 no longer work: get a new key in the console. Use
+> `nova-sdk-js` / `nova-sdk-rs` ≥ 1.4.1.
+
 ## Use it from
 
-- **TypeScript/JavaScript**: `npm i nova-sdk-js` — server-side; does encryption/decryption for you. Recommended.
-- **Rust**: `nova-sdk-rs` (crates.io).
+- **TypeScript/JavaScript**: `npm i nova-sdk-js` (≥ 1.4.1) — server-side; does encryption/decryption for you. Recommended.
+- **Rust**: `nova-sdk-rs` ≥ 1.4.1 (crates.io).
 - **HTTP**: the MCP server's REST surface, `POST {MCP}/tools/<tool>` (below). You must then do the
   client-side crypto yourself (prefer the SDK).
 - **MCP clients** (agents): the same server speaks MCP over HTTP; tools are listed below.
@@ -23,7 +28,7 @@
 
 Endpoints:
 - Site / auth: `https://nova-sdk.com`
-- MCP (tools): `https://5a5223f7d1bfe777433c496b9d52ff851e927259-8000.dstack-prod5.phala.network`
+- MCP (tools): `https://7e9ff97d35e21fdd0f5c819472217d19e772d017-8000.dstack-base-prod5.phala.network`
 - Contract: `nova-sdk.near` (mainnet), `nova-sdk-7.testnet` (testnet)
 
 ## Concepts
@@ -46,8 +51,13 @@ Endpoints:
 
 ## Who sees what
 
-- NOVA servers (MCP, storage): ciphertext + on-chain metadata only. "Plaintext data and encryption
-  keys never travel together."
+- NOVA's servers: MCP and the Shade agent run together in one TEE (Phala CVM, dstack 0.5.12, KMS on
+  Base); the agent contract `shade-agent.nova-sdk.near` registers it only with approved measurements.
+  They handle per-file keys and ciphertext, never plaintext; FastFS stores ciphertext only.
+  "Plaintext data and encryption keys never travel together."
+- Transport: TLS to the `*.phala.network` endpoints ends at Phala's gateway (itself in a TEE, but
+  outside NOVA's attestation), so the key in `prepare_upload` / `prepare_retrieve` responses is
+  readable there. End-to-end encryption of those responses to the client is in progress.
 - TEE: holds keys, not files; releases a key only to an on-chain member.
 - NEAR chain: group ids, members, file hashes, timestamps, deletion records (metadata is public).
 - Members' clients: plaintext (that is the point).
@@ -58,17 +68,18 @@ Endpoints:
 
 All MCP calls need one of:
 
-1. `Authorization: Bearer <nova_session>` — a JWT (HS256, 24 h, `type: "nova_session"`).
+1. `Authorization: Bearer <nova_session>` — a JWT (HS256, 24 h, `type: "nova_session"`,
+   `iss: https://nova-sdk.com`, `aud: https://nova-sdk.com/api/mcp`).
    Optional `x-account-id` header is a hint only and must match the token's `account_id`.
 2. `X-API-Key: nova_sk_…` **and** `x-account-id: <account>` — the key is verified against that
    account on every call. Used by host-injected setups (nova-reborn). A Bearer, if present, wins.
 
 Getting a `nova_session`:
 
-- **API key → session** (custodial accounts, backends):
+- **API key → session** (custodial accounts and backends; a wallet account can generate a key too):
   `POST https://nova-sdk.com/api/auth/session-token`, header `x-api-key: nova_sk_…`,
   body `{"account_id": "<name>.nova-sdk.near"}` → `{ token, … }`. The SDK does this and refreshes
-  before expiry. Get/rotate the key in the console (Account). One key per account; rotation
+  before expiry. Get/rotate the key in the console (Account), signed in by email or wallet. One key per account; rotation
   invalidates the old one. Keep it server-side only.
 - **Agent Connect agent → session** (NEP-413 via the Agent API's native accounts; the agent keeps its own key):
   1. The agent's owner enables NOVA in the agent policy (on-chain policy update, one signature):
@@ -94,7 +105,8 @@ Getting a `nova_session`:
   is the one it issued, that `public_key` is a full-access key of `near_account_id` (or the
   implicit account not yet on chain whose id is the key), then consumes the challenge. Keep the
   token in your backend, never in a model prompt.
-- **Browser wallet sign-in** (NEP-413) and email login exist for the console. A wallet session writes
+- **Browser wallet sign-in** (NEP-413) and email login exist for the console. Email sign-up is
+  paused during the 2026-11 rebuild; existing email accounts are being migrated. A wallet session writes
   with its own wallet (see "Self-custodial writes").
 
 ## SDK (nova-sdk-js)
@@ -212,6 +224,8 @@ fee) cost an Agent Connect agent about 0.0004 NEAR.
   behalf. An agent can own groups under its own account and administer them with its own signature;
   restrict in your backend which owner methods it may sign (`methods`, `maxDepositByMethod`).
 - Verify what you retrieved: recompute SHA-256 of the plaintext and compare with the on-chain `file_hash`.
+- Log SDK errors only with `nova-sdk-js` / `nova-sdk-rs` ≥ 1.4.1: earlier versions kept the request
+  headers (API key, session) inside thrown errors.
 
 ## Links
 
